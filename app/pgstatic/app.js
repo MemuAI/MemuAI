@@ -11448,13 +11448,14 @@ function buildSettingsPanel(options = {}) {
   // Round 23: light/dark lives in Appearance (the mode cards of appearance.js); #st-theme is gone.
   $("#st-profile").onclick = () => showProfileSettings(true);
   $("#st-enter").onchange = (e) => { savePreferences({ enter_send: e.target.value }); toast(pt("saved")); };
-  if ($("#st-updates")) $("#st-updates").onchange = (e) => savePreferences({ updates_enabled: e.target.checked });
+  if ($("#st-updates")) $("#st-updates").onchange = async (e) => {
+    await savePreferences({ updates_enabled: e.target.checked });
+    if (e.target.checked) checkForUpdates();
+  };
   if ($("#st-update-check")) $("#st-update-check").onclick = async () => {
-    await checkForUpdates();
-    const status = await api("/api/pg/updates/status").catch(() => ({}));
-    if (status.status === "downloading") toast(PG_LANG === "en" ? "Update download started in the background" : "Загрузка обновления началась в фоне", "info");
-    else if (status.status === "ready") toast(PG_LANG === "en" ? "Update is ready to install" : "Обновление готово к установке", "ok");
-    else toast(PG_LANG === "en" ? "No new update found" : "Новых обновлений не найдено", "info");
+    const button = $("#st-update-check");
+    button.disabled = true;
+    try { await checkForUpdates(true); } finally { button.disabled = false; }
   };
   $("#st-search").onchange = (e) => { savePreferences({ web_search: e.target.checked }); renderCaps(); toast(pt("saved")); };
   $("#st-search-mode").onchange = (e) => { savePreferences({ web_search_mode: e.target.value }); renderCaps(); };
@@ -13140,19 +13141,44 @@ async function refreshState() {
 let updateInfo = null;
 let updateStatusPrevious = "";
 let updateStatusOverridden = false;
-async function checkForUpdates() {
-  if (pref("updates_enabled", true) === false) return;
+let updateCheckRunning = false;
+async function checkForUpdates(manual = false) {
+  if (updateCheckRunning || (!manual && pref("updates_enabled", true) === false)) return;
+  updateCheckRunning = true;
   try {
     const info = await api("/api/pg/updates/check");
     updateInfo = info;
-    if (!info.update_available) return;
+    if (info.status === "error") throw new Error(info.error || (PG_LANG === "en" ? "Update check failed" : "Не удалось проверить обновления"));
+    if (!info.update_available) {
+      if (manual) {
+        const message = info.status === "no_releases"
+          ? (PG_LANG === "en" ? "No releases have been published yet" : "Релизы пока не опубликованы")
+          : info.status === "missing_installer"
+            ? (PG_LANG === "en" ? `Release ${info.latest_version} has no MemuAI installer yet` : `Для версии ${info.latest_version} пока не опубликован установщик MemuAI`)
+            : (PG_LANG === "en" ? "You have the latest version" : "У вас актуальная версия");
+        toast(message, "info");
+      }
+      return;
+    }
     setTimeout(pollUpdateStatus, 0);   // switch the status poll to its fast cadence now
     const status = await api("/api/pg/updates/status").catch(() => ({}));
-    if (status.status !== "ready" && status.status !== "downloading" && info.download_url) {
+    if (status.status !== "applying" && status.status !== "downloading" &&
+        (status.status !== "ready" || status.version !== info.latest_version) && info.download_url) {
       await api("/api/pg/updates/download", { method: "POST", body: { url: info.download_url, version: info.latest_version } });
+      updateStatusLast = "downloading"; updateStatusChecked = 0;
+      setTimeout(pollUpdateStatus, 0);
       toast(PG_LANG === "en" ? `MemuAI ${info.latest_version} is downloading in the background` : `MemuAI ${info.latest_version} скачивается в фоне`, "info");
+    } else if (manual) {
+      toast(status.status === "ready"
+        ? (PG_LANG === "en" ? "Update is ready to install" : "Обновление готово к установке")
+        : (PG_LANG === "en" ? "Update is downloading in the background" : "Обновление скачивается в фоне"), "info");
     }
-  } catch (_) {}
+  } catch (error) {
+    if (manual) toast(error.message, "err");
+  } finally { updateCheckRunning = false; }
+}
+function updatePollingFast() {
+  return updateStatusLast === "downloading" || (!!updateInfo?.update_available && !["ready", "error", "applying"].includes(updateStatusLast));
 }
 let updateStatusLast = "";
 let updateStatusChecked = 0;
@@ -13160,11 +13186,14 @@ async function refreshUpdateStatus() {
   const button = $("#btn-update-apply"); if (!button) return;
   // Nothing to report unless an update was found or is downloading: then the
   // status is read every 1.5 s, otherwise once a minute.
-  const busy = updateStatusLast === "downloading" || updateStatusLast === "ready" || updateInfo?.update_available;
+  const busy = updatePollingFast();
   if (document.hidden || (!busy && Date.now() - updateStatusChecked < 60_000)) return;
   updateStatusChecked = Date.now();
   try {
     const status = await api("/api/pg/updates/status");
+    if (status.status === "error" && updateStatusLast !== "error") {
+      toast((PG_LANG === "en" ? "Update download failed: " : "Не удалось скачать обновление: ") + (status.error || ""), "err");
+    }
     updateStatusLast = String(status.status || "");
     const hub = $("#hub-status-text");
     if (status.status === "ready") {
@@ -13181,7 +13210,7 @@ async function refreshUpdateStatus() {
   } catch (_) {}
 }
 $("#btn-update-apply")?.addEventListener("click", async () => {
-  const ok = await askConfirm(PG_LANG === "en" ? "Install MemuAI update?" : "Установить обновление MemuAI?", PG_LANG === "en" ? "MemuAI will close and restart with the downloaded installer." : "MemuAI закроется и перезапустится через скачанный установщик.", PG_LANG === "en" ? "Install" : "Установить");
+  const ok = await askConfirm(PG_LANG === "en" ? "Install MemuAI update?" : "Установить обновление MemuAI?", PG_LANG === "en" ? "MemuAI will close and the downloaded installer will open." : "MemuAI закроется, и откроется скачанный установщик.", PG_LANG === "en" ? "Install" : "Установить");
   if (!ok) return;
   try { await api("/api/pg/updates/apply", { method: "POST" }); } catch (error) { toast(error.message, "err"); }
 });
@@ -13190,7 +13219,7 @@ let updateStatusTimer = 0;
 function pollUpdateStatus() {
   clearTimeout(updateStatusTimer);
   refreshUpdateStatus().finally(() => {
-    const busy = updateStatusLast === "downloading" || updateStatusLast === "ready" || updateInfo?.update_available;
+    const busy = updatePollingFast();
     clearTimeout(updateStatusTimer);
     updateStatusTimer = setTimeout(pollUpdateStatus, busy ? 1500 : 60_000);
   });
@@ -13216,12 +13245,12 @@ async function bootApp() {
     return;
   }
   window.__memu_booted = true;
-  checkForUpdates();
   try {
     S.preferences = await api("/api/pg/preferences").catch(() => S.preferences);
     S.profileState = await api("/api/pg/profiles").catch(() => S.profileState);
     voiceCatalog = await api("/api/voice/catalog").catch(() => voiceCatalog);
     PG_LANG = S.preferences.language || PG_LANG;
+    checkForUpdates();
     await migrateMemeStorage();
     S.theme = S.preferences.theme || S.theme;
     await MemuAppearance.load();

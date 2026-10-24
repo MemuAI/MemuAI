@@ -42,6 +42,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response, StreamingRes
 from fastapi.staticfiles import StaticFiles
 
 from . import work_agents
+from . import update_release
 from .config import DATA_DIR
 
 PG_DIR = Path(__file__).parent / "pgstatic"
@@ -450,6 +451,7 @@ def create_app() -> FastAPI:
     app.state.sound_playing = False
     app.state.icon_signature = ""
     app.state.update_job = {"status": "idle", "progress": 0, "path": "", "version": "", "error": ""}
+    app.state.update_offer = {}
 
     def proxy_headers() -> dict:
         from .pgdata import load_preferences
@@ -995,39 +997,27 @@ def create_app() -> FastAPI:
         """Проверка обновлений через настраиваемый JSON-манифест или GitHub Releases."""
         from app.version import APP_VERSION
         current = APP_VERSION
-        source = os.environ.get("MEMUAI_UPDATE_MANIFEST_URL", "").strip() or "https://api.github.com/repos/MemuAI/MemuAI/releases/latest"
+        source = os.environ.get("MEMUAI_UPDATE_MANIFEST_URL", "").strip() or update_release.LATEST_URL
         result = {
             "current_version": current,
             "latest_version": current,
             "update_available": False,
-            "release_url": "https://github.com/MemuAI/MemuAI/releases",
+            "release_url": update_release.RELEASES_URL,
+            "status": "current",
         }
+        app.state.update_offer = {}
         try:
-            response = await media_client.get(source, headers={"Accept": "application/vnd.github+json"}, timeout=6)
-            if response.status_code >= 400: return result
-            decoded = response.json()
-            payload = decoded if isinstance(decoded, dict) else {}
-            latest = str(payload.get("version") or payload.get("tag_name") or "").lstrip("v")
-            def ver(value):
-                return tuple(int(part) for part in re.findall(r"\d+", value)[:4]) or (0,)
-            if latest and ver(latest) > ver(current):
-                assets = payload.get("assets") if isinstance(payload.get("assets"), list) else []
-                def asset_rank(item):
-                    name = str(item.get("name") or "")
-                    if not re.search(r"setup|installer|memuai.*\.exe$", name, re.I):
-                        return None
-                    # Полный установщик MemuAI важнее установщика одного Proxy.
-                    return 1 if re.search(r"proxy", name, re.I) else 0
-                ranked = sorted((asset_rank(item), index, item) for index, item in enumerate(assets)
-                                if isinstance(item, dict) and asset_rank(item) is not None)
-                asset = ranked[0][2] if ranked else None
-                result.update({"latest_version": latest, "update_available": True,
-                               "release_url": str(payload.get("html_url") or result["release_url"]),
-                               "download_url": str((asset or {}).get("browser_download_url") or payload.get("download_url") or "")})
-                # Скачать можно только адрес из манифеста, а не любой из запроса.
-                app.state.update_offer = result["download_url"]
-        except Exception:
-            pass
+            decoded = await update_release.fetch_payload(media_client, source)
+            result = update_release.release_offer(decoded, current)
+            if result["update_available"]:
+                app.state.update_offer = dict(result)
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code == 404:
+                result["status"] = "no_releases"
+            else:
+                result.update(status="error", error=str(exc)[:500])
+        except Exception as exc:
+            result.update(status="error", error=str(exc)[:500] or type(exc).__name__)
         return result
 
     @app.get("/api/pg/updates/status")
@@ -1038,13 +1028,22 @@ def create_app() -> FastAPI:
     async def update_download(request: Request):
         try:
             body = await request.json(); url = str(body.get("url") or "").strip()
-            parsed = urllib.parse.urlparse(url)
-            if parsed.scheme != "https" or not parsed.netloc: raise ValueError("Некорректный URL обновления")
-            if not url or url != getattr(app.state, "update_offer", ""):
+            update_release.https_url(url)
+            offer = dict(app.state.update_offer)
+            if not url or url != offer.get("download_url"):
                 raise ValueError("Сначала проверьте обновления: скачать можно только найденный установщик")
+            if app.state.update_job.get("status") == "applying":
+                return JSONResponse({"error": "Установка уже запускается / Installation is starting"}, 409)
             if app.state.update_job.get("status") == "downloading": return {"ok": True}
+            if app.state.update_job.get("status") == "ready" and app.state.update_job.get("version") == offer["latest_version"]:
+                return {"ok": True}
+            previous = app.state.update_job.get("path")
+            if previous:
+                Path(previous).unlink(missing_ok=True)
             target = Path(tempfile.gettempdir()) / ("MemuAI-update-" + uuid.uuid4().hex + ".exe")
-            app.state.update_job = {"status": "downloading", "progress": 0, "path": str(target), "version": str(body.get("version") or ""), "error": ""}
+            app.state.update_job = {"status": "downloading", "progress": 0, "path": str(target),
+                                    "version": offer["latest_version"], "sha256": offer["sha256"],
+                                    "size": offer["size"], "error": ""}
             async def worker():
                 try:
                     # GitHub отдаёт установщик через 302 на objects.githubusercontent.com.
@@ -1052,10 +1051,10 @@ def create_app() -> FastAPI:
                                                    follow_redirects=True) as response:
                         if response.url.scheme != "https":
                             raise ValueError("Обновление перенаправлено на небезопасный адрес")
-                        response.raise_for_status(); total = int(response.headers.get("content-length") or 0); done = 0
+                        response.raise_for_status(); total = int(response.headers.get("content-length") or offer["size"] or 0); done = 0
                         # Установщик не бывает гигабайтным: без потолка зависший
                         # или подменённый сервер мог бы заполнить весь диск.
-                        maximum = 1024 * 1024 * 1024
+                        maximum = update_release.MAX_INSTALLER_SIZE
                         if total > maximum:
                             raise ValueError("Установщик обновления слишком большой")
                         with target.open("wb") as handle:
@@ -1067,6 +1066,7 @@ def create_app() -> FastAPI:
                         # запускал усечённый exe.
                         if not done or (total and done != total):
                             raise ValueError("Установщик скачан не полностью")
+                    await asyncio.to_thread(update_release.verify_installer, target, offer["size"], offer["sha256"])
                     app.state.update_job.update({"status": "ready", "progress": 100})
                 except BaseException as exc:
                     target.unlink(missing_ok=True); app.state.update_job.update({"status": "error", "error": str(exc)[:500] or type(exc).__name__})
@@ -1081,13 +1081,17 @@ def create_app() -> FastAPI:
     async def update_apply():
         path = Path(str(app.state.update_job.get("path") or ""))
         if app.state.update_job.get("status") != "ready" or not path.is_file(): return JSONResponse({"error": "Обновление ещё не готово"}, 409)
+        app.state.update_job["status"] = "applying"
         try:
+            await asyncio.to_thread(update_release.verify_installer, path,
+                                    app.state.update_job.get("size", 0), app.state.update_job.get("sha256", ""))
             flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
             subprocess.Popen([str(path)], creationflags=flags, close_fds=True)
             callback = getattr(app.state, "shutdown_callback", None)
             if callback: callback()
             return {"ok": True}
         except Exception as exc:
+            app.state.update_job.update(status="error", error=str(exc)[:500])
             return JSONResponse({"error": str(exc)}, 500)
 
     @app.get("/api/pg/hub")

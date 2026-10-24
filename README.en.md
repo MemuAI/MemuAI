@@ -2,7 +2,7 @@
 
 [Русский](README.md) · **English**
 
-[Download](https://github.com/dsad06839-boop/MemuAI/releases) · [Report a bug](https://github.com/dsad06839-boop/MemuAI/issues) · [Source code](https://github.com/dsad06839-boop/MemuAI)
+[Download](https://github.com/MemuAI/MemuAI/releases) · [Report a bug](https://github.com/MemuAI/MemuAI/issues) · [Source code](https://github.com/MemuAI/MemuAI)
 
 - 🚨 Disclaimer: using Genspark, Kiro, Antigravity, Gemini Web, Grok, and OpenCode accounts is entirely **AT YOUR OWN RISK**. Using these accounts may violate the companies' privacy policies. This project is provided solely for educational purposes. The project authors are not responsible for account bans or other restrictions imposed by third-party companies.
 
@@ -155,7 +155,7 @@ You usually only need to set up Proxy once. After that, its models become availa
 - An AI assistant for working with files: delete or organize files, or get information about files and folders. Actions are handled safely and require user confirmation.
 - Plenty of other useful everyday features.
 
-This covers most of the features, but certainly not all of them. You can learn more by [downloading a release](https://github.com/dsad06839-boop/MemuAI/releases) or exploring the code yourself. MemuAI also includes built-in documentation with clear explanations of its features.
+This covers most of the features, but certainly not all of them. You can learn more by [downloading a release](https://github.com/MemuAI/MemuAI/releases) or exploring the code yourself. MemuAI also includes built-in documentation with clear explanations of its features.
 
 ---
 
@@ -163,10 +163,16 @@ This covers most of the features, but certainly not all of them. You can learn m
 
 MemuAI is designed for **64-bit Windows 10 and Windows 11**. The interface requires **Microsoft Edge WebView2 Runtime**. Local models need additional disk space and suitable hardware.
 
-1. Open [Releases](https://github.com/dsad06839-boop/MemuAI/releases) and download `MemuAI-Setup-<version>.exe`, if a build has been published.
+1. Open [Releases](https://github.com/MemuAI/MemuAI/releases) and download `MemuAI-Setup-<version>.exe`, if a build has been published.
 2. Install the components you need and launch MemuAI.
 3. Open MemuAI Proxy and add an account, your own API, or a local model.
 4. Return to MemuAI, choose a model, and start chatting.
+
+### Automatic updates
+
+MemuAI checks GitHub Releases on launch and every 15 minutes. Updates download in the background; once an update is ready, a blue install button appears next to the Proxy status. After you confirm, MemuAI closes and opens the installer.
+
+You can manage this in **Settings → About → Updates**. Automatic checks can be disabled; the Check button still works when automatic checks are off. Connection and download errors are reported separately from the message that your version is up to date.
 
 ## Where the models come from
 
@@ -187,7 +193,7 @@ Chats, settings, and data for the main suite are stored locally, usually in `%AP
 You need Git, 64-bit Python, and WebView2 Runtime. The commands below are intended for PowerShell on Windows.
 
 ```powershell
-git clone https://github.com/dsad06839-boop/MemuAI.git
+git clone https://github.com/MemuAI/MemuAI.git
 cd MemuAI
 py -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
@@ -215,9 +221,13 @@ Run `build_installer.bat` to build the installer, or `build_proxy_installer.bat`
 
 OAuth credentials are not included in the public source code. If your connection requires an OAuth client, read the [setup guide](OAUTH_SETUP.md) first.
 
+### Publishing an update
+
+To deliver a new version to users, change `APP_VERSION` and `RELEASE_DATE` in `app/version.py`, build the installer, and publish a regular GitHub Release with a version tag such as `v3.8.1`. Attach the full `MemuAI-Setup-3.8.1.exe` installer to that release. The version in the tag, source code, and installer filename must match and be higher than the previous version. Source archives and the Proxy-only installer do not replace the full installer; drafts and prereleases are excluded from automatic updates. Create a new release for each new version.
+
 ## Bugs and suggestions
 
-If something isn't working, open an [Issue](https://github.com/dsad06839-boop/MemuAI/issues). The most useful details are your MemuAI version, the app or section involved, the steps that led to the problem, and what you expected to happen. Screenshots and error messages help too — just remove any keys, tokens, and private conversations first.
+If something isn't working, open an [Issue](https://github.com/MemuAI/MemuAI/issues). The most useful details are your MemuAI version, the app or section involved, the steps that led to the problem, and what you expected to happen. Screenshots and error messages help too — just remove any keys, tokens, and private conversations first.
 
 Suggestions for making the app easier to use are welcome too. Specific examples are especially helpful: what you were trying to do, where you got stuck, and how that workflow could work better.
 
