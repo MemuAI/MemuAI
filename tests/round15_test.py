@@ -628,15 +628,15 @@ class StatisticsLayout(unittest.TestCase):
 
 class OneVersion(unittest.TestCase):
     def test_every_copy_of_the_version_says_the_release_number(self):
-        self.assertEqual(version.APP_VERSION, "3.8")
-        self.assertEqual(version.windows_version(), "3.8.0.0")
+        self.assertEqual(version.APP_VERSION, "3.8.1")
+        self.assertEqual(version.windows_version(), "3.8.1.0")
         from app import cli
         self.assertEqual(cli.VERSION, version.APP_VERSION, "MemuCode CLI has no version of its own")
         for name in ("memuai-version.txt", "memuai-proxy-version.txt", "memucode-version.txt"):
             text = read(name)
-            self.assertIn("filevers=(3, 8, 0, 0)", text, name)
-            self.assertIn("'FileVersion', '3.8.0.0'", text, name)
-            self.assertIn("'ProductVersion', '3.8.0.0'", text, name)
+            self.assertIn("filevers=(3, 8, 1, 0)", text, name)
+            self.assertIn("'FileVersion', '3.8.1.0'", text, name)
+            self.assertIn("'ProductVersion', '3.8.1.0'", text, name)
         # The installer has no version of its own: build.py hands app_version() to
         # installer/build_setup.py, which stamps it into the Setup payload and the
         # version resource of the Setup exe (Round 20 replaced the .iss scripts).
@@ -663,12 +663,12 @@ class OneVersion(unittest.TestCase):
         spec = importlib.util.spec_from_file_location("memuai_build_script", ROOT / "build.py")
         build = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(build)
-        self.assertEqual(build.app_version(), "3.8")
-        self.assertEqual({build.target_version(key, "3.8") for key in ("memuai", "proxy", "memucode")}, {"3.8"})
+        self.assertEqual(build.app_version(), "3.8.1")
+        self.assertEqual({build.target_version(key, "3.8.1") for key in ("memuai", "proxy", "memucode")}, {"3.8.1"})
 
     def test_the_banner_and_the_version_command_read_the_same_number(self):
         from app.cli import VERSION
-        self.assertEqual(VERSION, "3.8")
+        self.assertEqual(VERSION, "3.8.1")
 
 
 # ---------------------------------------------------------------- 4: the installer page

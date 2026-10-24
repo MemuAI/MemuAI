@@ -22,8 +22,8 @@ from __future__ import annotations
 
 from typing import Dict, Tuple
 
-APP_VERSION = "3.8"
-RELEASE_DATE = "2026-10-23"
+APP_VERSION = "3.8.1"
+RELEASE_DATE = "2026-10-24"
 
 
 def version_tuple(version: str = APP_VERSION) -> Tuple[int, int, int, int]:
