@@ -83,6 +83,24 @@ class WorkingDirectoryTests(unittest.TestCase):
         reparsed = cli.parse(relaunch.absolute_arguments(original))
         self.assertEqual(reparsed.directory, str(Path("relative folder with spaces").resolve()))
 
+    def test_setup_restarts_before_mutex_ui_or_installation(self):
+        from installer import main as setup_main
+        from tests.installer_engine_test import FakePlatform, make_setup
+        setup = make_setup(self.root, "3.8.2")
+        platform = FakePlatform(self.root / "pc")
+        target = self.root / "target"
+        with patch.object(setup_main.sys, "frozen", True, create=True), \
+             patch.object(setup_main.sys, "executable", str(setup)), \
+             patch.object(setup_main, "make_platform", return_value=platform), \
+             patch.object(setup_main, "setup_logging", return_value=""), \
+             patch.object(relaunch, "restart_outside_installation", return_value=True) as restart, \
+             patch.object(setup_main, "interactive_install") as install:
+            self.assertEqual(setup_main.main(["--dir=" + str(target)]), 0)
+        self.assertEqual(restart.call_args.args[2], [target])
+        install.assert_not_called()
+        self.assertEqual(platform.registry, {})
+        self.assertFalse(target.exists())
+
 
 if __name__ == "__main__":
     unittest.main()
