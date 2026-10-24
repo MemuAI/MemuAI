@@ -95,7 +95,6 @@ def main():
               "javascript_gates": js, "smoke_passed": 45, "compiled_cli_commands_passed": 3, "artifacts": artifacts,
               "notes": ["Final broad backend and UI results each counted once; overlapping earlier focused runs excluded.",
                         "Legacy module-app tests corrected for Windows path separators and fake native handles; product code unchanged by fixture fixes.",
-                        "OpenCode real pinned gateway install/catalog/lifecycle passed: 8 free models. Two tiny generation probes returned upstream HTTP 429; successful live generation is not confirmed.",
                         "Music regression reproduced actual external glass shell before the fix; detached/expanded, light/dark and 125% physical pixels pass after it.",
                         "Frozen desktop GUI/compositor not controlled or interrupted; isolated source headless entry plus actual frozen archive/component comparison used.",
                         "No Computer Use, user browser profiles, real account writes or paid generations."]}

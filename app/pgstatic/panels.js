@@ -186,7 +186,6 @@ const MemuPanels = (() => {
     codex: { name: "Codex", icon: "codex", modes: ["auto", "cli", "dir", "token"] },
     antigravity: { name: "Antigravity", icon: "antigravity", modes: ["auto", "dir"] },
     kiro: { name: "Kiro", icon: "gauge", modes: ["proxy"] },
-    opencode: { name: "OpenCode", icon: "gauge", modes: ["proxy"] },
     proxy: { name: "MemuAI Proxy", icon: "gauge", modes: ["proxy"] },
     api_budget: { name: t("Баланс API", "API balance"), icon: "gauge", modes: ["proxy"] },
     quota_planner: { name: t("Планировщик квот", "Quota planner"), icon: "gauge", modes: ["proxy"] },
@@ -237,7 +236,7 @@ const MemuPanels = (() => {
         { key: "count", ru: "Сколько новостей", en: "How many", def: "5", options: ["3", "4", "5", "6", "8", "10"] }] },
     system: { ru: ["Производительность ПК", "CPU, GPU, память, диски, сеть, температура, батарея"], en: ["PC performance", "CPU, GPU, RAM, disks, network, temperature, battery"],
       fields: [] },
-    usage: { ru: ["Лимиты ИИ", "Claude, Codex, Antigravity, Kiro, OpenCode и API-балансы"], en: ["AI limits", "Claude, Codex, Antigravity, Kiro, OpenCode and API balances"],
+    usage: { ru: ["Лимиты ИИ", "Claude, Codex, Antigravity, Kiro и API-балансы"], en: ["AI limits", "Claude, Codex, Antigravity, Kiro and API balances"],
       fields: [] },
     todo: { ru: ["Задачи (To-Do)", "Списки дел: сроки, приоритеты, теги, подзадачи, повторы, напоминания"], en: ["To-Do", "Task lists: due dates, priorities, tags, subtasks, repeats, reminders"],
       fields: [] },
@@ -2304,8 +2303,8 @@ const MemuPanels = (() => {
       <div class="mp-detect">${detectedLine()}</div>
       <div class="mp-acc-rows">${rows}</div>
       <button type="button" class="mp-btn" data-acc-add style="justify-self:start">${ico("plus")}${t("Добавить аккаунт", "Add an account")}</button>
-      <small>${t("Для Kiro, OpenCode и других источников Proxy выберите уже подключённый аккаунт. Для API-баланса сначала настройте его в планировщике квот. Отдельные локальные источники Claude/Codex/Antigravity по-прежнему доступны; их файлы не изменяются. Вставленный токен хранится отдельно от панели и на Windows защищён DPAPI. Приблизительный баланс API не учитывает запросы в обход Proxy.",
-        "For Kiro, OpenCode and other Proxy sources, select an existing account. Set up an API balance in the quota planner first. Local Claude/Codex/Antigravity sources remain available and their files are never modified. A pasted token is stored separately and protected with Windows DPAPI. Estimated API balances exclude requests bypassing Proxy.")}</small></div>`;
+      <small>${t("Для Kiro и других источников Proxy выберите уже подключённый аккаунт. Для API-баланса сначала настройте его в планировщике квот. Отдельные локальные источники Claude/Codex/Antigravity по-прежнему доступны; их файлы не изменяются. Вставленный токен хранится отдельно от панели и на Windows защищён DPAPI. Приблизительный баланс API не учитывает запросы в обход Proxy.",
+        "For Kiro and other Proxy sources, select an existing account. Set up an API balance in the quota planner first. Local Claude/Codex/Antigravity sources remain available and their files are never modified. A pasted token is stored separately and protected with Windows DPAPI. Estimated API balances exclude requests bypassing Proxy.")}</small></div>`;
   }
   function readAccounts(root) {
     // root может быть самой строкой аккаунта («Проверить», смена сервиса): querySelectorAll её не включает.
@@ -3565,7 +3564,7 @@ const MemuPanels = (() => {
     "BUILT-IN TEMPLATES (refresh from a direct source, no model; prefer them when they fit):",
     "weather {city?} (empty city = the user's location from Settings → Panels) · currency {base, quote} ISO codes (RUB uses the Bank of Russia rate) · crypto {coin: CoinGecko id like bitcoin, ethereum, the-open-network, vs: usd|eur|rub} · stock {symbol, exchange: moex|us} · rss {url, title?} · countdown {title, target: ISO local datetime} · sports {team} · web {url, what}",
     "news {topic: ai|tech|science|crypto|security|space|gaming, brief?: the user's own topic or refinement, count: 3-10} — a curated feed: primary sources (official blogs, Hacker News, Reddit, specialised outlets; English-first for global topics), duplicates merged, ranked by significance and credibility, never repeats what it already showed. ANY request for news/headlines/releases/digest uses this template, never custom blocks.",
-    "system {} — local PC performance (CPU, GPU, RAM, disks, network, temperatures, battery), live while on screen · usage {} — local Claude / Codex / Antigravity limits, or Kiro / OpenCode / other existing MemuAI Proxy accounts, API balances and quota planner snapshots; the user selects accounts in the card's editor, so create it with no params and tell them to select accounts there.",
+    "system {} — local PC performance (CPU, GPU, RAM, disks, network, temperatures, battery), live while on screen · usage {} — local Claude / Codex / Antigravity limits, or Kiro / other existing MemuAI Proxy accounts, API balances and quota planner snapshots; the user selects accounts in the card's editor, so create it with no params and tell them to select accounts there.",
     "todo {} — the user's own task lists (stored locally; quick add, due dates, priorities, tags, subtasks, repeats, reminders) · notes {} — a local note/checklist · clock {} with options.zones [\"Europe/London|Лондон\", …] · timers {} — Quick Ask Pomodoro, timers and stopwatch · proxy {} — MemuAI Proxy statistics · calendar {} — upcoming Google Calendar events (needs the integration) · github {} — GitHub notifications / review requests (needs the integration).",
     "OPTIONS: panel_create and panel_edit accept options {…} that choose what a built-in panel shows, e.g. system {metrics:[cpu,cores,ram,swap,gpu,vram,gpu_temp,disks,disk_io,net,temps,fans,battery,uptime,procs], style: rings|bars|numbers|charts, live: off|1|2|5}, weather {fields:[feels,hilo,wind,humidity,precip,pressure,uv,sun,visibility], forecast: auto|none|hourly|daily|both, days, hours}, currency/crypto/stock {extra:[codes], period}, news {hours, summary, sources, feeds, exclude}, rss {count, extra, include, exclude}, todo {filter, sort, show_done}. panel_templates lists every option. Sizes: s (¼ width), m (½), l (½, all details), w (full width).",
     "",

@@ -30,7 +30,7 @@ window.MemuModelRefresh = (() => {
       "mr-start-label": text("Обновлять модели при запуске Proxy", "Refresh models when Proxy starts"),
       "mr-start-desc": text("Все подключённые провайдеры проверяются в фоне. Окно открывается сразу.", "All connected providers are checked in the background. The window opens immediately."),
       "mr-interval-label": text("Повторять каждые", "Refresh every"),
-      "mr-interval-desc": text("0 — только вручную или при запуске. Antigravity и OpenCode проверяются не реже чем раз в 15 минут при включённом автообновлении. При ошибке каталог сохраняется; добавленные вручную модели остаются.", "0 means manual or startup refresh only. With periodic refresh enabled, Antigravity and OpenCode are checked at least every 15 minutes. Errors preserve the catalogue; manually added models remain."),
+      "mr-interval-desc": text("0 — только вручную или при запуске. Antigravity проверяется не реже чем раз в 15 минут при включённом автообновлении. При ошибке каталог сохраняется; добавленные вручную модели остаются.", "0 means manual or startup refresh only. With periodic refresh enabled, Antigravity is checked at least every 15 minutes. Errors preserve the catalogue; manually added models remain."),
       "mr-unit": text("мин", "min"),
     };
     Object.entries(values).forEach(([id, value]) => { group.querySelector("#" + id).textContent = value; });

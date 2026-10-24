@@ -297,7 +297,6 @@ def archive_checks():
              "app.browser_extension_store","app.browser_extension_connect","app.browser_extension_preferences","app.browser_extension_tools",
              "app.telegram_use_arguments","app.telegram_use_voice","app.telegram_voice","app.telegram_format","app.playground_api",
              "app.voice_downloads","app.stt_providers","app.panels_proxy_usage","app.win_window_theme","app.cli.file_cache",
-             "app.providers.opencode","app.providers.opencode_catalog","app.providers.opencode_native",
              "app.providers.antigravity","app.providers.antigravity_models",
              "app.dfy","app.dfy_api","app.schedule_rules_api","app.flow_engine",
              "app.desktop","app.win_titlebar","app.win_backdrop","app.module_appbar","app.module_apps_win",

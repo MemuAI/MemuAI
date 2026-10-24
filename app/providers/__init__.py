@@ -11,14 +11,13 @@ from .genspark import GensparkProvider
 from .grok import GrokProvider
 from .kiro import KiroProvider
 from .local import LocalProvider
-from .opencode import OpenCodeProvider
 
 _providers: Dict[str, Provider] = {}
 
 # Порядок важен: он же определяет порядок плиток в панели.
 BUILTIN_CLASSES = (
     GensparkProvider, KiroProvider, AntigravityProvider,
-    GeminiWebProvider, GrokProvider, OpenCodeProvider, LocalProvider,
+    GeminiWebProvider, GrokProvider, LocalProvider,
 )
 
 # Имена, которые нельзя занять кастомным подключением.

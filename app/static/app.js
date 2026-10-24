@@ -231,14 +231,6 @@ function accountSetupGuide(providerId) {
         [pair("Проверьте доступ", "Check access"), pair("Нажмите «Проверить» на карточке аккаунта. Для ручного импорта нужны действующий access token и, по возможности, refresh token для обновления сессии.", "Choose Check on the account card. Manual import needs a valid access token and, when available, a refresh token to renew the session.")],
       ],
     },
-    opencode: {
-      steps: [
-        [pair("Бесплатно — без сайта и ключа", "Free — no website or key"), pair("Выберите Бесплатные модели, нажмите Установить шлюз и дождитесь готовности. Затем добавьте аккаунт. Proxy сам запускает и останавливает отдельный opencode2api; Node.js и Docker не нужны.", "Select Free models, press Install gateway and wait until ready. Then add the account. Proxy starts and stops a separate opencode2api process; no Node.js or Docker is needed.")],
-        [pair("Zen или Go — свой аккаунт", "Zen or Go — your own account"), pair("Откройте ссылку Войти в OpenCode под выбранным способом подключения. Это opencode.ai/auth, а не пункт Console на главной странице. Войдите, выберите рабочее пространство и создайте API-ключ. Zen использует оплаченный баланс; Go — действующую подписку.", "Use Sign in to OpenCode under the selected connection. It opens opencode.ai/auth; there is no need to find Console on the home page. Sign in, choose a workspace and create an API key. Zen uses prepaid credit; Go needs an active subscription.")],
-        [pair("Свой сервер — для опытных", "Existing server — advanced"), pair("У jason API обычно на порту 8080, у Tiara — 10000. Укажите адрес с /v1 и локальный ключ сервера (server_keys либо API_KEY). Порт 8081 у jason — панель управления, не API.", "jason's API normally uses port 8080; Tiara uses 10000. Enter its URL including /v1 and the server's local key (server_keys or API_KEY). jason's port 8081 is the management UI, not the API.")],
-      ],
-      note: pair("Список обновляется автоматически вместе с каталогом Proxy. Доступ и квоты могут меняться; цифры Go общие для подписки, а не для каждой модели.", "Models refresh with the Proxy catalogue. Access and quotas can change; Go windows are shared by the subscription, not per model."),
-    },
     custom: {
       steps: [
         [pair("Укажите корень API", "Set the API root"), pair("Вставьте Base URL из документации провайдера, обычно https://api.example.com/v1. Не добавляйте /chat/completions. Для известных сервисов можно вернуться к выбору и использовать готовый пресет.", "Use the Base URL from the provider documentation, usually https://api.example.com/v1. Do not append /chat/completions. You can return to the picker and use a preset for a known service.")],
@@ -1611,7 +1603,6 @@ async function editAccount(accountId) {
     </div>`, true);
   $("#m-cancel").onclick = closeModal;
   wireAccountGuides(a.provider, "m-f-", a.id);
-  if (a.provider === "opencode") wireOpenCodeFields("m-f-", a.id);
   const patch = async (body, message) => {
     try { await api(`/api/admin/accounts/${encodeURIComponent(a.id)}`, { method: "PUT", body }); toast(message); loadAccounts(); }
     catch (e) { toast(e.message, "err"); }
@@ -1802,7 +1793,7 @@ function showAccountForm(providerId) {
   }
   // Round 31: the Custom API form showed 13 fields at once. The four that connect an API stay on top;
   // the key pool, headers, media models and the account's label/note/tags/proxy/priority fold into «Дополнительно».
-  const ESSENTIAL = { custom: ["name", "base_url", "api_key", "models"], opencode: ["mode", "api_key", "base_url", "api_protocol"] };
+  const ESSENTIAL = { custom: ["name", "base_url", "api_key", "models"] };
   const essential = ESSENTIAL[providerId];
   const mainFields = essential ? p.fields.filter((f) => essential.includes(f.key) || f.required) : p.fields;
   const extraFields = essential ? p.fields.filter((f) => !mainFields.includes(f)) : [];
@@ -1850,7 +1841,6 @@ function showAccountForm(providerId) {
     </div>`, true);
   $("#m-cancel").onclick = closeModal;
   wireAccountGuides(providerId, "af-");
-  if (providerId === "opencode") wireOpenCodeFields("af-");
   // Round 34: several keys pasted into the one-line «API key» field were glued into one invalid key (the
   // browser drops line breaks). The first key stays, the rest go to the key pool under «More».
   const keyInput = $("#af-api_key"), poolInput = $("#af-api_keys");
@@ -2068,34 +2058,9 @@ function renderProviderSettings() {
 }
 
 function psLabel(option) {
-  const openCode = { free: ["Бесплатные модели · установить шлюз", "Free models · install gateway"], zen: ["Zen · свой API-ключ", "Zen · your own API key"],
-    go: ["Go · подписка", "Go · subscription"], gateway: ["Мой шлюз opencode2api", "My opencode2api gateway"] };
-  if (openCode[option]) return openCode[option][LANG === "en" ? 1 : 0];
   const key = "set.opt." + String(option);
   const translated = t(key);
   return translated === key ? String(option) : translated;
-}
-
-function wireOpenCodeFields(prefix, accountId = "") {
-  const mode = document.getElementById(prefix + "mode");
-  if (!mode) return;
-  const sync = () => {
-    const gateway = mode.value === "gateway";
-    for (const key of ["base_url", "api_protocol"]) {
-      const control = document.getElementById(prefix + key);
-      if (control) control.closest(".field").hidden = !gateway;
-    }
-    const key = document.getElementById(prefix + "api_key");
-    if (key) {
-      key.closest(".field").hidden = mode.value === "free";
-      key.required = mode.value === "go" || mode.value === "zen";
-    }
-  };
-  mode.addEventListener("change", sync);
-  sync();
-  if (typeof window !== "undefined" && window.MemuOpenCodeSetup && typeof api === "function") {
-    window.MemuOpenCodeSetup.mount(prefix, { api, lang: LANG, accountId });
-  }
 }
 
 async function loadSettings() {

@@ -57,7 +57,6 @@ def main():
               "passed_total": sum(r["tests"] for r in rows) - skipped + 4,
               "real_gateway_probe_check": gateway, "live_public_catalog": public, "artifacts": artifacts,
               "limits": ["Focused regression gate, not a repeat of the entire Round 47 broad suite.",
-                         "Direct public generation control returned 403 FreeTierError requiring official OpenCode; successful live Free generation is not confirmed.",
                          "Manual availability suppresses probes for known models; third-party gateway routing may perform its own internal operations.",
                          "No Computer Use, installed GUI control, private account data or paid generation."]}
     (BUILD / "round48-validation-summary.json").write_text(json.dumps(result, ensure_ascii=False, indent=2), "utf-8")

@@ -23,6 +23,8 @@ def _default_data_dir() -> str:
 
 DATA_DIR = _default_data_dir()
 CONFIG_PATH = os.path.join(DATA_DIR, "config.json")
+# Keep obsolete records readable without exposing or activating the removed backend.
+RETIRED_PROVIDER_IDS = frozenset({"opencode"})
 
 BALANCING_MODES = ("round-robin", "order", "first-available", "least-used")
 SEARCH_ENGINES = search_engines.engine_ids()
@@ -241,6 +243,8 @@ def _normalized_settings(raw: Any) -> Dict[str, Any]:
         for provider, settings in list(provider_settings.items())[:100]
         if isinstance(settings, dict) and str(provider)
     }
+    if result.get("default_provider") in RETIRED_PROVIDER_IDS:
+        result["default_provider"] = ""
     return result
 
 

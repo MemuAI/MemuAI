@@ -100,7 +100,7 @@ async def fetch(account, secret, lang, now):
                 "notice": notice, "stale": stale, "fetched": min(timestamps) if timestamps else None, "wall": wall}
     response = await read("/api/admin/accounts/" + target + "/usage")
     actual = str(response.get("provider") or "")
-    if source in ("kiro", "opencode") and actual != source:
+    if source == "kiro" and actual != source:
         raise UsageWall("source_gone:proxy", "The selected account's provider changed" if en else "Провайдер выбранного аккаунта изменился")
     usage = response.get("usage") or {}
     limits = []

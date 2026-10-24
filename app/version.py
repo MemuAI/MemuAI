@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from typing import Dict, Tuple
 
-APP_VERSION = "3.8.1"
+APP_VERSION = "3.8.2"
 RELEASE_DATE = "2026-10-24"
 
 

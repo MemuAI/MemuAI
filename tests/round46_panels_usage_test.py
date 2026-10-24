@@ -12,7 +12,7 @@ class ProxyUsage(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.requests = []
         self.state = {"accounts": [{"id": "kiro1", "provider": "kiro", "label": "Work", "enabled": True, "secret": "must-not-leak"},
-                                   {"id": "go1", "provider": "opencode", "label": "OpenCode Go"}]}
+                                   {"id": "go1", "provider": "custom", "label": "API account"}]}
         self.planner = {"api_budgets": {"accounts": [{"id": "kiro1", "balance_usd": 20, "spent_usd": 5, "until": 2000000000, "unknown_requests": 2}]},
                         "accounts": [{"id": "go1", "windows": [{"key": "weekly", "remaining": 0.6, "reset": 2000000000}]}]}
         self.data = {"provider": "kiro", "usage": {"subscription": "Pro", "rows": [{"display": "Credits", "used": 25, "limit": 100, "unit": "credits"}], "next_reset": 2000000000, "email": "must-not-publish@example.test"}}
@@ -44,9 +44,9 @@ class ProxyUsage(unittest.IsolatedAsyncioTestCase):
         self.assertIn("25 / 100", result["limits"][0]["detail"])
         self.assertNotIn("email", json.dumps(result))
 
-    async def test_opencode_uses_windows_and_reset_metadata(self):
-        self.data = {"provider": "opencode", "usage": {"plan": "go", "windows": [{"id": "weekly", "used_percent": 37.5, "label": "Неделя", "label_en": "Week", "reset_at": 2000000000}]}}
-        result = await source.fetch(self.account("opencode", "go1"), None, "en", 1900000000)
+    async def test_proxy_uses_windows_and_reset_metadata(self):
+        self.data = {"provider": "custom", "usage": {"plan": "go", "windows": [{"id": "weekly", "used_percent": 37.5, "label": "Неделя", "label_en": "Week", "reset_at": 2000000000}]}}
+        result = await source.fetch(self.account("proxy", "go1"), None, "en", 1900000000)
         self.assertEqual(result["limits"][0]["used"], 37.5)
         self.assertEqual(result["limits"][0]["title"], "Week")
         self.assertEqual(result["limits"][0]["resets_at"], 2000000000)
@@ -64,9 +64,9 @@ class ProxyUsage(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["limits"][0]["used"], 40)
 
     async def test_unexposed_limits_are_honest_walls(self):
-        self.data = {"provider": "opencode", "usage": {"windows": [], "note_en": "No quota API"}}
+        self.data = {"provider": "custom", "usage": {"windows": [], "note_en": "No quota API"}}
         with self.assertRaisesRegex(usage.UsageWall, "No quota API"):
-            await source.fetch(self.account("opencode", "go1"), None, "en", 1900000000)
+            await source.fetch(self.account("proxy", "go1"), None, "en", 1900000000)
 
     async def test_missing_deleted_and_zero_balance_accounts_are_not_selected(self):
         for account in (self.account(target=""), self.account("api_budget", "deleted"), self.account(target="../escape")):

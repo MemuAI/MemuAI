@@ -219,7 +219,7 @@ class ModelRefresher:
                 # Entitlements change more often than the global catalogue.
                 # Respect disabling periodic discovery (interval=0), otherwise
                 # keep Antigravity aligned within at most fifteen minutes.
-                due_providers = [provider_id for provider_id in ("antigravity", "opencode")
+                due_providers = [provider_id for provider_id in ("antigravity",)
                                  if any(row.provider == provider_id and row.usable() for row in state.all_accounts())
                                  and time.monotonic() >= self._provider_finished.get(provider_id, boot) + min(interval, 15 * 60)]
                 if due_providers:

@@ -28,7 +28,6 @@ A few seconds later the new account's models appear in the MemuAI model list.
 | Antigravity | `antigravity-` | Google sign-in | Gemini, Claude, gpt-oss |
 | Gemini Web | `geminiweb-` | two Google cookies or a sign-in window (guest — Flash only) | the account's picker models (3.8 Flash, 3.5 Flash-Lite, 3.1 Pro, 4 Argon) |
 | Grok | `grok-` | the `sso` cookie | Grok models |
-| OpenCode | `opencode-` | Free with a gateway install button, Zen/Go key, or your opencode2api | active models for the selected service; tools |
 | Custom API | the connection name | Base URL and key | any service with an OpenAI-style API |
 | Local models | `local-` | created automatically | GGUF models on your computer |
 
@@ -102,23 +101,6 @@ If Google asks to verify the account ("Verify your account"), the limits window 
 
 **Instability.** The Antigravity service itself is sometimes unstable: it answers 429 "Resource has been exhausted", 503, or refuses by region. The Proxy tries both Google hosts, remembers which one answered, waits for the pause Google suggests (up to 8 seconds), refreshes the token once on a 401 and moves on to the next account; Google's real error text is visible in the log. The Proxy checks the client version against Antigravity's own auto-update address (it can be set by hand in the provider settings, which turns the check off).
 
-## OpenCode and opencode2api
-
-Proxy → **Accounts → Add account → OpenCode**. Choose a connection:
-
-- **Free models · install gateway** is the simple option without a website or registration. Press **Install gateway**, wait for **Ready**, then **Add account** and **Check**. MemuAI downloads the separate opencode2api executable (~4 MB, GPL-3.0), verifies SHA-256, preserves its license and runs it on `127.0.0.1` in the background. No Node.js, Docker, API key or fixed port is needed. Proxy stops its own process on exit. Automatic setup supports Windows x64/ARM64.
-- **Zen · your own API key** is paid API access. Use **Sign in to OpenCode** or [opencode.ai/auth](https://opencode.ai/auth). Sign in, select a workspace, create an API key and paste it. Paid models require a funded Zen balance. There is no need to find Console on the home page.
-- **Go · subscription** uses the same login, with an active [Go / Go Plus](https://opencode.ai/go) subscription in that workspace. Paste its API key. The quota endpoint verifies entitlement and the separate Go catalogue supplies models.
-- **My opencode2api gateway** is advanced, for an already running external server. For [jasonxu114514](https://github.com/jasonxu114514/opencode2api), the API is normally `http://127.0.0.1:8080/v1`; use a key from `server_keys` in its `config.json`. Port **8081 is the management UI**, not the API. For [TiaraBasori](https://github.com/TiaraBasori/OpenCode2API/blob/main/README.en.md), the API is normally `http://127.0.0.1:10000/v1`; use `API_KEY`. It requires a separate OpenCode runtime and Node.js or Docker. This is the **gateway's local key**, not a Zen/Go key. Select Chat Completions or Responses. MemuAI does not start your external server automatically.
-
-Free access is not unlimited. **429 / Free usage limit reached** means public Free was refused; it does not prove personal quota exhaustion. Network or third-party client restrictions are possible, and the exact cause and reset time are unknown. Another Free entry or reinstall creates no separate quota. A successful catalog check verifies the model list, not generation.
-
-Saving loads models automatically. **Check** and **Model catalogue → Refresh** reload them manually. With periodic catalogue updates enabled, OpenCode is refreshed at least every 15 minutes. Requests only use accounts that advertise the selected model. Network failures preserve the last valid catalogue; a successful empty list removes models that are no longer offered.
-
-Native Zen/Go connections select Chat Completions, Responses, Anthropic Messages or Gemini for each model. Free uses the managed gateway. Streaming, images, tools, cancellation and reported token usage are supported where the model allows them. This connection does not add speech recognition or media generation.
-
-The Go account's **Limits** action shows the current, weekly and monthly windows and reset times returned by the API. These windows are shared by a subscription; do not sum its keys. Unknown numeric limits for Free, Console/Zen and third-party gateways are left unknown. Model card prices are API reference rates, not the charge against included Go usage.
-
 ## Custom API
 
 Works with OpenAI, OpenRouter, DeepSeek, Groq, Together, Mistral, local Ollama and LM Studio, and any other service with an OpenAI-style API.
@@ -170,12 +152,3 @@ See also: [MemuAI Proxy](doc:proxy), [Models](doc:models), [Local models](doc:lo
 The field accepts any format: the Cookie header from Network or “Copy as cURL”, Application table rows (tab-separated), Cookie-Editor/EditThisCookie JSON, `cookies.txt`, “name value” pairs, or just the two values. What was recognized and what is wrong shows right under the field: no `__Secure-1PSID`, a cookie from another domain (e.g. `accounts.google.com`), a value truncated with “…”, an expired cookie. **Check connection** walks the steps cookies → Gemini page → sign-in token → test request → models and tells how to fix each failed step. Do not sign out in the browser after copying — signing out invalidates the cookies.
 
 Antigravity preserves an explicit High/Medium/Low depth. If the server rejects it, Proxy reports an error instead of silently reducing depth. Thought summary visibility and reasoning depth are separate settings. When Google returns `thoughtsTokenCount`, Proxy chat shows reasoning token usage separately.
-
-
-### Free: catalog and generation are separate checks
-
-Free is anonymous public access, not the account signed in on the website. A 429 does not prove personal quota exhaustion. Duplicating a Free entry creates no new quota. The service may require the official OpenCode client (403); the gateway can return a final 429 after another route was rejected.
-
-Check reads the catalog without starting the gateway. For an explicit tiny test, open the saved connection settings → **Test Free generation**. Repeating within a minute returns the cached result; paid accounts are never used as a fallback.
-
-Another actual account: **Add account → OpenCode → Zen/Go** → sign in as the intended user at opencode.ai/auth → paste that workspace API key. Keys from one workspace may share limits. Anonymous Free is unrelated to those website logins.

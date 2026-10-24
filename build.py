@@ -55,7 +55,7 @@ COMMON_HIDDEN = [
     "app.browser_extension_store", "app.browser_extension_connect", "app.browser_extension_preferences", "app.browser_extension_tools",
     "app.telegram_use", "app.telegram_use_arguments", "app.telegram_use_voice",
     "app.voice_downloads", "app.stt_providers", "app.panels_proxy_usage", "app.win_window_theme",
-    "app.providers.opencode", "app.providers.opencode_catalog", "app.providers.opencode_native", "app.opencode_runtime", "app.cli.file_cache",
+    "app.cli.file_cache",
 ]
 
 TARGETS = {

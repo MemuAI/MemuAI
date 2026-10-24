@@ -31,55 +31,6 @@ log = logging.getLogger("memuai.admin")
 router = APIRouter(prefix="/api/admin")
 
 
-@router.post("/accounts/{account_id}/opencode-probe")
-async def opencode_generation_probe(account_id: str, request: Request):
-    deny = _auth(request)
-    if deny:
-        return deny
-    body, error = await _json_object(request, max_bytes=4096)
-    if error is not None:
-        return error
-    if body.get("confirmed") is not True:
-        return _err("Подтвердите один короткий запрос Free / Confirm one tiny Free request")
-    account = state.get_account(account_id)
-    if not account or account.provider != "opencode":
-        return _err("Подключение OpenCode не найдено / OpenCode connection not found", 404)
-    from .providers.opencode_catalog import mode_of
-    if not account.enabled or mode_of(account.fields) != "free":
-        return _err("Выберите сохранённое включённое подключение Free / Choose a saved enabled Free connection")
-    provider = get_provider("opencode")
-    if provider is None:
-        return _err("OpenCode недоступен / OpenCode is unavailable", 503)
-    return await provider.probe_free(account)
-
-
-@router.get("/opencode/runtime")
-async def opencode_runtime_status(request: Request):
-    deny = _auth(request)
-    if deny:
-        return deny
-    from .opencode_runtime import runtime
-    return await asyncio.to_thread(runtime.status)
-
-
-@router.post("/opencode/runtime")
-async def opencode_runtime_action(request: Request):
-    deny = _auth(request)
-    if deny:
-        return deny
-    from .opencode_runtime import runtime
-    try:
-        body = await request.json()
-        if not isinstance(body, dict):
-            return _err("Ожидается объект / Expected an object")
-        if body.get("action") == "install" and body.get("confirmed") is True:
-            return await asyncio.to_thread(runtime.install)
-        if body.get("action") == "cancel":
-            return await asyncio.to_thread(runtime.cancel_install)
-        return _err("Неизвестное действие или установка не подтверждена / Unknown action or install not confirmed")
-    except (ValueError, RuntimeError) as exc:
-        return _err(str(exc))
-
 _sessions: Dict[str, float] = {}
 _internal_sessions: set[str] = set()
 _login_fails: Dict[str, float] = {}
@@ -600,16 +551,10 @@ async def add_account(request: Request):
             pass
     else:
         state.seed_provider_models(provider_id, provider_id, provider.seed_models())
-        if provider_id in ("antigravity", "opencode"):
+        if provider_id == "antigravity":
             from .model_refresh import refresher
-            if provider_id == "opencode":
-                # The form offers discovered models immediately after saving.
-                # No seeds/guessed IDs; failure leaves the saved connection
-                # available for a manual refresh rather than inventing models.
-                await refresher.refresh(providers=[provider_id], reason="account-added")
-            else:
-                from .providers.base import spawn_background
-                spawn_background(refresher.refresh(providers=[provider_id], reason="account-added"))
+            from .providers.base import spawn_background
+            spawn_background(refresher.refresh(providers=[provider_id], reason="account-added"))
     return {"ok": True, "account": acc.public_dict()}
 
 
@@ -768,11 +713,6 @@ async def update_account(account_id: str, request: Request):
         if names:
             state.seed_provider_models("custom", str(acc.fields.get("name", "")),
                                        [(name, "кастомное подключение") for name in names], account_id=acc.id)
-    if acc.provider == "opencode" and (fields_changed or connection_changed or "enabled" in body):
-        from .opencode_runtime import runtime
-        await asyncio.to_thread(runtime.stop, acc.id)
-        from .model_refresh import refresher
-        await refresher.refresh(providers=["opencode"], reason="account-updated")
     return {"ok": True, "account": acc.public_dict()}
 
 
@@ -820,9 +760,6 @@ async def delete_account(account_id: str, request: Request):
     acc = state.get_account(account_id)
     if not acc:
         return _err("Аккаунт не найден", 404)
-    if acc.provider == "opencode":
-        from .opencode_runtime import runtime
-        await asyncio.to_thread(runtime.stop, account_id)
     _remove_connection_models(acc)
     if not state.remove_account(account_id):
         return _err("Аккаунт не найден", 404)
@@ -858,15 +795,6 @@ async def check_account(account_id: str, request: Request):
         acc.status_message = message
     acc.last_checked = time.time()
     state.save_accounts()
-    if acc.provider == "opencode":
-        from .model_refresh import refresher
-        # check() already fetched the exact account catalogue. Apply it to the
-        # shared model list without a second round of upstream requests.
-        provider_accounts = [(item, "opencode", "opencode") for item in state.all_accounts()
-                             if item.provider == "opencode" and item.usable()]
-        rows = [(item, "opencode", "opencode", list(provider._snapshot(item).get("models", {})), "")
-                for item, _, _ in provider_accounts if provider._snapshot(item)]
-        refresher._apply(rows, provider_accounts, prune=True, wanted={"opencode"})
     return {"ok": bool(ok), "message": message, "account": acc.public_dict()}
 
 

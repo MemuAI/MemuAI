@@ -18,7 +18,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi.responses import StreamingResponse
 
-from .config import DATA_DIR, config_store
+from .config import DATA_DIR, RETIRED_PROVIDER_IDS, config_store
 
 ACCOUNTS_PATH = os.path.join(DATA_DIR, "accounts.json")
 MODELS_PATH = os.path.join(DATA_DIR, "models.json")
@@ -397,7 +397,7 @@ class Account:
 
     def usable(self) -> bool:
         """В ротации: включён и не отвергнут сервисом (невалидный вход)."""
-        return self.enabled and self.status != ST_INVALID
+        return self.provider not in RETIRED_PROVIDER_IDS and self.enabled and self.status != ST_INVALID
 
     def mark(self, status: str, message: str = "") -> None:
         self.status = status
@@ -463,6 +463,8 @@ class ModelEntry:
 
 def _is_available_model(entry: "ModelEntry") -> bool:
     """Hide known provider modes that exist in bundles but not in chat."""
+    if entry.provider in RETIRED_PROVIDER_IDS:
+        return False
     model = str(entry.model or "").lower().replace("_", "-")
     if entry.provider == "geminiweb":
         # r41-gemini: старые имена (3.6/3.7 …) и модели, которых нет в выборе модели ни у одного аккаунта.
@@ -570,6 +572,9 @@ class State:
         items = load_json_with_recovery(ACCOUNTS_PATH, [], validator=lambda value: isinstance(value, list)) or []
         for it in items:
             try:
+                if isinstance(it, dict) and it.get("provider") in RETIRED_PROVIDER_IDS:
+                    self._unparsed_accounts.append(it)
+                    continue
                 row = dict(it) if isinstance(it, dict) else {}
                 fields = row.pop("fields", {})
                 acc = Account(fields=fields, **row)
@@ -580,6 +585,9 @@ class State:
         items = load_json_with_recovery(MODELS_PATH, []) or []
         for it in items:
             try:
+                if isinstance(it, dict) and it.get("provider") in RETIRED_PROVIDER_IDS:
+                    self._unparsed_models.append(it)
+                    continue
                 it = dict(it)
                 it.pop("id", None)
                 m = ModelEntry(**it)
@@ -760,6 +768,8 @@ class State:
 
     def add_account(self, provider: str, fields: Dict[str, Any], label: str = "",
                     proxy: str = "", extra: Dict[str, Any] | None = None) -> Account:
+        if provider in RETIRED_PROVIDER_IDS:
+            raise ValueError("Провайдер удалён / Provider has been removed")
         acc = Account(provider, fields=fields, label=label, proxy=proxy, extra=extra or {})
         with self._lock:
             self.accounts[acc.id] = acc
@@ -892,6 +902,8 @@ class State:
         rows += [(str(row.get("provider") or ""), row.get("fields") if isinstance(row.get("fields"), dict) else {})
                  for row in self._unparsed_accounts if isinstance(row, dict)]
         for provider, fields in rows:
+            if provider in RETIRED_PROVIDER_IDS:
+                continue
             providers.add(provider)
             if provider == "custom":
                 name = str((fields or {}).get("name", "")).strip().lower().replace(" ", "-")

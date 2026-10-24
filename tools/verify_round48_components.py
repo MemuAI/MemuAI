@@ -47,12 +47,11 @@ def main():
         "MemuCode": ["app.version", "app.pricing", "app.api_budget", "app.chat", "app.cli.runtime", "app.cli.llm",
                      "app.cli.agent", "app.cli.file_cache", "app.providers.custom"],
         "MemuAI": ["app.version", "app.voice_downloads", "app.stt_providers", "app.panels_proxy_usage", "app.win_window_theme",
-                   "app.providers.opencode", "app.providers.opencode_catalog", "app.providers.opencode_native", "app.opencode_runtime", "app.cli.file_cache",
+                   "app.cli.file_cache",
                    "app.telegram_use_api", "app.telegram_format", "app.dfy", "app.dfy_api", "app.schedule_rules_api", "app.flow_engine"],
         "MemuAIProxy": ["app.version", "app.main", "app.admin_api", "app.config", "app.api_budget", "app.model_refresh",
                         "app.pricing", "app.quota_planner", "app.chat", "app.providers.custom", "app.state", "app.model_seeds",
                         "app.providers.antigravity", "app.providers.antigravity_models",
-                        "app.providers.opencode", "app.providers.opencode_catalog", "app.providers.opencode_native", "app.opencode_runtime",
                         "app.voice_downloads", "app.stt_providers", "app.panels_proxy_usage", "app.win_window_theme", "app.cli.file_cache"],
     }
     for name, modules in groups.items():

@@ -87,7 +87,7 @@ SOURCE_RANK = {"user": -1, "probe": 0, "local": 1, "provider": 2, "openrouter": 
 CONFIDENCE_RANK = {"verified": 0, "high": 1, "medium": 2, "low": 3}
 
 #: Providers whose adapters pass pictures to the model (local: only with an mmproj projector).
-IMAGE_ADAPTERS = {"genspark", "antigravity", "kiro", "custom", "opencode"}
+IMAGE_ADAPTERS = {"genspark", "antigravity", "kiro", "custom"}
 #: Providers that run on web accounts or subscriptions: prices are an API-equivalent estimate.
 SUBSCRIPTION_PROVIDERS = {"genspark", "kiro", "antigravity", "geminiweb", "grok"}
 

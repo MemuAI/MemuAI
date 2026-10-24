@@ -93,16 +93,16 @@ X/Twitter is not read: it has no reliable open access, and the panel honestly sk
 
 ## AI limits
 
-The “AI limits” panel shows **Claude**, **Codex**, **Antigravity**, **Kiro** and **OpenCode** accounts connected through Proxy, estimated **API balances**, and **quota planner** accounts. Subscriptions show windows published by the service: percent used, reset time and whether spending outpaces elapsed time. You can add several accounts, each with its own name (“Work”, “Personal”).
+The “AI limits” panel shows **Claude**, **Codex**, **Antigravity**, and **Kiro** accounts connected through Proxy, estimated **API balances**, and **quota planner** accounts. Subscriptions show windows published by the service: percent used, reset time and whether spending outpaces elapsed time. You can add several accounts, each with its own name (“Work”, “Personal”).
 
 Where the data comes from:
 
 - **Automatically** — from files already on the PC: Claude Code (`~/.claude`), Claude Desktop, Codex (`~/.codex/auth.json`), a running Antigravity. Other apps’ files are only read and never modified, so the CLI stays signed in.
 - **A custom config folder** — for a second account of the same service (like `CLAUDE_CONFIG_DIR` or `CODEX_HOME`).
 - **A pasted token** — stored apart from panels, encrypted with your Windows account (DPAPI) and sent only to the service it belongs to. The token is never returned to the window.
-- **Proxy account** — choose Kiro, OpenCode, API balance or quota planner, then select a connected account. No key needs to be pasted again; a separate button refreshes the list. For an API balance, first add the account and its starting balance in Proxy's planner.
+- **Proxy account** — choose Kiro, API balance or quota planner, then select a connected account. No key needs to be pasted again; a separate button refreshes the list. For an API balance, first add the account and its starting balance in Proxy's planner.
 
-API balances are estimates based on requests recorded by Proxy, not a live provider billing balance. External spending and requests with unknown prices may be missing; the warning and unknown request count appear beside the values. A planning end date does not mean the balance will refill. OpenCode Go displays published API windows; Free/Zen/gateways may provide no numeric quotas. Check times, errors and stale data are labelled explicitly.
+API balances are estimates based on requests recorded by Proxy, not a live provider billing balance. External spending and requests with unknown prices may be missing; the warning and unknown request count appear beside the values. A planning end date does not mean the balance will refill. Check times, errors and stale data are labelled explicitly.
 
 The account’s **Test** button immediately shows its limit windows or a clear reason why there is no data. Antigravity reports quotas only while it is running. With no data the card says so; numbers are never invented.
 

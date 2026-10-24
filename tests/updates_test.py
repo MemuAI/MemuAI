@@ -23,6 +23,14 @@ def release(tag="v3.9", version="3.9"):
 
 
 class ReleaseMetadataTests(unittest.TestCase):
+    def test_382_release_is_offered_to_381(self):
+        payload = release("v3.8.2", "3.8.2")
+        payload["assets"][0]["browser_download_url"] = URL.replace("3.9", "3.8.2")
+        offer = updates.release_offer(payload, "3.8.1")
+        self.assertTrue(offer["update_available"])
+        self.assertEqual(offer["latest_version"], "3.8.2")
+        self.assertIn("MemuAI-Setup-3.8.2.exe", offer["download_url"])
+
     def test_current_real_world_legacy_tag_uses_installer_version(self):
         result = updates.release_offer(release("MemuAI", "3.8"), "3.7")
         self.assertTrue(result["update_available"])

@@ -4,7 +4,7 @@
 
 [Download](https://github.com/MemuAI/MemuAI/releases) · [Report a bug](https://github.com/MemuAI/MemuAI/issues) · [Source code](https://github.com/MemuAI/MemuAI)
 
-- 🚨 Disclaimer: using Genspark, Kiro, Antigravity, Gemini Web, Grok, and OpenCode accounts is entirely **AT YOUR OWN RISK**. Using these accounts may violate the companies' privacy policies. This project is provided solely for educational purposes. The project authors are not responsible for account bans or other restrictions imposed by third-party companies.
+- 🚨 Disclaimer: using Genspark, Kiro, Antigravity, Gemini Web, and Grok accounts is entirely **AT YOUR OWN RISK**. Using these accounts may violate the companies' privacy policies. This project is provided solely for educational purposes. The project authors are not responsible for account bans or other restrictions imposed by third-party companies.
 
 # What is this, anyway?
 
@@ -34,7 +34,7 @@ You usually only need to set up Proxy once. After that, its models become availa
 
 ### Working with APIs
 
-- Add any provider that uses API keys. Several sub2api integrations are also supported: Genspark, Kiro, Antigravity, Gemini Web, Grok, and OpenCode.
+- Add any provider that uses API keys. Several sub2api integrations are also supported: Genspark, Kiro, Antigravity, Gemini Web, and Grok.
 - API key pools: add multiple API keys to each account and automatically switch between them when an error occurs.
 - Quota planner: automatically analyzes account usage and estimates when your limits will run out at the current pace. You can add both accounts and API keys, specifying their costs and pricing.
 - Composite models: create custom models that contain other models and switch between them under specific conditions, such as the number of tokens.
@@ -176,13 +176,11 @@ You can manage this in **Settings → About → Updates**. Automatic checks can 
 
 ## Where the models come from
 
-MemuAI uses your own connections. The project supports Antigravity, Kiro, Gemini Web, Genspark, Grok, OpenCode, custom APIs, and local models. Connection presets are available for many API services.
+MemuAI uses your own connections. The project supports Antigravity, Kiro, Gemini Web, Genspark, Grok, custom APIs, and local models. Connection presets are available for many API services.
 
 You can use your own keys, accounts, or models running on your computer. MemuAI does not provide subscriptions to third-party services: model availability, pricing, and quotas depend on your connection. Some integrations use unofficial service interfaces and may need updates when those services change.
 
 Proxy can refresh the model catalog, show request statistics, and account for custom pricing. The quota planner lets you set an API account balance and track estimated spending.
-
-OpenCode has a [separate setup guide](OPENCODE_SETUP.md).
 
 ## Where your data is stored
 
@@ -235,6 +233,6 @@ Suggestions for making the app easier to use are welcome too. Specific examples 
 
 Thank you to everyone who tries MemuAI, notices bugs, and reports them. Your feedback helps identify what really needs work.
 
-This project builds on the work of the authors of FastAPI, pywebview, llama.cpp, faster-whisper, Piper, Telethon, yt-dlp, and other libraries. Special thanks to the authors of [jasonxu114514/opencode2api](https://github.com/jasonxu114514/opencode2api) and [TiaraBasori/opencode2api](https://github.com/TiaraBasori/opencode2api) for their open-source implementations, which helped with the OpenCode integration. Many thanks to [Wei-Shaw/sub2api](https://github.com/Wei-Shaw/sub2api) as well.
+This project builds on the work of the authors of FastAPI, pywebview, llama.cpp, faster-whisper, Piper, Telethon, yt-dlp, and other libraries. Many thanks to [Wei-Shaw/sub2api](https://github.com/Wei-Shaw/sub2api) as well.
 
 Third-party components are distributed under their respective licenses; the relevant notices are retained in the project.

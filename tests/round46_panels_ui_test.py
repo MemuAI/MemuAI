@@ -31,7 +31,7 @@ def test_account_selection_filtering_reload_and_request_payload(browser, width):
     panel = next(row for row in snapshot["panels"] if row["id"] == "p_usage00001")
     panel["source"]["params"]["accounts"] = [{"id": "a_12345678", "provider": "kiro", "mode": "proxy", "proxy_account_id": "kiro1", "name": "Work"}]
     accounts = [{"id": "kiro1", "provider": "kiro", "label": "Work", "enabled": True, "api_budget": True},
-                {"id": "go1", "provider": "opencode", "label": "Go account", "quota_planner": True}]
+                {"id": "go1", "provider": "custom", "label": "Go account", "quota_planner": True}]
     sent = []
     errors = []
     context = browser.new_context(viewport={"width": width, "height": 850})
@@ -71,7 +71,7 @@ def test_account_selection_filtering_reload_and_request_payload(browser, width):
     assert sent[-1]["proxy_account_id"] == "kiro1"
     assert "token" not in sent[-1]
     original_id = row.get_attribute("data-acc-id")
-    row.locator("[data-acc-provider]").select_option("opencode")
+    row.locator("[data-acc-provider]").select_option("proxy")
     assert row.get_attribute("data-acc-id") != original_id, "Another provider cannot inherit a stored OAuth token"
     assert row.locator("[data-acc-proxy]").input_value() == "", "Changing provider requires choosing a compatible account"
     assert row.locator("[data-acc-proxy] option[value=go1]").count() == 1

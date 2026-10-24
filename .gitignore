@@ -24,6 +24,7 @@ app/oauth_build.py
 !tests/data/
 
 # Private development notes and generated audit artefacts.
+/private-dev/
 /UPDATE_*.md
 /SESSION_CHANGELOG*
 /README.md

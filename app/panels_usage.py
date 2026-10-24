@@ -42,9 +42,9 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 
 log = logging.getLogger("memuai.panels.usage")
 
-PROVIDERS = ("claude", "codex", "antigravity", "kiro", "opencode", "proxy", "api_budget", "quota_planner")
+PROVIDERS = ("claude", "codex", "antigravity", "kiro", "proxy", "api_budget", "quota_planner")
 MODES = {"claude": ("auto", "cli", "desktop", "dir", "token"), "codex": ("auto", "cli", "dir", "token"),
-         "antigravity": ("auto", "dir"), "kiro": ("proxy",), "opencode": ("proxy",),
+         "antigravity": ("auto", "dir"), "kiro": ("proxy",),
          "proxy": ("proxy",), "api_budget": ("proxy",), "quota_planner": ("proxy",)}
 MAX_ACCOUNTS = 12
 MIN_SPACING = 45.0            # одному аккаунту — не чаще раза в 45 с, даже по «Обновить»
@@ -980,7 +980,7 @@ async def fetch_antigravity(account: Dict[str, Any], secret: Optional[Dict[str, 
 
 FETCHERS = {"claude": fetch_claude, "codex": fetch_codex, "antigravity": fetch_antigravity}
 from .panels_proxy_usage import fetch as fetch_proxy_usage
-FETCHERS.update({key: fetch_proxy_usage for key in ("kiro", "opencode", "proxy", "api_budget", "quota_planner")})
+FETCHERS.update({key: fetch_proxy_usage for key in ("kiro", "proxy", "api_budget", "quota_planner")})
 
 
 # ====================================================================== аккаунты и обновление панели
@@ -1011,7 +1011,7 @@ def clean_accounts(raw: Any) -> List[Dict[str, Any]]:
     return out
 
 
-PROVIDER_NAMES = {"claude": "Claude", "codex": "Codex", "antigravity": "Antigravity", "kiro": "Kiro", "opencode": "OpenCode",
+PROVIDER_NAMES = {"claude": "Claude", "codex": "Codex", "antigravity": "Antigravity", "kiro": "Kiro",
                   "proxy": "MemuAI Proxy", "api_budget": "API · USD", "quota_planner": "Quota planner"}
 
 
