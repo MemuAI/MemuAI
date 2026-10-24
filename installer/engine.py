@@ -204,6 +204,10 @@ class Platform:
     def processes_in(self, folder: Path) -> List[Tuple[int, str]]:
         return []
 
+    def directory_users(self, folder: Path) -> List[Tuple[int, str]]:
+        """External programs whose working directory prevents replacing this tree."""
+        return []
+
     def terminate(self, pid: int) -> None:
         raise NotImplementedError
 
@@ -586,6 +590,14 @@ class Engine:
         if running:
             names = sorted({Path(path.replace("\\", "/")).name for _pid, path in running})
             raise AppsRunning(names)
+        # A log viewer or terminal can outlive MemuAI while retaining its CWD.
+        # Never terminate unrelated programs (and potentially lose their work),
+        # even if force-close was authorized for the installed applications.
+        external = self.os.directory_users(app_dir)
+        if external:
+            names = sorted({f"{name} (PID {pid})" for pid, name in external})
+            log.warning("installation directory held by external programs: %s", ", ".join(names))
+            raise SetupError("directory_in_use", ", ".join(names), apps=names)
 
     # ------------------------------------------------------------------ install
     def install(self, options: Options, report: Progress = lambda _e: None, force_close: bool = False) -> Dict[str, object]:

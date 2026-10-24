@@ -101,6 +101,30 @@ class WorkingDirectoryTests(unittest.TestCase):
         self.assertEqual(platform.registry, {})
         self.assertFalse(target.exists())
 
+    def test_external_directory_users_are_not_force_terminated(self):
+        from installer.engine import Engine, SetupError
+        from installer import products
+        from tests.installer_engine_test import FakePlatform
+        platform = FakePlatform(self.root / "pc")
+        platform.directory_users = lambda folder: [(12345, "Notepad.exe")]
+        engine = Engine(products.SUITE, platform)
+        with self.assertRaises(SetupError) as error:
+            engine.close_apps(self.app, force=True, wait=0)
+        self.assertEqual(error.exception.code, "directory_in_use")
+        self.assertIn("Notepad.exe", str(error.exception))
+        self.assertFalse(any(call[0] == "terminate" for call in platform.calls))
+
+    @unittest.skipUnless(os.name == "nt", "Windows log viewer")
+    def test_log_viewer_does_not_inherit_an_application_directory(self):
+        from installer.bridge import Bridge
+        path = self.root / "setup.log"
+        path.write_text("fixture", encoding="utf-8")
+        bridge = Bridge(None, "install", "en", str(path))
+        with patch("installer.bridge.subprocess.Popen") as launch:
+            self.assertTrue(bridge.open_log())
+        self.assertEqual(launch.call_args.kwargs["cwd"], tempfile.gettempdir())
+        self.assertEqual(launch.call_args.kwargs["env"]["PYINSTALLER_RESET_ENVIRONMENT"], "1")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import os
 import subprocess
+import tempfile
 import threading
 import time
 from pathlib import Path
@@ -186,7 +187,9 @@ class Bridge:
     def open_log(self) -> bool:
         if os.name == "nt" and self._log_path and os.path.isfile(self._log_path):
             try:
-                subprocess.Popen(["notepad.exe", self._log_path])
+                from .winplat import clean_environment, CREATE_NO_WINDOW
+                subprocess.Popen(["notepad.exe", self._log_path], cwd=tempfile.gettempdir(),
+                                 env=clean_environment(), close_fds=True, creationflags=CREATE_NO_WINDOW)
                 return True
             except OSError:
                 pass

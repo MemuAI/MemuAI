@@ -317,6 +317,23 @@ class WindowsPlatform(Platform):
         finally:
             k.CloseHandle(handle)
 
+    def directory_users(self, folder: Path) -> List[Tuple[int, str]]:
+        import psutil
+        root = os.path.normcase(os.path.abspath(str(folder))).rstrip("\\")
+        own = {os.getpid(), os.getppid()}
+        result = []
+        for process in psutil.process_iter(["name", "exe"]):
+            if process.pid in own:
+                continue
+            try:
+                cwd = os.path.normcase(os.path.abspath(process.cwd())).rstrip("\\")
+                image = os.path.normcase(process.info["exe"] or "")
+                if (cwd == root or cwd.startswith(root + "\\")) and not image.startswith(root + "\\"):
+                    result.append((process.pid, process.info["name"] or "Unknown process"))
+            except (psutil.Error, OSError):
+                continue
+        return result
+
     def run_wait(self, exe: Path, args: Sequence[str], timeout: float) -> int:
         try:
             return subprocess.run([str(exe), *args], timeout=timeout, env=clean_environment(),
