@@ -14,7 +14,7 @@ No UPX, no custom bootloader, no obfuscation; the manifest is the standard
 import os
 from pathlib import Path
 
-from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, collect_metadata
+from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, copy_metadata
 
 ROOT = Path(SPECPATH).resolve().parent
 UI = ROOT / "installer" / "ui"
@@ -27,7 +27,7 @@ for path in sorted(UI.rglob("*")):
     if path.is_file() and path.name != "mock.js" and "__pycache__" not in path.parts:
         datas.append((str(path), str(Path("installer_ui") / path.parent.relative_to(UI))))
 datas += collect_data_files("webview")
-datas += collect_metadata("psutil")
+datas += copy_metadata("psutil")
 binaries = collect_dynamic_libs("webview")
 
 a = Analysis(
