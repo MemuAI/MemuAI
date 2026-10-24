@@ -1,0 +1,36 @@
+<div class="bm" id="app">
+  <header class="bm-bar">
+    <div class="bm-brand">
+      <span class="bm-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>
+      </span>
+      <div class="bm-brand-text">
+        <b data-i18n="title"></b>
+        <span class="bm-status" id="status" role="status" aria-live="polite"></span>
+      </div>
+    </div>
+    <label class="bm-search">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="search" type="search" autocomplete="off" spellcheck="false" data-i18n-placeholder="search.placeholder" data-i18n-aria-label="search.placeholder">
+    </label>
+    <label class="bm-toggle" data-i18n-title="mine.title">
+      <input type="checkbox" id="mine">
+      <span class="bm-switch" aria-hidden="true"><i></i></span>
+      <span data-i18n="mine"></span>
+    </label>
+    <button type="button" class="bm-btn" id="refresh" data-i18n-title="refresh.title" data-i18n-aria-label="refresh">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg>
+      <span data-i18n="refresh"></span>
+    </button>
+    <button type="button" class="bm-btn ghost" id="monitor-open" data-i18n-aria-label="monitor.aria">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg>
+      <span id="monitor-open-label"></span>
+    </button>
+  </header>
+  <div class="bm-body">
+    <nav class="bm-side" id="side" data-i18n-aria-label="nav.aria"></nav>
+    <main class="bm-main" id="main" tabindex="-1"></main>
+  </div>
+  <div class="bm-scrim" id="scrim" hidden></div>
+  <aside class="bm-card" id="model-card" hidden role="dialog" aria-modal="true" data-i18n-aria-label="card.aria"></aside>
+</div>

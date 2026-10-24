@@ -1,0 +1,103 @@
+/* Round 38 (r38-mod-integ): module result cards, «Сейчас играет» and the equalizer ring in Quick Access. */
+.qmod-host { padding: 0 12px 10px; }
+.qmod-card { --qmod-c: var(--accent, #d97757); position: relative; border-radius: 14px; padding: 10px; overflow: hidden;
+  background: color-mix(in srgb, var(--qmod-c) 9%, var(--panel, #1f1f1f)); border: 1px solid color-mix(in srgb, var(--qmod-c) 22%, var(--border, #333));
+  animation: qmod-in .22s cubic-bezier(.2, .8, .2, 1); }
+.qmod-card[data-ok="0"] { --qmod-c: var(--muted, #999); }
+@keyframes qmod-in { from { opacity: 0; transform: translateY(6px) scale(.99); } }
+.qmod-main { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.qmod-cover { width: 56px; height: 56px; border-radius: 10px; object-fit: cover; flex: none;
+  box-shadow: 0 8px 20px -10px color-mix(in srgb, var(--qmod-c) 80%, #000); }
+.qmod-gen { display: grid; place-items: center; font-weight: 700; font-size: 20px; color: #fff;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--qmod-c) 70%, #222), color-mix(in srgb, var(--qmod-c) 25%, #000)); }
+.qmod-gen svg { width: 22px; height: 22px; }
+.qmod-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.qmod-title { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text, #eee); }
+.qmod-sub, .qmod-note { font-size: 12px; color: var(--muted, #999); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qmod-note { color: color-mix(in srgb, var(--qmod-c) 75%, var(--text, #eee)); }
+.qmod-acts { display: flex; align-items: center; gap: 2px; flex: none; }
+.qmod-act { width: 32px; height: 32px; border-radius: 50%; border: 0; background: transparent; color: var(--text, #eee); display: grid; place-items: center;
+  cursor: pointer; transition: background .15s, transform .1s; }
+.qmod-act:hover { background: color-mix(in srgb, var(--text, #eee) 10%, transparent); }
+.qmod-act:active { transform: scale(.93); }
+.qmod-act.main { background: var(--qmod-c); color: #fff; width: 36px; height: 36px; }
+.qmod-act svg { width: 16px; height: 16px; }
+.qmod-act:focus-visible, .qmod-item:focus-visible, .qmod-btn:focus-visible, .qmod-x:focus-visible { outline: 2px solid var(--qmod-c); outline-offset: 2px; }
+.qmod-x { position: absolute; top: 6px; right: 6px; width: 22px; height: 22px; border: 0; border-radius: 6px; background: transparent; color: var(--muted, #999);
+  display: grid; place-items: center; cursor: pointer; opacity: 0; transition: opacity .15s; }
+.qmod-card:hover .qmod-x, .qmod-x:focus-visible { opacity: 1; }
+.qmod-x svg { width: 12px; height: 12px; }
+.qmod-items { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; margin-top: 10px; }
+.qmod-item { display: flex; align-items: center; gap: 8px; padding: 6px; border-radius: 10px; border: 0; text-align: left; min-width: 0;
+  background: color-mix(in srgb, var(--text, #eee) 5%, transparent); color: var(--text, #eee); cursor: pointer; font: inherit; }
+.qmod-item:disabled { cursor: default; }
+.qmod-item:not(:disabled):hover { background: color-mix(in srgb, var(--qmod-c) 14%, transparent); }
+.qmod-item img { width: 32px; height: 32px; border-radius: 6px; object-fit: cover; flex: none; }
+.qmod-item span { min-width: 0; display: flex; flex-direction: column; flex: 1; }
+.qmod-item em { font-style: normal; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; flex: none; }
+.qmod-rank, .qmod-mono { width: 26px; height: 26px; flex: none; border-radius: 8px; display: grid; place-items: center; font-style: normal; font-size: 12px; font-weight: 700;
+  color: var(--qmod-c); background: color-mix(in srgb, var(--qmod-c) 14%, transparent); }
+.qmod-rank[data-place="1"] { color: #3b2a05; background: linear-gradient(135deg, #f6d27a, #d9a23a); }
+.qmod-rank[data-place="2"] { color: #2a2f36; background: linear-gradient(135deg, #e6e9ee, #b5bcc6); }
+.qmod-rank[data-place="3"] { color: #3a1f0c; background: linear-gradient(135deg, #e9b48a, #b87445); }
+.qmod-item b, .qmod-item small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qmod-item b { font-weight: 600; font-size: 12.5px; }
+.qmod-item small { color: var(--muted, #999); font-size: 11.5px; }
+.qmod-confirm { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 10px; font-size: 12.5px; color: var(--text, #eee); }
+.qmod-btn { border: 0; border-radius: 999px; padding: 5px 14px; background: var(--qmod-c); color: #fff; cursor: pointer; font: inherit; font-weight: 600; }
+/* «Сейчас играет» — the live player (widget quick.card, and a music command's result card). Round 39 (r39-integ). */
+.qmod-np { --qmod-c: var(--accent, #d97757); display: grid; grid-template-columns: 44px minmax(0, 1fr) auto auto;
+  grid-template-areas: "art meta like ctl" "line line line line"; align-items: center; gap: 2px 10px; padding: 8px 10px 6px; border-radius: 14px;
+  background: color-mix(in srgb, var(--qmod-c) 10%, var(--panel, #1f1f1f)); border: 1px solid color-mix(in srgb, var(--qmod-c) 18%, var(--border, #333)); }
+.qmod-card-player { padding: 0; background: none; border: 0; }
+.qmod-card-player .qmod-x { top: 4px; right: 4px; }
+.qmod-np-art { grid-area: art; position: relative; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 10px; overflow: hidden; cursor: pointer;
+  background: none; box-shadow: 0 6px 16px -8px color-mix(in srgb, var(--qmod-c) 85%, #000); }
+.qmod-np-art .qmod-gen, .qmod-np-art img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.qmod-np-art .qmod-gen svg { width: 18px; height: 18px; }
+.qmod-np-meta { grid-area: meta; min-width: 0; display: flex; flex-direction: column; gap: 1px; line-height: 1.3; }
+.qmod-np-title { font-size: 13px; font-weight: 600; color: var(--text, #eee); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qmod-np-sub { font-size: 11.5px; color: var(--muted, #999); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qmod-np-next { color: color-mix(in srgb, var(--muted, #999) 80%, transparent); }
+.qmod-like { grid-area: like; color: var(--muted, #999); }
+.qmod-like.on { color: var(--qmod-c); }
+.qmod-np-ctl { grid-area: ctl; display: flex; align-items: center; gap: 2px; }
+.qmod-np .qmod-act { width: 30px; height: 30px; }
+.qmod-np .qmod-act.main { width: 34px; height: 34px; }
+.qmod-np .qmod-act.sm { width: 24px; height: 24px; color: var(--muted, #999); }
+.qmod-np .qmod-act.sm:hover { color: var(--text, #eee); }
+.qmod-np .qmod-act.sm svg { width: 14px; height: 14px; }
+.qmod-np.is-wait .qmod-act.main { box-shadow: 0 0 0 3px color-mix(in srgb, var(--qmod-c) 28%, transparent); }
+.qmod-np-line { grid-area: line; display: flex; align-items: center; gap: 8px; min-width: 0; }
+.qmod-np-time { font-size: 11px; color: var(--muted, #999); font-variant-numeric: tabular-nums; min-width: 30px; }
+.qmod-np-cur { text-align: right; }
+.qmod-seek { position: relative; flex: 1; height: 16px; cursor: pointer; touch-action: none; }
+.qmod-seek::before { content: ""; position: absolute; left: 0; right: 0; top: 6px; height: 4px; border-radius: 4px; background: color-mix(in srgb, var(--text, #eee) 14%, transparent); }
+.qmod-seek-fill { position: absolute; left: 0; right: 0; top: 6px; height: 4px; border-radius: 4px; background: var(--qmod-c); transform-origin: left center;
+  transform: scaleX(var(--k, 0)); }
+.qmod-seek:hover .qmod-seek-fill, .qmod-seek:focus-visible .qmod-seek-fill { height: 6px; top: 5px; }
+.qmod-seek:focus-visible { outline: 2px solid var(--qmod-c); outline-offset: 2px; border-radius: 4px; }
+@keyframes qmod-progress { from { transform: scaleX(var(--k, 0)); } to { transform: scaleX(1); } }
+.qmod-vol { display: flex; align-items: center; gap: 2px; }
+.qmod-vol input { -webkit-appearance: none; appearance: none; width: 64px; height: 4px; margin: 0 4px 0 0; border-radius: 4px; cursor: pointer;
+  background: linear-gradient(90deg, var(--qmod-c) var(--v, 100%), color-mix(in srgb, var(--text, #eee) 14%, transparent) var(--v, 100%)); }
+.qmod-vol input::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.35); }
+.qmod-vol input:focus-visible { outline: 2px solid var(--qmod-c); outline-offset: 3px; }
+@media (max-width: 460px) { .qmod-vol input { display: none; } .qmod-like { display: none; } .qmod-np { grid-template-columns: 44px minmax(0, 1fr) auto; grid-template-areas: "art meta ctl" "line line line"; } }
+/* skeleton — a matched phrase shows it at once, until the command answers */
+.qmod-card.is-skel { --qmod-c: var(--muted, #999); }
+.qmod-sk { display: block; border-radius: 6px; background: linear-gradient(90deg, color-mix(in srgb, var(--text, #eee) 7%, transparent) 0 40%, color-mix(in srgb, var(--text, #eee) 14%, transparent) 50%, color-mix(in srgb, var(--text, #eee) 7%, transparent) 60%) 0 0/300% 100%;
+  animation: qmod-sk 1.1s linear infinite; }
+.qmod-sk-l { width: 58%; height: 12px; margin-bottom: 6px; }
+.qmod-sk-s { width: 36%; height: 10px; }
+@keyframes qmod-sk { from { background-position: 100% 0; } to { background-position: 0 0; } }
+/* equalizer ring (widget quick.ring) — a canvas right above the card surface (.qa-aura), under its content, never catches the mouse */
+.qmod-ring { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; border-radius: inherit;
+  transition: opacity .4s ease; animation: qmod-ring-in .35s ease; }
+.qmod-ring.out { opacity: 0 !important; animation: none; }
+@keyframes qmod-ring-in { from { opacity: 0; } }
+.qmod-ring[data-style="glow"], .qmod-ring[data-still="1"] { animation: qmod-glow 2.4s ease-in-out infinite alternate; }
+@keyframes qmod-glow { from { opacity: .55; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .qmod-ring, .qmod-card, .qmod-sk { animation: none !important; } }
+:root[data-motion="reduced"] .qmod-ring, :root[data-motion="reduced"] .qmod-sk { animation: none !important; }
+.qmod-cover.qmod-mico { background: none; border-radius: 0; object-fit: contain; } /* Round 39 (r39-mod-icons): module icon instead of a cover */

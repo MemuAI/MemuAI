@@ -1,0 +1,15 @@
+/* Round 38: «Бенчмарки» panels — on top of the shared panel kit (app/pgstatic/module-panel-kit.css). */
+.mk { --c: #e0a23b; }
+:root[data-theme="light"] .mk { --c: #b9791a; }
+.bm-rank .mk-row { gap: 10px; }
+.bm-place { width: 24px; height: 24px; flex: none; border-radius: 8px; display: grid; place-items: center; font-size: 12px; font-weight: 700;
+  font-variant-numeric: tabular-nums; color: var(--muted); background: color-mix(in srgb, var(--text) 6%, transparent); }
+.bm-place[data-place="1"] { color: #3b2a05; background: linear-gradient(135deg, #f6d27a, #d9a23a); }
+.bm-place[data-place="2"] { color: #2a2f36; background: linear-gradient(135deg, #e6e9ee, #b5bcc6); }
+.bm-place[data-place="3"] { color: #3a1f0c; background: linear-gradient(135deg, #e9b48a, #b87445); }
+.bm-score { flex: none; width: 76px; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.bm-score b { font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.bm-score i { display: block; height: 3px; width: 100%; border-radius: 2px; background: color-mix(in srgb, var(--text) 9%, transparent); position: relative; overflow: hidden; }
+.bm-score i::after { content: ""; position: absolute; inset: 0; transform-origin: right; transform: scaleX(var(--w, 1)); background: var(--c); border-radius: 2px; }
+.bm-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--c); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 20%, transparent); margin: 0 4px; }
+html[data-size="s"] .bm-score { width: 52px; }

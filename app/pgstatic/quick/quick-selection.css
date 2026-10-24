@@ -1,0 +1,35 @@
+/* MemuAI Quick Ask · Round 27 — the action row under the «Выделено» chip (quick-selection.js).
+   Tokens only (themes.css / quick.css): every accent, theme, surface and design applies. */
+.qa-plugin.qsel { padding: 8px 14px 2px var(--qa-pad); }
+.qsel-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.qsel-act { display: inline-flex; align-items: center; gap: 7px; height: 30px; min-width: 0; max-width: 100%; padding: 0 6px 0 9px;
+  border: 1px solid var(--qa-chip-line); border-radius: 8px; background: var(--qa-chip); color: var(--text); cursor: pointer;
+  font-size: 13px; transition: background .12s ease, border-color .12s ease, color .12s ease; }
+.qsel-act .ic { flex: none; display: grid; place-items: center; width: 16px; height: 16px; color: var(--muted); }
+.qsel-act .ic svg { width: 15px; height: 15px; }
+.qsel-act .tx { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qsel-act kbd { flex: none; min-width: 16px; height: 16px; padding: 0 4px; font-size: 10px; opacity: .85; }
+.qsel-act:hover { background: var(--qa-hover); border-color: color-mix(in srgb, var(--accent) 35%, var(--qa-chip-line)); }
+.qsel-act:hover .ic, .qsel-act:focus-visible .ic, .qsel-act.on .ic { color: var(--accent); }
+.qsel-act:focus-visible { outline: none; background: var(--qa-active); border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 22%, transparent); }
+.qsel-act.on { background: var(--qa-active); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.qsel-hint { padding: 7px 2px 4px; font-size: 11.5px; line-height: 1.5; color: var(--qa-faint); }
+.qsel-hint kbd { min-width: 16px; height: 16px; padding: 0 4px; font-size: 10px; margin: 0 1px; vertical-align: -2px; }
+/* «Заменить выделение» under the answer keeps its label: it is the point of «Исправить» / «Перевести». */
+#qa-x-selection-replace { color: var(--accent); padding: 0 9px; }
+#qa-x-selection-replace span { display: inline; }
+#qa-x-selection-replace:hover { background: var(--qa-active); }
+@media (max-width: 560px) {
+  .qsel-act { height: 28px; padding: 0 5px 0 8px; font-size: 12.5px; gap: 6px; }
+}
+:root[data-design="soft"] .qsel-act { border-radius: 999px; }
+:root[data-design="terminal"] .qsel-act { border-radius: 2px; font-family: var(--mono); }
+:root[data-design="grid"] .qsel-act { border-radius: 3px; }
+:root[data-design="brutal"] .qsel-act { border-radius: 8px; border-width: 2px; }
+:root[data-motion="full"] .qa-plugin.qsel:not([hidden]) .qsel-act { animation: qsel-in .18s var(--qa-ease-out) both; }
+:root[data-motion="full"] .qa-plugin.qsel:not([hidden]) .qsel-act:nth-child(2) { animation-delay: 15ms; }
+:root[data-motion="full"] .qa-plugin.qsel:not([hidden]) .qsel-act:nth-child(3) { animation-delay: 30ms; }
+:root[data-motion="full"] .qa-plugin.qsel:not([hidden]) .qsel-act:nth-child(4) { animation-delay: 45ms; }
+:root[data-motion="full"] .qa-plugin.qsel:not([hidden]) .qsel-act:nth-child(n+5) { animation-delay: 60ms; }
+@keyframes qsel-in { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }

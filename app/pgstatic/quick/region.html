@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="/icon.png">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MemuAI · region</title>
+<!-- Round 27 (quick features): the full-screen overlay of «Ask about a screen region». The native side
+     (app/quick_features_win.py) places this window over the monitor under the cursor and shows the frozen
+     screenshot; the page answers POST /api/quick/features/region/done {token, rect: {x,y,w,h} fractions | null}. -->
+<script src="/memu-keys.js?v=3.5-r33"></script>
+<link rel="stylesheet" href="/themes.css">
+<link rel="stylesheet" href="/quick/region.css?v=1.0-r27">
+</head>
+<body>
+<img class="rg-shot" id="rg-shot" alt="" draggable="false">
+<div class="rg-dim" id="rg-dim"></div>
+<div class="rg-sel" id="rg-sel" hidden><span class="rg-size" id="rg-size"></span></div>
+<div class="rg-cross-x" id="rg-cx"></div><div class="rg-cross-y" id="rg-cy"></div>
+<div class="rg-hint" id="rg-hint" role="status"></div>
+<script src="/quick/region.js?v=1.0-r27"></script>
+</body>
+</html>

@@ -1,0 +1,151 @@
+/* MemuAI · Settings → Integrations → Google / Notion (Round 30). Settings-kit tokens (--sx-*) and theme tokens only. */
+
+.gi-root { display: flex; flex-direction: column; gap: 16px; padding-top: 14px; }
+.gi-root .ui-icon { width: 15px; height: 15px; }
+.gi-muted { color: var(--muted); font-size: 12.5px; line-height: 1.5; margin: 0 0 12px; }
+.gi-loading { color: var(--muted); font-size: 13px; padding: 18px 2px; }
+
+/* brand marks */
+.gi-brand { width: 32px; height: 32px; flex: none; display: grid; place-items: center; border-radius: 9px;
+  background: color-mix(in srgb, #fff 92%, var(--panel)); box-shadow: inset 0 0 0 1px var(--sx-line); }
+.gi-brand svg { width: 20px; height: 20px; display: block; }
+/* r33d-shots: single-colour marks (GitHub) on the white tile — currentColor was the theme text colour, invisible in dark. */
+.gi-brand:has(svg path[fill="currentColor"]) { color: #1f2328; }
+.gi-brand.big { width: 44px; height: 44px; border-radius: 12px; }
+.gi-brand.big svg { width: 26px; height: 26px; }
+.gi-brand.btn { width: 22px; height: 22px; border-radius: 6px; box-shadow: none; }
+.gi-brand.btn svg { width: 16px; height: 16px; }
+.gi-brand.avatar { width: 38px; height: 38px; border-radius: 50%; }
+.sx-link-icon .gi-brand { width: 100%; height: 100%; border-radius: inherit; box-shadow: none; }
+.sx-link-icon .gi-brand svg { width: 18px; height: 18px; }
+.sx-link-icon .gi-brand:has(svg path[fill="currentColor"]) { background: transparent; color: var(--text); }
+
+/* hero / account header */
+.gi-hero, .gi-account { display: flex; align-items: center; gap: 14px; padding: 16px 18px; border-radius: var(--sx-r, 14px);
+  background: var(--sx-card); border: 1px solid var(--sx-line); }
+.gi-hero-text, .gi-account-text { min-width: 0; flex: 1; }
+.gi-title { display: block; font: 650 15px/1.3 var(--sx-display, inherit); letter-spacing: -.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gi-hero-text p { margin: 3px 0 0; color: var(--muted); font-size: 13px; line-height: 1.45; }
+.gi-account-text small { display: block; color: var(--muted); font-size: 12.5px; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gi-avatar { width: 38px; height: 38px; flex: none; border-radius: 50%; display: grid; place-items: center; color: #fff;
+  font: 650 16px/1 var(--sx-font); background: linear-gradient(135deg, #4285F4, #34A853); }
+.gi-avatar.img { object-fit: cover; background: var(--sx-press); }
+.gi-account .pbtn { flex: none; }
+
+/* services */
+.gi-card .gi-svc { align-items: center; gap: 12px; }
+.gi-svc .gi-brand { width: 30px; height: 30px; }
+.gi-svc .gi-brand svg { width: 19px; height: 19px; }
+.gi-svc .sx-label { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.gi-pill { font: 600 11px/1 var(--sx-font); padding: 3px 7px; border-radius: 99px; background: var(--sx-press); color: var(--muted); }
+.gi-pill.on { color: var(--ok); background: color-mix(in srgb, var(--ok) 13%, transparent); }
+.gi-pill.warn { color: var(--sx-warn); background: color-mix(in srgb, var(--sx-warn) 14%, transparent); }
+
+/* call to action */
+.gi-cta { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.gi-cta small { color: var(--muted); font-size: 12.5px; flex: 1; min-width: 200px; }
+.gi-google-btn, .gi-notion-btn { display: inline-flex; align-items: center; gap: 10px; padding: 9px 16px 9px 10px; font-weight: 600; white-space: nowrap; }
+.gi-google-btn .gi-brand.btn, .gi-notion-btn .gi-brand.btn { background: #fff; }
+
+/* waiting for the browser */
+.gi-wait { display: flex; gap: 12px; padding: 14px 16px; border-radius: var(--sx-r, 14px); background: var(--sx-sel); }
+.gi-wait b { font-size: 13.5px; }
+.gi-wait p { margin: 3px 0 10px; color: var(--muted); font-size: 12.5px; }
+.gi-wait .sx-actions { margin: 0; justify-content: flex-start; }
+.gi-wait .pbtn { display: inline-flex; align-items: center; gap: 6px; }
+.gi-spin { width: 18px; height: 18px; margin-top: 1px; flex: none; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  border-top-color: var(--accent); animation: gi-spin .9s linear infinite; }
+@keyframes gi-spin { to { transform: rotate(360deg); } }
+html[data-motion="off"] .gi-spin { animation: none; }
+
+/* facts */
+.gi-facts { display: flex; flex-direction: column; gap: 6px; padding: 0 2px; }
+.gi-facts span { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12.5px; }
+.gi-facts .ui-icon { color: var(--ok); flex: none; }
+.gi-facts .ui-icon svg, .gi-root .ui-icon svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+/* wizard */
+.gi-steps { list-style: none; margin: 0 0 14px; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.gi-step { display: flex; gap: 12px; }
+.gi-step-n { width: 24px; height: 24px; flex: none; border-radius: 50%; display: grid; place-items: center;
+  font: 650 12px/1 var(--sx-font); color: var(--accent); background: var(--sx-sel); }
+.gi-step b { font-size: 13.5px; }
+.gi-step p { margin: 2px 0 6px; color: var(--muted); font-size: 12.5px; line-height: 1.5; }
+.gi-step .pbtn { display: inline-flex; align-items: center; gap: 6px; }
+.gi-steps.compact { padding: 14px 18px 0; }
+.gi-client-fields { display: flex; flex-direction: column; gap: 10px; }
+.gi-client-fields .sx-actions { margin-top: 2px; }
+.gi-token-row { display: flex; gap: 8px; align-items: center; padding: 4px 18px 16px 54px; }
+.gi-token-row .sx-secret { flex: 1; }
+.gi-copy { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; }
+.gi-copy code { flex: 1; min-width: 0; padding: 7px 10px; border-radius: var(--sx-r-sm, 9px); background: var(--sx-press);
+  font: 12px/1.4 var(--mono, ui-monospace, Consolas, monospace); overflow-wrap: anywhere; }
+.gi-copy .pbtn { display: inline-flex; align-items: center; gap: 6px; flex: none; }
+
+/* tool confirmation */
+.gi-confirm-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.gi-confirm-head h2 { margin: 0; font-size: 18px; }
+.gi-confirm-rows { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 14px; margin: 0 0 12px; font-size: 13px; }
+.gi-confirm-rows dt { color: var(--muted); }
+.gi-confirm-rows dd { margin: 0; overflow-wrap: anywhere; }
+.gi-confirm-body { max-height: 220px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; line-height: 1.5;
+  padding: 10px 12px; margin: 0 0 12px; border-radius: var(--sx-r-sm, 9px); background: var(--sx-press, color-mix(in srgb, var(--text) 7%, transparent)); }
+.gi-confirm .gi-muted { margin-bottom: 14px; }
+
+@media (max-width: 620px) {
+  .gi-account { flex-wrap: wrap; }
+  .gi-token-row { padding-left: 18px; flex-wrap: wrap; }
+}
+
+/* layout inside the settings kit */
+/* the root's gap is the rhythm: the wizard's section adds no margin (beats settings.css :root .sx-shell .sx-section) */
+:root .sx-shell .gi-root > .sx-section { margin: 0; }
+.gi-root > .sx-section .sx-more { margin: 0; }
+.gi-more-pad { padding: 4px 18px 18px; }
+.gi-root a.pbtn, .gi-confirm a.pbtn { text-decoration: none; }
+.gi-confirm-panel .gi-confirm { text-align: left; }
+.gi-confirm-panel .gi-confirm-body { text-align: left; }
+.gi-confirm-panel .row-end { justify-content: flex-end; }
+
+/* ---------------------------------------------------------------- Round 33: full access, API check, setup guide */
+.gi-pill.err { color: var(--danger); background: color-mix(in srgb, var(--danger) 13%, transparent); }
+.gi-svc-control { display: flex; align-items: center; gap: 10px; flex: none; }
+.gi-svc-control .pbtn { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.gi-svc-error { margin-top: 5px; font-size: 12px; line-height: 1.45; color: var(--danger); overflow-wrap: anywhere; }
+.gi-check { display: flex; align-items: center; gap: 12px; padding: 12px 14px 12px 16px; border-radius: var(--sx-r, 14px);
+  background: var(--sx-card); border: 1px solid var(--sx-line); }
+.gi-check p { flex: 1; min-width: 180px; margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--muted); }
+.gi-check-ico { width: 18px; height: 18px; flex: none; color: var(--muted); }
+.gi-check-ico svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.gi-check.ok .gi-check-ico { color: var(--ok); }
+.gi-check.warn .gi-check-ico { color: var(--sx-warn); }
+.gi-check.err { border-color: color-mix(in srgb, var(--danger) 40%, var(--sx-line)); }
+.gi-check.err .gi-check-ico, .gi-check.err p { color: var(--danger); }
+.gi-check-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.gi-check-actions .pbtn { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.gi-api-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 8px; }
+.gi-api-chip { font: 600 11.5px/1 var(--sx-font); padding: 6px 9px; border-radius: 99px; text-decoration: none; color: var(--text);
+  background: var(--sx-press); border: 1px solid var(--sx-line-soft, transparent); transition: background var(--m-dur-1, 120ms); }
+.gi-api-chip:hover { background: var(--sx-hover); }
+.gi-api-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.gi-agent-note { display: flex; gap: 10px; margin: 2px 0 8px; padding: 10px 12px; border-radius: var(--sx-r-sm, 9px); background: var(--sx-sel); }
+.gi-agent-note > .ui-icon { color: var(--accent); flex: none; margin-top: 1px; }
+.gi-agent-note b { font-size: 12.5px; }
+.gi-agent-note p { margin: 3px 0 0; }
+.gi-json-btn { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.gi-confirm-warn { color: var(--danger) !important; }
+.gi-gh-guide h4 { margin: 14px 0 6px; font-size: 13px; }
+.gi-gh-guide ol { margin: 0 0 6px; padding-left: 20px; display: flex; flex-direction: column; gap: 5px; }
+.gi-gh-guide p { margin: 0 0 6px; }
+.gi-gh-guide code { font: 12px/1.3 var(--mono, ui-monospace, Consolas, monospace); padding: 1px 5px; border-radius: 5px; background: var(--sx-press); }
+@media (max-width: 760px) {
+  .gi-card .gi-svc { flex-wrap: wrap; }
+  .gi-svc-control { margin-left: auto; }
+  .gi-check { flex-wrap: wrap; }
+}
+.gi-telegram-preview { max-height: min(46vh, 420px); }
+.gi-telegram-preview pre { white-space: pre-wrap; overflow-wrap: anywhere; margin: 10px 0; padding: 10px; border-radius: 7px; background: color-mix(in srgb, var(--text) 6%, transparent); }
+.gi-telegram-preview code { font-family: var(--font-mono, Consolas, monospace); font-size: .94em; }
+.gi-telegram-preview blockquote { margin: 8px 0; padding-left: 10px; border-left: 3px solid var(--accent); }
+.gi-tg-spoiler { border-radius: 3px; background: color-mix(in srgb, var(--text) 14%, transparent); }
+.gi-tg-part { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--border); color: var(--muted); font-size: 11px; }

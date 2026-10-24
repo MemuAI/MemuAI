@@ -1,0 +1,94 @@
+/* Quick Ask × Do For You (Round 24): the offer under the input and the task cards (bottom slot).
+   Colours only from theme tokens; compact, calm — one accent element per card. */
+.qa-plugin.qdfy { display: flex; flex-direction: column; gap: 8px; padding: 6px 14px 8px var(--qa-pad, 18px); }
+.qa-plugin.qdfy:empty { display: none; }
+.qdfy-offer { display: flex; align-items: center; gap: 8px; min-height: 34px; padding: 4px 6px 4px 10px; border-radius: 10px; font-size: 12.5px;
+  color: var(--muted); background: var(--qa-chip, color-mix(in srgb, var(--text) 5%, transparent)); border: 1px solid var(--qa-chip-line, transparent); }
+.qdfy-offer > span:nth-child(2) { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Round 30: «DFY is not ready» — the whole reason, wrapped, with «DFY settings» */
+.qdfy-notice { align-items: flex-start; padding-top: 7px; padding-bottom: 7px; line-height: 1.45; }
+.qdfy-notice > span:nth-child(2) { white-space: normal; overflow: visible; color: var(--text); }
+.qdfy-notice .qdfy-bolt { margin-top: 2px; }
+.qdfy-bolt { color: var(--accent); display: inline-grid; place-items: center; width: 14px; height: 14px; flex: none; }
+.qdfy-bolt svg { width: 14px; height: 14px; }
+.qdfy-lock { display: inline-flex; align-items: center; gap: 4px; }
+.qdfy-btn { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px; border-radius: 8px; border: 1px solid var(--qa-chip-line, transparent);
+  font: inherit; font-size: 12.5px; color: var(--text); background: color-mix(in srgb, var(--text) 6%, transparent); cursor: pointer; white-space: nowrap; }
+.qdfy-btn:hover { background: color-mix(in srgb, var(--text) 10%, transparent); }
+.qdfy-btn:focus-visible, .qdfy-x:focus-visible, .qdfy-input:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: 1px; }
+.qdfy-btn.primary { color: var(--on-accent, #fff); background: var(--accent); border-color: transparent; }
+.qdfy-btn.primary:hover { filter: brightness(1.06); }
+.qdfy-btn.small { height: 24px; padding: 0 9px; font-size: 12px; }
+.qdfy-btn[disabled] { opacity: .55; cursor: default; }
+.qdfy-btn kbd { font-size: 10.5px; padding: 0 4px; border-radius: 4px; background: color-mix(in srgb, #000 18%, transparent); color: inherit; border: 0; }
+.qdfy-x { width: 24px; height: 24px; flex: none; display: grid; place-items: center; padding: 0; border: 0; border-radius: 7px; cursor: pointer;
+  font-size: 16px; line-height: 1; color: var(--muted); background: transparent; }
+.qdfy-x:hover { color: var(--text); background: color-mix(in srgb, var(--text) 8%, transparent); }
+.qdfy-card { border-radius: 12px; padding: 9px 10px 9px 12px; border: 1px solid var(--qa-line, color-mix(in srgb, var(--text) 10%, transparent));
+  background: color-mix(in srgb, var(--panel, #1c1c20) 70%, transparent); font-size: 12.5px; line-height: 1.45; min-width: 0; }
+.qdfy-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.qdfy-dot { width: 8px; height: 8px; flex: none; border-radius: 50%; background: var(--accent); }
+.qdfy-card[data-status="running"] .qdfy-dot, .qdfy-card[data-status="queued"] .qdfy-dot { animation: qdfy-pulse 1.2s ease-in-out infinite; }
+.qdfy-card[data-status="waiting_user"] .qdfy-dot { background: #e0a43a; }
+.qdfy-card[data-status="done"] .qdfy-dot { background: #4cae6e; }
+.qdfy-card[data-status="failed"] .qdfy-dot { background: #d9534f; }
+.qdfy-card[data-status="cancelled"] .qdfy-dot { background: var(--muted); }
+.qdfy-goal { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; color: var(--text); }
+.qdfy-state { flex: none; color: var(--muted); font-size: 11.5px; }
+.qdfy-steps { margin: 6px 0 0; padding-left: 22px; color: var(--muted); max-height: 92px; overflow: auto; }
+.qdfy-steps li { overflow-wrap: anywhere; }
+.qdfy-steps li span { color: var(--text); }
+.qdfy-steps em { font-style: normal; }
+.qdfy-wait, .qdfy-foot { margin-top: 6px; color: var(--muted); font-size: 11.5px; }
+.qdfy-q { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+.qdfy-q-prompt { color: var(--text); overflow-wrap: anywhere; }
+.qdfy-q-actions { display: flex; align-items: center; gap: 6px; }
+.qdfy-q-actions.wrap { flex-wrap: wrap; }
+.qdfy-input { height: 30px; padding: 0 10px; border-radius: 8px; font: inherit; font-size: 12.5px; color: var(--text); min-width: 0;
+  background: color-mix(in srgb, var(--text) 5%, transparent); border: 1px solid var(--qa-chip-line, color-mix(in srgb, var(--text) 12%, transparent)); }
+.qdfy-lock { color: var(--muted); font-size: 11px; }
+.qdfy-result { margin-top: 6px; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text); max-height: 140px; overflow: auto; }
+.qdfy-error { margin-top: 6px; color: #e06c68; overflow-wrap: anywhere; }
+@keyframes qdfy-pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .qdfy-card .qdfy-dot { animation: none !important; } }
+:root[data-motion="off"] .qdfy-card .qdfy-dot { animation: none !important; }
+/* Round 24: a file dragged over the window */
+.qa-card.qa-drop { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 60%, transparent) inset; }
+/* Round 25: personal-data forms, one-time code, confirm total */
+.qdfy-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 4px 8px; }
+.qdfy-fields .dfy-field { display: flex; flex-direction: column; gap: 2px; font-size: 11.5px; color: var(--muted); min-width: 0; }
+.qdfy-fields select.qdfy-input { padding: 0 6px; }
+.qdfy-q .dfy-err { color: #e06c68; font-size: 11px; min-height: 0; }
+.qdfy-q .dfy-err:empty { display: none; }
+.qdfy-q [aria-invalid] { border-color: #e06c68; }
+.qdfy-input.qdfy-code { height: 38px; max-width: 220px; font-size: 20px; letter-spacing: .35em; text-align: center; font-variant-numeric: tabular-nums; }
+.qdfy-amount { font-size: 15px; font-weight: 700; color: var(--text); }
+.qdfy-note { color: var(--muted); font-size: 11.5px; }
+.qdfy-note:empty { display: none; }
+.qdfy-save { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11.5px; }
+.qdfy-save input { margin: 0; }
+/* Round 30: takeover — «You're in control» line */
+.qdfy-control { display: flex; align-items: center; gap: 6px; margin-top: 8px; padding: 6px 6px 6px 10px; border-radius: 9px;
+  background: var(--accent-soft, color-mix(in srgb, var(--accent) 14%, transparent)); color: var(--text); }
+.qdfy-control > span { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Round 34: what the AI sees now (the newest step's screenshot), a failed step in the list */
+.qdfy-shot { display: block; width: 100%; margin-top: 8px; padding: 0; border: 1px solid var(--qa-line, color-mix(in srgb, var(--text) 10%, transparent));
+  border-radius: 9px; overflow: hidden; background: color-mix(in srgb, var(--text) 4%, transparent); cursor: zoom-in; }
+.qdfy-shot img { display: block; width: 100%; max-height: 120px; object-fit: cover; object-position: top center; }
+.qdfy-shot.big { cursor: zoom-out; }
+.qdfy-shot.big img { max-height: 340px; object-fit: contain; }
+.qdfy-steps li em { color: var(--text); }
+.qdfy-steps li.bad, .qdfy-steps li.bad em, .qdfy-steps li.bad span { color: #e06c68; }
+
+/* r34-quick-agentic-2: a narrow window (≤ 520 px) — «Перехватить» / «Отменить» become 26 px icon buttons (the name
+   stays in aria-label and the tooltip), so the head is one line: the goal gets the room instead of wrapping the buttons
+   to a second row. Specificity beats the wrap rule of quick-design.css. */
+.qdfy-hbtn > i { display: none; }
+@media (max-width: 520px) {
+  .qdfy-card .qdfy-head { flex-wrap: nowrap; }
+  .qdfy-card .qdfy-goal { flex: 1 1 0; }
+  .qdfy-card .qdfy-hbtn { width: 26px; height: 24px; padding: 0; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+  .qdfy-card .qdfy-hbtn > span { display: none; }
+  .qdfy-card .qdfy-hbtn > i { display: inline-flex; width: 13px; height: 13px; }
+  .qdfy-card .qdfy-hbtn > i svg { width: 100%; height: 100%; }
+}

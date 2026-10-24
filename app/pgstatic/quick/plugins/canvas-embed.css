@@ -1,0 +1,37 @@
+/* Round 30 — panels built into the Quick Access window (canvas-embed.js). Tile looks: pgstatic/quick/panel-look.css. */
+
+/* tiles share the row evenly (a grid, not a ragged wrap): the minimum width per look is --qpe-min */
+.qpe { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--qpe-min, 150px), 1fr)); gap: 8px;
+  padding: 2px var(--qa-pad, 14px) 8px; min-width: 0; }
+.qpe:has(> [data-pl-style="icon"]) { --qpe-min: 92px; }
+.qpe:has(> [data-pl-style="text"]) { --qpe-min: 128px; }
+.qpe[hidden] { display: none; }
+.qpe[data-place="above"] { padding: 10px var(--qa-pad, 14px) 2px; }
+.qa-plugin.qpe-host { padding: 0; }
+
+.qpe-tile { position: relative; min-width: 0; border-radius: var(--pl-radius, 14px); outline: none; flex: 0 1 auto; }
+.qpe-tile:focus-visible { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 75%, transparent); }
+/* sizes per look: a card is a small (S) card, the others size to their content */
+.qpe-tile[data-pl-style="card"] { height: 124px; }
+.qpe-tile[data-pl-style="card"] > .mp-card { width: 100%; height: 100%; min-height: 0; margin: 0; padding: 10px 11px 8px; gap: 5px; box-sizing: border-box; }
+.qpe-tile[data-pl-style="card"] > .mp-card .mp-foot { display: none; }
+.qpe-tile[data-pl-style="icon"] { height: 92px; }
+.qpe-tile > .pl-face { height: auto; min-height: 100%; }
+.qpe-tile[data-pl-style="icon"] > .pl-face { height: 100%; }
+.qpe-tile[data-pl-style="text"] > .pl-text { padding: 2px 6px 2px 2px; }
+
+/* the side column: on the right of the window, as tall as the window (the window grows to show it) */
+:root[data-qpe="side"] .qa-inner { margin-right: 212px; min-height: var(--qpe-side-min, 0px); }
+:root[data-qpe="side"] .qa-inner > .qa-bar { margin-top: auto; }      /* the footer stays at the bottom of the taller window */
+.qpe[data-place="side"] {
+  position: absolute; z-index: 2; top: 0; right: 0; bottom: 0; width: 212px; box-sizing: border-box;
+  display: flex; flex-direction: column; flex-wrap: nowrap; gap: 8px; padding: 12px 12px 12px 4px;
+  overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin;
+  border-left: 1px solid color-mix(in srgb, var(--qa-line, var(--border)) 70%, transparent);
+}
+.qpe[data-place="side"] .qpe-tile { width: 100%; max-width: none; flex: none; }
+.qpe[data-place="side"] .qpe-tile[data-pl-style="card"] { height: 124px; }
+.qpe[data-place="side"] .qpe-tile[data-pl-style="icon"] { height: 84px; }
+.qpe[data-place="side"] .qpe-tile[data-pl-style="text"] { padding-left: 6px; }
+.qpe-tile .mp-todo-add { min-width: 0; }
+.qpe-tile .mp-todo-add input { min-width: 0; width: 100%; text-overflow: ellipsis; }

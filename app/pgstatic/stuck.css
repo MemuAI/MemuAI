@@ -1,0 +1,107 @@
+/* MemuAI · Round 29 — the stuck-detector pause card (stuck.js).
+   Theme tokens only (--panel, --text, --muted, --accent, --border, --danger; Quick Access: --qa-*), so every
+   design (aurora, focus, grid, glass, soft, terminal, brutal) and both themes keep their own look. */
+
+.memu-stuck {
+  --stuck-acc: color-mix(in srgb, #d79a2b 70%, var(--accent, #7c6cf0));
+  --stuck-line: var(--sx-line, var(--border, var(--line, rgba(127, 127, 127, .28))));
+  position: relative;
+  border: 1px solid color-mix(in srgb, var(--stuck-acc) 45%, var(--stuck-line));
+  border-radius: var(--sx-r, 14px);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--stuck-acc) 10%, transparent), transparent 70%),
+    var(--panel, rgba(127, 127, 127, .06));
+  color: var(--text, inherit);
+  padding: 12px 14px 12px;
+  font-size: 13.5px; line-height: 1.45;
+  box-shadow: 0 6px 22px -14px color-mix(in srgb, var(--stuck-acc) 60%, transparent);
+  animation: memu-stuck-in .22s ease-out;
+}
+@keyframes memu-stuck-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .memu-stuck { animation: none; } }
+
+.memu-stuck .memu-stuck-ic { display: inline-flex; width: 15px; height: 15px; flex: none; }
+.memu-stuck .memu-stuck-ic svg { width: 100%; height: 100%; }
+
+.memu-stuck-head { display: flex; align-items: flex-start; gap: 10px; }
+.memu-stuck-head > .memu-stuck-ic {
+  width: 30px; height: 30px; padding: 7px; border-radius: 50%; box-sizing: border-box;
+  color: var(--stuck-acc); background: color-mix(in srgb, var(--stuck-acc) 16%, transparent);
+}
+.memu-stuck-titles { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.memu-stuck-title { font-weight: 650; font-size: 14px; }
+.memu-stuck-sub { color: var(--muted, inherit); font-size: 12.5px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.memu-stuck-area {
+  font-size: 11px; font-weight: 600; letter-spacing: .02em; padding: 1px 7px; border-radius: 999px;
+  border: 1px solid var(--stuck-line); color: var(--text, inherit);
+}
+.memu-stuck-detail { margin: 8px 0 0; }
+
+.memu-stuck-steps-h {
+  display: flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 12px;
+  color: var(--muted, inherit); text-transform: none;
+}
+.memu-stuck-steps-h .memu-stuck-ic { width: 13px; height: 13px; }
+.memu-stuck-steps {
+  margin: 6px 0 0; padding: 6px 8px 6px 26px; border-radius: var(--sx-r-sm, 9px);
+  background: color-mix(in srgb, var(--text, #888) 4%, transparent); border: 1px solid var(--stuck-line);
+  max-height: 150px; overflow: auto;
+}
+.memu-stuck-steps li { padding: 2px 0; overflow-wrap: anywhere; }
+.memu-stuck-step { font-family: var(--mono, ui-monospace, SFMono-Regular, Consolas, monospace); font-size: 12px; }
+.memu-stuck-x {
+  display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 999px; font-size: 11px; font-weight: 700;
+  color: var(--stuck-acc); background: color-mix(in srgb, var(--stuck-acc) 15%, transparent);
+}
+.memu-stuck-err { display: block; color: var(--danger, #d0647a); font-size: 11.5px; }
+
+.memu-stuck-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.memu-stuck-btn {
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  padding: 6px 12px; border-radius: 999px; font: inherit; font-size: 13px; line-height: 1.2;
+  border: 1px solid var(--stuck-line); background: transparent; color: var(--text, inherit);
+  transition: background .15s, border-color .15s, opacity .15s;
+}
+.memu-stuck-btn:hover:not(:disabled) { background: color-mix(in srgb, var(--text, #888) 7%, transparent); }
+.memu-stuck-btn:focus-visible { outline: 2px solid var(--accent, #7c6cf0); outline-offset: 2px; }
+.memu-stuck-btn:disabled { opacity: .55; cursor: default; }
+.memu-stuck-btn.primary { background: var(--accent, #7c6cf0); border-color: transparent; color: var(--on-accent, #fff); }
+.memu-stuck-btn.primary:hover:not(:disabled) { background: color-mix(in srgb, var(--accent, #7c6cf0) 86%, #000); }
+.memu-stuck-btn.danger { color: var(--danger, #d0647a); border-color: color-mix(in srgb, var(--danger, #d0647a) 45%, transparent); }
+.memu-stuck-btn.danger.confirming { background: var(--danger, #d0647a); color: #fff; }
+.memu-stuck-btn[aria-expanded="true"] { border-color: var(--accent, #7c6cf0); }
+
+.memu-stuck-hint { margin-top: 10px; }
+.memu-stuck-hint[hidden] { display: none; }
+.memu-stuck-hint textarea {
+  width: 100%; box-sizing: border-box; resize: vertical; min-height: 54px; font: inherit; font-size: 13px;
+  padding: 8px 10px; border-radius: var(--sx-r-sm, 9px); border: 1px solid var(--stuck-line);
+  background: var(--bg, transparent); color: var(--text, inherit);
+}
+.memu-stuck-hint textarea:focus { outline: none; border-color: var(--accent, #7c6cf0); }
+.memu-stuck-hint-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 6px; flex-wrap: wrap; }
+.memu-stuck-hint-row small { color: var(--muted, inherit); font-size: 11.5px; }
+.memu-stuck-error { display: block; color: var(--danger, #d0647a); font-size: 12px; min-height: 0; margin-top: 4px; }
+.memu-stuck-error:empty { display: none; }
+.memu-stuck.is-busy { opacity: .75; }
+.memu-stuck.is-done { opacity: .5; pointer-events: none; }
+
+/* compact (Quick Access, DFY card) */
+.memu-stuck.compact { padding: 10px 11px; font-size: 13px; }
+.memu-stuck.compact .memu-stuck-head > .memu-stuck-ic { width: 26px; height: 26px; padding: 6px; }
+.memu-stuck.compact .memu-stuck-steps { max-height: 110px; }
+.memu-stuck.compact .memu-stuck-btn { padding: 5px 10px; font-size: 12.5px; }
+
+/* inside a DFY task card: the DFY question frame stays, the card fills it */
+.dfy-q.memu-stuck-dfy { padding: 0; border: 0; background: none; }
+.memu-stuck-dfy .memu-stuck { margin-top: 8px; }
+
+/* the dock above the composer of the main window */
+.memu-stuck-dock { margin: 0 auto 8px; max-width: var(--composer-max, 820px); width: 100%; box-sizing: border-box; }
+.memu-stuck-dock[hidden] { display: none; }
+
+/* designs */
+[data-design="terminal"] .memu-stuck, [data-design="brutal"] .memu-stuck { border-radius: 4px; box-shadow: none; }
+[data-design="terminal"] .memu-stuck-btn, [data-design="brutal"] .memu-stuck-btn { border-radius: 4px; }
+[data-design="brutal"] .memu-stuck { border-width: 2px; }
+[data-design="glass"] .memu-stuck { backdrop-filter: blur(14px) saturate(1.2); }

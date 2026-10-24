@@ -1,0 +1,498 @@
+/* MemuAI Quick Ask (Alt+Space) — the popup page. Round 23: rebuilt from scratch.
+
+   Principles: one calm input, one quiet list or answer, one minimal footer
+   (model chip · at most three icons · «Действия Ctrl K»). Everything else lives in
+   the actions view (Ctrl+K) and behind keyboard shortcuts.
+
+   Colours come only from /themes.css tokens (--bg, --panel, --accent, --accent-2,
+   --tok-*), so every accent, light/dark variant, surface and user theme applies.
+   The five designs (classic, aurora, focus, grid, glass) change texture and type,
+   never the layout — scoped to :root[data-design] at the end of this file.
+
+   html[data-native="1"]: the page IS the window (Windows clips its corners: DWM
+   8 px on Windows 11, a 12 px region elsewhere — --qa-native-radius); otherwise
+   (browser, tests) the card floats over a demo desktop. */
+
+:root {
+  --sans: "Segoe UI Variable Text", "Segoe UI", Inter, system-ui, sans-serif;
+  --display: "Segoe UI Variable Display", "Segoe UI", Inter, system-ui, sans-serif;
+  --mono: "Cascadia Code", "Cascadia Mono", Consolas, "SFMono-Regular", monospace;
+  --serif: "Charter", "Iowan Old Style", Georgia, serif;
+  --qa-radius: 14px;
+  --qa-pad: 18px;                 /* the one left line everything aligns to */
+  --qa-font: 14.5px;
+  --qa-input-font: 17.5px;
+  --qa-max-h: 760px;
+  --qa-surface: var(--panel);
+  --qa-line: color-mix(in srgb, var(--border) 78%, transparent);
+  --qa-hover: color-mix(in srgb, var(--text) 6%, transparent);
+  --qa-active: color-mix(in srgb, var(--accent) 15%, transparent);
+  --qa-chip: color-mix(in srgb, var(--text) 5.5%, transparent);
+  --qa-chip-line: color-mix(in srgb, var(--text) 9%, transparent);
+  --qa-faint: color-mix(in srgb, var(--muted) 78%, transparent);
+  --qa-shadow: 0 30px 80px rgba(0, 0, 0, .5), 0 8px 24px rgba(0, 0, 0, .3);
+  --qa-ease: cubic-bezier(.2, .9, .25, 1.06);
+  --qa-ease-out: cubic-bezier(.16, 1, .3, 1);
+  /* The window's own background (reported to WinForms/WebView2 as the window colour): exactly the card's
+     colour, so the anti-aliased pixels where Windows' clip and the card's curve meet never show a halo. */
+  --qa-window-bg: color-mix(in srgb, var(--border) 55%, var(--panel));
+  color-scheme: dark;
+}
+:root[data-theme="light"] {
+  --qa-hover: color-mix(in srgb, var(--text) 5%, transparent);
+  --qa-chip: color-mix(in srgb, var(--text) 4.5%, transparent);
+  --qa-shadow: 0 28px 70px rgba(40, 32, 20, .18), 0 6px 18px rgba(40, 32, 20, .08);
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: transparent; color: var(--text); font-family: var(--sans);
+  -webkit-font-smoothing: antialiased; }
+body { overflow: hidden; font-size: var(--qa-font); }
+button { font: inherit; color: inherit; }
+::selection { background: color-mix(in srgb, var(--accent) 30%, transparent); }
+[hidden] { display: none !important; }
+kbd { font: 600 10.5px/1 var(--sans); display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px;
+  padding: 0 5px; border-radius: 5px; color: var(--muted); background: var(--qa-chip); border: 1px solid var(--qa-chip-line); white-space: nowrap; }
+
+/* ------------------------------------------------------------------ stage (browser preview only) */
+.qa-stage { position: relative; min-height: 100%; display: flex; justify-content: center; align-items: flex-start; }
+:root:not([data-native="1"]) .qa-stage { padding: 15vh 24px 24px;
+  background: radial-gradient(1200px 700px at 15% 5%, color-mix(in srgb, var(--accent) 22%, #1b2033) 0, transparent 62%),
+    radial-gradient(900px 600px at 90% 90%, color-mix(in srgb, var(--accent-2) 22%, #241b30) 0, transparent 62%), linear-gradient(160deg, #161a28, #0d1019 60%, #17131f); }
+:root[data-theme="light"]:not([data-native="1"]) .qa-stage {
+  background: radial-gradient(1200px 700px at 15% 5%, color-mix(in srgb, var(--accent) 16%, #eef0f4) 0, transparent 62%),
+    radial-gradient(900px 600px at 90% 90%, color-mix(in srgb, var(--accent-2) 14%, #ecf0f7) 0, transparent 62%), linear-gradient(160deg, #eef1f6, #f5f2ed); }
+.qa-desk { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+:root[data-native="1"] .qa-desk { display: none; }
+.qa-desk i { position: absolute; border-radius: 10px; background: rgba(255, 255, 255, .045); border: 1px solid rgba(255, 255, 255, .07); }
+:root[data-theme="light"] .qa-desk i { background: rgba(255, 255, 255, .55); border-color: rgba(0, 0, 0, .05); }
+.qa-desk i:nth-child(1) { left: 6%; top: 9%; width: 38%; height: 52%; }
+.qa-desk i:nth-child(2) { right: 7%; top: 24%; width: 34%; height: 46%; }
+.qa-desk i:nth-child(3) { left: 24%; bottom: 6%; width: 46%; height: 28%; }
+.qa-desk b { position: absolute; left: 0; right: 0; bottom: 0; height: 44px; background: rgba(10, 12, 20, .5); }
+:root[data-theme="light"] .qa-desk b { background: rgba(245, 245, 250, .7); }
+
+/* ------------------------------------------------------------------ card */
+.qa-card { position: relative; width: min(var(--qa-width, 720px), 100%); border-radius: var(--qa-radius); isolation: isolate;
+  transform-origin: 50% 0; transition: opacity .16s ease, transform .22s var(--qa-ease-out); }
+:root:not([data-native="1"]) .qa-card { box-shadow: var(--qa-shadow), 0 0 0 1px var(--qa-line); }
+/* Native window: the card IS the window and uses exactly the radius Windows clips it to (Round 22
+   "white corners" fix: any larger CSS radius leaves wedges of the window background in the corners). */
+:root[data-native="1"] .qa-card { width: 100%; min-height: 100vh; --qa-radius: var(--qa-native-radius, 8px); border-radius: var(--qa-radius); }
+:root[data-native="1"][data-rounded="0"] .qa-card, :root[data-native="1"][data-corner="none"] .qa-card { --qa-radius: 0px; }
+:root[data-native="1"]:not([data-backdrop="acrylic"]):not([data-backdrop="mica"]),
+:root[data-native="1"]:not([data-backdrop="acrylic"]):not([data-backdrop="mica"]) body { background: var(--qa-window-bg); }
+/* The surface: one layer under the content. With the Windows 11 system backdrop (acrylic/mica) the page only tints it. */
+.qa-aura { position: absolute; inset: 0; z-index: 0; border-radius: inherit; overflow: hidden; pointer-events: none; background: var(--qa-surface); }
+.qa-aura::after { content: ""; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 1px var(--qa-line); }
+:root[data-native="1"] .qa-aura::after { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 55%, transparent); }
+:root[data-backdrop="acrylic"] .qa-aura, :root[data-backdrop="mica"] .qa-aura { background: color-mix(in srgb, var(--panel) 62%, transparent); }
+.qa-inner { position: relative; z-index: 2; display: flex; flex-direction: column; max-height: var(--qa-max-h); }
+:root:not([data-native="1"]) .qa-inner { max-height: min(var(--qa-max-h), 76vh); }
+
+/* Entrance / exit. In the native window the content animates, never the card (it would uncover the window). */
+.qa-card.qa-enter { animation: qa-in .22s var(--qa-ease) both; }
+@keyframes qa-in { from { opacity: 0; transform: translateY(-6px) scale(.975); } to { opacity: 1; transform: none; } }
+.qa-card.qa-leaving { opacity: 0; transform: translateY(-3px) scale(.99); transition-duration: .11s; }
+:root[data-native="1"] .qa-card.qa-enter { animation: qa-fade .14s ease both; }
+:root[data-native="1"] .qa-card.qa-enter .qa-inner { animation: qa-rise .22s var(--qa-ease-out) both; }
+:root[data-native="1"] .qa-card.qa-leaving { transform: none; opacity: 1; }
+/* Round 38: in the native window the card itself never fades out (over Windows 11 acrylic/mica that uncovered bare
+   «white» glass until the window was hidden) — only its content does. */
+:root[data-native="1"] .qa-card.qa-leaving .qa-inner { opacity: 0; transition: opacity .11s ease; }
+@keyframes qa-rise { from { opacity: 0; transform: translateY(-4px); } }
+@keyframes qa-fade { from { opacity: 0; } }
+.qa-card.qa-closed { opacity: 0; transition: none; }
+.qa-card.qa-flash::after { content: ""; position: absolute; inset: 0; border-radius: inherit; z-index: 9; pointer-events: none;
+  background: radial-gradient(circle at 50% 25%, rgba(255, 255, 255, .4), rgba(255, 255, 255, 0) 70%); animation: qa-flash .4s ease-out forwards; }
+@keyframes qa-flash { from { opacity: 1; } to { opacity: 0; } }
+
+/* Moving: the top strip, the orb and the empty part of the footer are handles. */
+.qa-drag { position: absolute; left: 14px; right: 14px; top: 0; height: 10px; z-index: 4; cursor: grab; }
+.qa-drag::after { content: ""; position: absolute; left: 50%; top: 3px; width: 32px; height: 3px; margin-left: -16px; border-radius: 3px;
+  background: color-mix(in srgb, var(--muted) 30%, transparent); opacity: 0; transition: opacity .2s, background .2s; }
+.qa-card:hover .qa-drag::after { opacity: .8; }
+.qa-drag:hover::after, .qa-card.qa-dragging .qa-drag::after { opacity: 1; background: color-mix(in srgb, var(--accent) 65%, transparent); }
+:root[data-native="1"] .qa-handle { cursor: grab; }
+.qa-card.qa-dragging, .qa-card.qa-dragging * { cursor: grabbing !important; user-select: none; }
+.qa-dock-hint { position: absolute; left: 50%; top: 12px; z-index: 30; transform: translate(-50%, -4px); opacity: 0; pointer-events: none;
+  padding: 5px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; color: var(--text);
+  background: color-mix(in srgb, var(--panel-2) 96%, transparent); border: 1px solid var(--qa-line); box-shadow: 0 8px 24px rgba(0, 0, 0, .25);
+  transition: opacity .16s ease, transform .2s var(--qa-ease); }
+.qa-dock-hint.show { opacity: 1; transform: translate(-50%, 0); }
+:root[data-anchor="bottom"] .qa-dock-hint { top: auto; bottom: 52px; }
+:root:not([data-native="1"]) .qa-drag, :root:not([data-native="1"]) .qa-edge { display: none; }
+.qa-edge { position: absolute; top: 12px; bottom: 12px; width: 7px; z-index: 5; cursor: ew-resize; }
+.qa-edge.left { left: 0; } .qa-edge.right { right: 0; }
+
+/* ------------------------------------------------------------------ input */
+.qa-input-row { position: relative; display: flex; align-items: flex-start; gap: 12px; padding: 15px 14px 13px var(--qa-pad); }
+.qa-orb { position: relative; flex: none; width: 18px; height: 18px; margin: 5px 1px 0; border-radius: 50%;
+  background: linear-gradient(140deg, var(--accent), var(--accent-2));
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 13%, transparent); }
+.qa-card[data-busy="1"] .qa-orb { animation: qa-pulse 1.4s ease-in-out infinite; }
+@keyframes qa-pulse { 50% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--accent) 6%, transparent); transform: scale(.86); } }
+.qa-input { flex: 1; min-width: 0; min-height: 28px; max-height: 168px; margin: 0; padding: 1px 0 0; resize: none; border: 0; outline: 0;
+  background: transparent; color: var(--text); font: 430 var(--qa-input-font)/1.45 var(--display); letter-spacing: -.012em; }
+.qa-input::placeholder { color: var(--qa-faint); }
+.qa-calc { flex: none; align-self: center; display: inline-flex; align-items: baseline; gap: 6px; max-width: 46%; padding: 3px 9px;
+  border-radius: 8px; border: 0; background: var(--qa-active); color: var(--accent); font: 600 14px/1.35 var(--mono); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; cursor: copy; animation: qa-pop .2s var(--qa-ease) both; }
+.qa-calc small { color: var(--muted); font: 500 11px var(--sans); }
+@keyframes qa-pop { from { opacity: 0; transform: translateX(4px) scale(.96); } }
+.qa-input-row .qa-shot { align-self: flex-start; margin-top: 1px; }
+.qa-send { flex: none; position: relative; width: 30px; height: 30px; margin-top: 0; border: 0; border-radius: 9px; cursor: pointer;
+  display: grid; place-items: center; color: var(--on-accent); background: var(--accent); transition: transform .14s var(--qa-ease), opacity .18s, background .18s, color .18s; }
+.qa-send:hover { filter: brightness(1.06); }
+.qa-send:active { transform: scale(.94); }
+.qa-send:disabled { cursor: default; background: var(--qa-chip); color: var(--qa-faint); transform: none; }
+.qa-send svg { width: 15px; height: 15px; }
+.qa-send .i-stop { display: none; }
+.qa-card[data-busy="1"] .qa-send { background: var(--qa-chip); color: var(--text); }
+.qa-card[data-busy="1"] .qa-send .i-send { display: none; }
+.qa-card[data-busy="1"] .qa-send .i-stop { display: block; }
+/* A hairline under the input; while answering it carries a travelling light (calmer than a spinner). */
+.qa-progress { position: relative; height: 1px; margin: 0; background: var(--qa-line); overflow: hidden; flex: none; }
+.qa-progress i { position: absolute; top: 0; left: 0; width: 30%; height: 1px; opacity: 0;
+  background: linear-gradient(90deg, transparent, var(--accent), var(--accent-2), transparent); }
+.qa-card[data-busy="1"] .qa-progress i { opacity: 1; animation: qa-travel 1.3s cubic-bezier(.45, 0, .55, 1) infinite; }
+@keyframes qa-travel { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
+/* Nothing under the input yet: no line, the window is one quiet row plus the footer. */
+.qa-card[data-view="bare"] .qa-progress { background: transparent; }
+
+/* ------------------------------------------------------------------ context chips (page, selection, images) */
+.qa-attach { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 10px 14px 0 var(--qa-pad); }
+.qa-attach + .qa-actions-sel, .qa-attach:not([hidden]) ~ .qa-suggest { padding-top: 6px; }
+.qa-chip-page, .qa-chip-sel { display: inline-flex; align-items: center; gap: 7px; max-width: 100%; min-width: 0; height: 28px; padding: 0 4px 0 8px;
+  border-radius: 8px; background: var(--qa-chip); border: 1px solid var(--qa-chip-line); font-size: 12.5px; animation: qa-pop-in .24s var(--qa-ease) both; }
+.qa-chip-page .fav, .qa-chip-sel .fav { flex: none; display: grid; place-items: center; width: 16px; height: 16px; color: var(--accent); }
+.qa-chip-page .fav svg, .qa-chip-sel .fav svg { width: 14px; height: 14px; }
+.qa-chip-page b, .qa-chip-sel b { display: none; }
+.qa-chip-page .tl { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 560; }
+.qa-chip-page .host { flex: none; max-width: 34%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 12px; }
+.qa-chip-page .host::before { content: "·"; margin-right: 6px; opacity: .6; }
+.qa-chip-page.pending .host { animation: qa-breath 1.4s ease-in-out infinite; }
+@keyframes qa-breath { 50% { opacity: .45; } }
+.qa-chip-sel q { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); quotes: "«" "»"; }
+.qa-chip-sel .n { flex: none; color: var(--muted); font-size: 11.5px; }
+.qa-attach .qa-icon { width: 22px; height: 22px; border-radius: 6px; }
+.qa-attach .qa-icon svg { width: 11px; height: 11px; }
+.qa-thumb { position: relative; height: 52px; border-radius: 9px; overflow: hidden; border: 1px solid var(--qa-chip-line);
+  animation: qa-pop-in .26s var(--qa-ease) both; background: var(--panel-2); }
+.qa-thumb img { display: block; height: 100%; width: auto; max-width: 120px; object-fit: cover; }
+.qa-thumb .qa-x { position: absolute; top: 4px; right: 4px; width: 18px; height: 18px; border-radius: 50%; border: 0; display: grid; place-items: center;
+  background: rgba(0, 0, 0, .62); color: #fff; cursor: pointer; opacity: 0; transition: opacity .15s; }
+.qa-thumb:hover .qa-x, .qa-thumb:focus-within .qa-x { opacity: 1; }
+.qa-thumb .qa-x svg { width: 10px; height: 10px; }
+.qa-thumb span { position: absolute; left: 6px; bottom: 3px; font: 600 10px var(--sans); color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, .8); }
+@keyframes qa-pop-in { from { opacity: 0; transform: scale(.94) translateY(3px); } }
+.qa-actions-sel { display: none !important; }   /* Round 23: context actions are rows of the list below */
+
+/* ------------------------------------------------------------------ the list (suggestions, actions, models, chats) */
+.qa-suggest, .qa-menu-list, .qa-picker-list, .qa-chats-list { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--muted) 30%, transparent) transparent; }
+.qa-suggest { display: flex; flex-direction: column; min-height: 0; flex-shrink: 1; overflow-y: auto; padding: 6px 8px 8px; }
+.qa-section { padding: 10px 10px 4px; font: 600 11px/1 var(--sans); letter-spacing: .02em; color: var(--qa-faint); }
+.qa-section:first-child { padding-top: 8px; }
+.qa-row { display: flex; align-items: center; gap: 11px; width: 100%; min-height: 36px; padding: 0 10px; border: 0; border-radius: 8px;
+  background: transparent; text-align: left; cursor: pointer; color: var(--text); font-size: 13.5px; }
+.qa-row:hover { background: var(--qa-hover); }
+.qa-row.active { background: var(--qa-active); }
+.qa-row .ic { flex: none; width: 20px; height: 20px; display: grid; place-items: center; color: var(--muted); }
+.qa-row.active .ic { color: var(--accent); }
+.qa-row .ic svg { width: 16px; height: 16px; }
+.qa-row .tx { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qa-row .sub { flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 12px; }
+.qa-row .keys { flex: none; display: inline-flex; gap: 3px; opacity: .9; }
+.qa-row .check { flex: none; width: 16px; height: 16px; color: var(--accent); }
+.qa-row .state { flex: none; font-size: 11.5px; font-weight: 600; color: var(--muted); padding: 2px 7px; border-radius: 999px; background: var(--qa-chip); }
+.qa-row .state.on { color: var(--accent); background: var(--qa-active); }
+.qa-row[aria-disabled="true"] { opacity: .45; cursor: default; }
+/* First open: a quiet two-line tip, dismissed once for good. */
+.qa-tip { display: flex; align-items: flex-start; gap: 11px; margin: 4px 2px 6px; padding: 11px 12px; border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 8%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent); font-size: 13px; line-height: 1.5; }
+.qa-tip .ic { flex: none; width: 20px; height: 20px; display: grid; place-items: center; color: var(--accent); margin-top: 1px; }
+.qa-tip .ic svg { width: 16px; height: 16px; }
+.qa-tip .tx { flex: 1; min-width: 0; }
+.qa-tip .tx b { display: block; font-weight: 640; margin-bottom: 2px; }
+.qa-tip .tx span { color: var(--muted); }
+.qa-tip kbd { margin: 0 1px; }
+.qa-tip button { flex: none; align-self: center; height: 26px; padding: 0 10px; border-radius: 7px; border: 0; cursor: pointer; font-size: 12.5px; font-weight: 600;
+  background: var(--accent); color: var(--on-accent); }
+
+/* plugin slots (MemuQuick.registerPanel) */
+.qa-slot { display: flex; flex-direction: column; }
+.qa-slot:empty { display: none; }
+.qa-slot-overlay { position: absolute; inset: 0; z-index: 6; pointer-events: none; }
+.qa-slot-overlay > * { pointer-events: auto; }
+.qa-plugin-buttons { display: contents; }
+
+/* ------------------------------------------------------------------ views: picker / chats / actions */
+.qa-picker, .qa-chats, .qa-menu { display: flex; flex-direction: column; min-height: 0; flex: 1 1 auto; padding: 0 8px 8px; animation: qa-view-in .2s var(--qa-ease-out) both; }
+@keyframes qa-view-in { from { opacity: 0; transform: translateY(-3px); } }
+.qa-view-head { display: flex; align-items: center; gap: 8px; margin: 8px 2px 4px; }
+.qa-search { flex: 1; display: flex; align-items: center; gap: 9px; height: 34px; padding: 0 10px; border-radius: 9px; color: var(--muted);
+  background: var(--qa-chip); border: 1px solid transparent; }
+.qa-search:focus-within { border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.qa-search svg { width: 15px; height: 15px; flex: none; }
+.qa-search input, .qa-picker > input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--text); font: 13.5px var(--sans); }
+.qa-view-head .qa-back { flex: none; }
+.qa-picker-list, .qa-chats-list, .qa-menu-list { overflow: auto; min-height: 0; padding: 2px 0; }
+.qa-chats-list { max-height: 380px; }
+.qa-pick .tag { flex: none; font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 999px; color: var(--muted); background: var(--qa-chip); }
+.qa-pick .tag.adv { color: var(--accent-2); }
+.qa-pick .tag.eye { color: var(--accent); display: inline-flex; align-items: center; gap: 4px; }
+.qa-pick .tag.eye svg { width: 13px; height: 13px; }
+.qa-pick .tag.guess { opacity: .8; border: 1px dashed color-mix(in srgb, var(--muted) 45%, transparent); background: none; }
+#qa-picker-count { color: var(--muted); white-space: nowrap; }
+.qa-pick.sel .tx { font-weight: 650; }
+.qa-picker-note { padding: 8px 10px 2px; color: var(--qa-faint); font-size: 11.5px; line-height: 1.5; }
+.qa-picker-note b { color: var(--muted); font-weight: 600; }
+/* routing: Auto / Fast / Smart as one segmented control */
+.qa-route-row { display: flex; align-items: center; gap: 10px; margin: 8px 2px 2px; }
+.qa-seg { display: inline-flex; gap: 2px; padding: 2px; border-radius: 9px; background: var(--qa-chip); }
+.qa-route { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border: 0; border-radius: 7px; cursor: pointer;
+  background: transparent; color: var(--muted); font-size: 12.5px; font-weight: 600; }
+.qa-route svg { width: 13px; height: 13px; }
+.qa-route.on { color: var(--text); background: var(--panel-2); box-shadow: 0 1px 2px rgba(0, 0, 0, .18), inset 0 0 0 1px var(--qa-chip-line); }
+:root[data-theme="light"] .qa-route.on { background: var(--panel); }
+.qa-route-note { min-width: 0; color: var(--muted); font-size: 12px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.qa-chat .meta { flex: none; color: var(--muted); font-size: 11.5px; }
+.qa-chat .tx { display: grid; gap: 1px; white-space: normal; }
+.qa-chat .tx b { font-weight: 560; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qa-chat .tx small { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qa-chat { min-height: 46px; }
+.qa-chat.current .tx b { color: var(--accent); }
+.qa-chat-del { flex: none; width: 26px; height: 26px; border: 0; border-radius: 7px; display: grid; place-items: center; cursor: pointer;
+  background: transparent; color: var(--muted); opacity: 0; transition: opacity .15s, background .15s, color .15s; }
+.qa-chat-del svg { width: 14px; height: 14px; }
+.qa-chat:hover .qa-chat-del, .qa-chat.active .qa-chat-del { opacity: 1; }
+.qa-chat-del:hover { color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, transparent); }
+.qa-chats-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 24px 10px; color: var(--muted); font-size: 13px; }
+.qa-chats-empty svg { width: 24px; height: 24px; opacity: .55; }
+
+/* ------------------------------------------------------------------ answer */
+.qa-answer { position: relative; flex: 1 1 auto; min-height: 0; overflow: auto; padding: 4px 22px 10px var(--qa-pad);
+  scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--muted) 30%, transparent) transparent; animation: qa-view-in .24s var(--qa-ease-out) both; }
+.qa-answer::-webkit-scrollbar { width: 8px; }
+.qa-answer::-webkit-scrollbar-thumb { border-radius: 8px; background: color-mix(in srgb, var(--muted) 28%, transparent); border: 2px solid transparent; background-clip: content-box; }
+.qa-turn { padding-top: 12px; }
+.qa-turn + .qa-turn { margin-top: 10px; padding-top: 16px; border-top: 1px solid var(--qa-line); }
+.qa-q { display: flex; gap: 8px; align-items: baseline; margin: 0 0 8px; color: var(--muted); font-size: 13px; font-weight: 500; }
+.qa-q span { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.qa-q em { flex: none; font-style: normal; font-size: 11.5px; }
+.qa-status { display: inline-flex; align-items: center; gap: 8px; margin: 2px 0 6px; font-size: 13px; font-weight: 500; color: var(--muted); }
+.qa-status svg { width: 14px; height: 14px; color: var(--accent); flex: none; }
+.qa-status > span:first-of-type { animation: qa-breath 1.6s ease-in-out infinite; }
+.qa-dots { display: inline-flex; gap: 3px; }
+.qa-dots i { width: 3.5px; height: 3.5px; border-radius: 50%; background: var(--muted); animation: qa-dot 1s ease-in-out infinite; }
+.qa-dots i:nth-child(2) { animation-delay: .15s; } .qa-dots i:nth-child(3) { animation-delay: .3s; }
+@keyframes qa-dot { 50% { transform: translateY(-2px); opacity: .35; } }
+.qa-instant { display: flex; gap: 11px; align-items: center; margin: 2px 0 10px; padding: 10px 12px; border-radius: 10px;
+  background: var(--qa-chip); border: 1px solid var(--qa-chip-line); font-size: 13.5px; }
+.qa-instant b { font-weight: 640; }
+.qa-instant > svg { flex: none; width: 16px; height: 16px; color: var(--accent); }
+.qa-instant small { display: block; color: var(--muted); font-size: 11.5px; margin-top: 2px; }
+
+.qa-md { font-size: var(--qa-font); line-height: 1.62; overflow-wrap: anywhere; }
+.qa-md > :first-child { margin-top: 0; }
+.qa-md > :last-child { margin-bottom: 0; }
+.qa-md p { margin: 0 0 .65em; }
+.qa-md h3, .qa-md h4, .qa-md h5, .qa-md h6 { margin: 1em 0 .35em; font-size: 1.02em; font-weight: 680; letter-spacing: -.01em; }
+.qa-md ul, .qa-md ol { margin: .2em 0 .75em; padding-left: 1.3em; }
+.qa-md li { margin: .22em 0; padding-left: .15em; }
+.qa-md li::marker { color: var(--qa-faint); }
+.qa-md ol li::marker { font-variant-numeric: tabular-nums; font-weight: 600; }
+.qa-md a { color: var(--accent); text-decoration: none; border-bottom: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); }
+.qa-md a:hover { border-bottom-color: var(--accent); }
+.qa-md strong { font-weight: 660; }
+.qa-md blockquote { margin: .4em 0 .8em; padding: .1em 0 .1em .9em; border-left: 2px solid var(--qa-line); color: var(--muted); }
+.qa-md hr { border: 0; height: 1px; background: var(--qa-line); margin: 1em 0; }
+.qa-md :not(pre) > code { font: .88em var(--mono); padding: .1em .36em; border-radius: 5px; background: var(--qa-chip); }
+.qa-md .table-wrap { overflow: auto; margin: .3em 0 .85em; border: 1px solid var(--qa-line); border-radius: 9px; }
+.qa-md table { border-collapse: collapse; width: 100%; font-size: .93em; }
+/* r29c: «overflow-wrap: anywhere» of .qa-md also lowers a cell's min-content width, so in the compact window
+   columns shrank until words broke mid-word («Типизаци|я», «JavaSc|ript»). Cells wrap between words (and
+   hyphenate); a table that is still too wide scrolls inside .table-wrap. */
+.qa-md th, .qa-md td { padding: 6px 10px; border-bottom: 1px solid var(--qa-line); text-align: left;
+  overflow-wrap: break-word; hyphens: auto; }
+.qa-md th { font-weight: 620; color: var(--muted); background: var(--qa-chip); }
+.qa-md tr:last-child td { border-bottom: 0; }
+.qa-md .katex-display { margin: .5em 0; overflow-x: auto; overflow-y: hidden; }
+.code-block-wrap { margin: .45em 0 .85em; border-radius: 10px; overflow: hidden; background: var(--code-bg); border: 1px solid var(--qa-line); }
+.code-header { display: flex; align-items: center; justify-content: space-between; padding: 4px 6px 4px 12px; font: 600 11px var(--sans);
+  color: var(--muted); letter-spacing: .02em; border-bottom: 1px solid color-mix(in srgb, var(--qa-line) 70%, transparent); }
+.code-copy-btn { border: 0; border-radius: 6px; padding: 3px 8px; background: transparent; color: var(--muted); font: 600 11px var(--sans); cursor: pointer; }
+.code-copy-btn:hover { background: var(--qa-hover); color: var(--text); }
+.code-copy-btn.copied { color: var(--ok); }
+.code-block-wrap pre { margin: 0; padding: 11px 14px; overflow: auto; font: 12.8px/1.58 var(--mono); color: var(--code-text); tab-size: 4; }
+.tok-kw { color: var(--tok-kw); } .tok-type { color: var(--tok-type); } .tok-str { color: var(--tok-str); }
+.tok-com { color: var(--tok-com); font-style: italic; } .tok-num { color: var(--tok-num); } .tok-fn { color: var(--tok-fn); }
+.tok-op { color: var(--tok-op); } .tok-lit { color: var(--tok-lit); } .tok-tag { color: var(--tok-tag); } .tok-attr { color: var(--tok-attr); }
+.tok-prop { color: var(--tok-prop); } .tok-var { color: var(--tok-var); } .tok-meta { color: var(--tok-meta); } .tok-punct { color: var(--tok-punct); }
+.tok-strong { font-weight: 700; } .tok-em { font-style: italic; }
+.qa-caret { display: inline-block; width: 7px; height: 1em; margin-left: 2px; vertical-align: -2px; border-radius: 2px; background: var(--accent);
+  animation: qa-blink 1s steps(2) infinite; }
+@keyframes qa-blink { 50% { opacity: .15; } }
+.qa-sources { display: flex; flex-wrap: wrap; gap: 5px; margin: 10px 0 2px; }
+.qa-source { display: inline-flex; align-items: center; gap: 6px; max-width: 220px; height: 24px; padding: 0 9px 0 4px; border-radius: 999px; text-decoration: none;
+  background: var(--qa-chip); color: var(--muted); font-size: 11.5px; transition: color .15s, background .15s; }
+.qa-source:hover { color: var(--text); background: var(--qa-hover); }
+.qa-source i { flex: none; width: 16px; height: 16px; border-radius: 50%; display: grid; place-items: center; font: 700 9px var(--sans); font-style: normal;
+  color: var(--muted); background: var(--qa-chip-line); }
+.qa-source span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qa-shot-img { display: block; max-width: 100%; max-height: 180px; margin: 8px 0; border-radius: 9px; border: 1px solid var(--qa-line); }
+.qa-error { display: grid; gap: 10px; margin: 4px 0; padding: 12px 13px; border-radius: 10px; font-size: 13.5px; line-height: 1.5;
+  background: color-mix(in srgb, var(--danger) 8%, transparent); border: 1px solid color-mix(in srgb, var(--danger) 26%, transparent); }
+.qa-error b { color: var(--danger); font-weight: 640; }
+.qa-err-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+/* who answered, under every earlier turn (the last one shows it in the actions row) */
+.qa-meta { display: flex; align-items: center; gap: 6px; margin: 8px 0 0; color: var(--qa-faint); font-size: 11.5px; }
+.qa-meta svg { width: 12px; height: 12px; flex: none; }
+.qa-who { display: inline-flex; align-items: center; gap: 5px; min-width: 0; }
+.qa-who.adv svg { color: var(--accent-2); }
+.qa-who:not(.adv):not(.page) svg { color: #d99a2b; }
+.qa-who.page svg { color: var(--accent); }
+.qa-who i { font-style: normal; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qa-who > span:first-of-type { display: none; }
+
+/* answer actions: who answered on the left, a few quiet icons on the right */
+.qa-actions { display: flex; align-items: center; gap: 2px; min-height: 40px; padding: 2px 10px 6px var(--qa-pad); animation: qa-view-in .24s var(--qa-ease-out) both; }
+.qa-actions .qa-meta { flex: 1 1 auto; min-width: 0; margin: 0; }
+.qa-act { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 28px; min-width: 28px; justify-content: center; padding: 0 7px; border-radius: 7px;
+  border: 0; background: transparent; color: var(--muted); cursor: pointer; font-size: 12.5px; font-weight: 600; white-space: nowrap; transition: background .15s, color .15s; }
+.qa-act svg { width: 15px; height: 15px; }
+.qa-act:hover { color: var(--text); background: var(--qa-hover); }
+.qa-act.adv { color: var(--accent-2); padding: 0 9px; }
+.qa-act.adv:hover { background: color-mix(in srgb, var(--accent-2) 12%, transparent); }
+.qa-act.primary { color: var(--text); }
+.qa-act.done { color: var(--ok); }
+.qa-act span { display: none; }
+.qa-act.adv span, .qa-act.done span { display: inline; }
+.qa-btn { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px; border-radius: 7px; cursor: pointer; font-size: 12.5px;
+  font-weight: 600; border: 0; background: var(--qa-chip); color: var(--text); }
+.qa-btn:hover { background: var(--qa-hover); }
+.qa-btn svg { width: 13px; height: 13px; }
+.qa-btn.accent { color: var(--on-accent); background: var(--accent); }
+
+/* ------------------------------------------------------------------ footer */
+.qa-bar { position: relative; display: flex; align-items: center; gap: 2px; min-width: 0; height: 42px; flex-shrink: 0; overflow: hidden;
+  padding: 0 8px 0 10px; border-top: 1px solid var(--qa-line); }
+.qa-model { flex: 0 1 auto; display: inline-flex; align-items: center; gap: 7px; min-width: 70px; max-width: 58%; height: 28px; padding: 0 8px; border-radius: 7px;
+  border: 0; background: transparent; cursor: pointer; font-size: 12.5px; font-weight: 600; color: var(--text); transition: background .15s; }
+.qa-model:hover, .qa-model[aria-expanded="true"] { background: var(--qa-hover); }
+.qa-model i { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+.qa-model #qa-model-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qa-model > svg { flex: none; width: 12px; height: 12px; color: var(--muted); }
+.qa-model[data-source="custom"] i { background: transparent; box-shadow: inset 0 0 0 1.6px var(--accent); }
+.qa-tier { flex: none; display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-weight: 560; }
+.qa-tier::before { content: "·"; opacity: .6; margin-right: 1px; }
+.qa-tier svg { width: 11px; height: 11px; }
+.qa-grow { flex: 1 1 0; align-self: stretch; min-width: 6px; }
+.qa-icon { flex: none; position: relative; width: 30px; height: 28px; border: 0; border-radius: 7px; display: grid; place-items: center;
+  background: transparent; color: var(--muted); cursor: pointer; transition: background .15s, color .15s, transform .12s; }
+.qa-icon:hover { background: var(--qa-hover); color: var(--text); }
+.qa-icon:active { transform: scale(.93); }
+.qa-icon svg { width: 16px; height: 16px; }
+.qa-icon[aria-pressed="true"] { color: var(--accent); }
+.qa-pin[aria-pressed="true"] svg { transform: rotate(-30deg); }
+/* Round 25: the pin is always in the footer; pinned = accent pin + an accent grip on top of the card */
+.qa-card[data-pinned="1"] .qa-drag::after { opacity: 1; width: 44px; margin-left: -22px; background: color-mix(in srgb, var(--accent) 80%, transparent); }
+.qa-sep { flex: none; width: 1px; height: 16px; margin: 0 4px; background: var(--qa-line); }
+.qa-more { flex: none; display: inline-flex; align-items: center; gap: 7px; height: 28px; padding: 0 6px 0 9px; border: 0; border-radius: 7px; cursor: pointer;
+  background: transparent; color: var(--muted); font-size: 12.5px; font-weight: 600; transition: background .15s, color .15s; }
+.qa-more:hover, .qa-more[aria-expanded="true"] { background: var(--qa-hover); color: var(--text); }
+.qa-more svg { width: 16px; height: 16px; }
+.qa-more .lbl { white-space: nowrap; }
+/* quick.js fitBar(): narrow window → the «Действия» label goes first, then the shortcut, then the mode */
+.qa-bar.qa-bar-short .qa-more .lbl { display: none; }
+.qa-bar.qa-bar-tight .qa-more kbd { display: none; }
+.qa-bar.qa-bar-tight .qa-more { padding: 0 6px; }
+.qa-bar.qa-bar-tighter .qa-tier { display: none; }
+.qa-bar.qa-bar-tighter .qa-icon { width: 27px; }
+.qa-plugin-btn.listening { color: var(--danger); }
+
+.qa-toast { position: absolute; left: 50%; bottom: 52px; z-index: 20; transform: translate(-50%, 6px); opacity: 0; pointer-events: none;
+  max-width: calc(100% - 40px); overflow: hidden; text-overflow: ellipsis; padding: 6px 12px; border-radius: 999px; font-size: 12px; font-weight: 600;
+  color: var(--text); white-space: nowrap; background: color-mix(in srgb, var(--panel-2) 97%, transparent); border: 1px solid var(--qa-line);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .28); transition: opacity .2s, transform .24s var(--qa-ease); }
+.qa-toast.show { opacity: 1; transform: translate(-50%, 0); }
+.qa-toast.err { color: var(--danger); }
+.qa-toast.ok { color: var(--ok); }
+
+/* ------------------------------------------------------------------ designs (texture and type, never layout) */
+/* Aurora: a soft wash of the accent colours and a serif question. */
+:root[data-design="aurora"] { --qa-radius: 20px; }
+:root[data-design="aurora"]:not([data-backdrop="acrylic"]):not([data-backdrop="mica"]) .qa-aura {
+  background: radial-gradient(90% 120% at 0% 0%, color-mix(in srgb, var(--accent) 11%, transparent), transparent 60%),
+    radial-gradient(80% 110% at 100% 100%, color-mix(in srgb, var(--accent-2) 9%, transparent), transparent 60%), var(--panel); }
+:root[data-design="aurora"] .qa-input { font-family: var(--serif); font-size: calc(var(--qa-input-font) + 1.5px); letter-spacing: 0; }
+:root[data-design="aurora"] .qa-orb { border-radius: 44% 56% 54% 46% / 48% 44% 56% 52%; }
+:root[data-design="aurora"] .qa-send { border-radius: 50%; background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
+:root[data-design="aurora"] .qa-send:disabled, :root[data-design="aurora"] .qa-card[data-busy="1"] .qa-send { background: var(--qa-chip); }
+:root[data-design="aurora"] .qa-row.active { background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 16%, transparent), color-mix(in srgb, var(--accent-2) 10%, transparent)); }
+
+/* Focus: monochrome and quiet — the accent only marks state. */
+:root[data-design="focus"] { --qa-radius: 12px; --qa-active: color-mix(in srgb, var(--text) 9%, transparent); }
+:root[data-design="focus"] .qa-orb { background: transparent; box-shadow: inset 0 0 0 2px var(--text); }
+:root[data-design="focus"] .qa-orb::after { content: ""; position: absolute; inset: 6px; border-radius: 50%; background: var(--text); }
+:root[data-design="focus"] .qa-card[data-busy="1"] .qa-orb { animation: qa-breath 1.2s ease-in-out infinite; }
+:root[data-design="focus"] .qa-send { background: var(--text); color: var(--panel); }
+:root[data-design="focus"] .qa-send:disabled { background: var(--qa-chip); color: var(--qa-faint); }
+:root[data-design="focus"] .qa-row.active .ic, :root[data-design="focus"] .qa-chip-page .fav, :root[data-design="focus"] .qa-model i { color: var(--text); }
+:root[data-design="focus"] .qa-model i { background: var(--text); }
+:root[data-design="focus"] .qa-tip { background: var(--qa-chip); border-color: var(--qa-chip-line); }
+:root[data-design="focus"] .qa-tip .ic { color: var(--text); }
+:root[data-design="focus"] .qa-tip button { background: var(--text); color: var(--panel); }
+
+/* Grid: square, technical, monospaced labels; a faint blueprint grid. */
+:root[data-design="grid"] { --qa-radius: 4px; }
+:root[data-native="1"][data-design="grid"] .qa-card { --qa-radius: var(--qa-native-radius, 4px); }
+:root[data-design="grid"]:not([data-backdrop="acrylic"]):not([data-backdrop="mica"]) .qa-aura {
+  background-image: linear-gradient(color-mix(in srgb, var(--border) 22%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--border) 22%, transparent) 1px, transparent 1px);
+  background-size: 24px 24px; background-color: var(--panel); }
+:root[data-design="grid"] .qa-orb { border-radius: 3px; box-shadow: none; background: var(--accent); }
+:root[data-design="grid"] .qa-send, :root[data-design="grid"] .qa-row, :root[data-design="grid"] .qa-icon, :root[data-design="grid"] .qa-model,
+:root[data-design="grid"] .qa-more, :root[data-design="grid"] .qa-chip-page, :root[data-design="grid"] .qa-chip-sel, :root[data-design="grid"] .qa-btn,
+:root[data-design="grid"] .code-block-wrap, :root[data-design="grid"] .qa-thumb, :root[data-design="grid"] .qa-search, :root[data-design="grid"] kbd,
+:root[data-design="grid"] .qa-act, :root[data-design="grid"] .qa-tip, :root[data-design="grid"] .qa-seg, :root[data-design="grid"] .qa-route { border-radius: 3px; }
+:root[data-design="grid"] .qa-row.active { background: var(--qa-active); box-shadow: inset 2px 0 0 var(--accent); }
+:root[data-design="grid"] .qa-model, :root[data-design="grid"] .qa-section, :root[data-design="grid"] kbd, :root[data-design="grid"] .qa-meta,
+:root[data-design="grid"] .qa-status, :root[data-design="grid"] .qa-more { font-family: var(--mono); letter-spacing: 0; }
+:root[data-design="grid"] .qa-section { text-transform: uppercase; font-size: 10.5px; }
+
+/* Glass: translucent with a bright rim. */
+:root[data-design="glass"] { --qa-radius: 18px; --qa-surface: color-mix(in srgb, var(--panel) 78%, transparent); }
+:root[data-design="glass"]:not([data-native="1"]) .qa-card { -webkit-backdrop-filter: blur(32px) saturate(1.8); backdrop-filter: blur(32px) saturate(1.8); }
+:root[data-design="glass"] .qa-aura::before { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(255, 255, 255, .07), transparent 70px); }
+:root[data-design="glass"][data-theme="light"] .qa-aura::before { background: linear-gradient(180deg, rgba(255, 255, 255, .65), transparent 70px); }
+:root[data-design="glass"] .qa-aura::after { box-shadow: inset 0 0 0 1px color-mix(in srgb, #fff 12%, var(--qa-line)), inset 0 1px 0 rgba(255, 255, 255, .1); }
+:root[data-design="glass"][data-theme="light"] .qa-aura::after { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .7), 0 0 0 1px var(--qa-line); }
+:root[data-design="glass"] .qa-send { background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
+:root[data-design="glass"] .qa-send:disabled, :root[data-design="glass"] .qa-card[data-busy="1"] .qa-send { background: var(--qa-chip); }
+
+/* ------------------------------------------------------------------ motion preferences */
+:root[data-motion="off"] *, :root[data-motion="off"] *::before, :root[data-motion="off"] *::after { animation: none !important; transition: none !important; }
+:root[data-motion="reduced"] .qa-orb, :root[data-motion="reduced"] .qa-progress i { animation: none !important; }
+:root[data-motion="reduced"] .qa-card.qa-enter { animation: qa-fade .14s ease both; }
+:root[data-motion="reduced"] .qa-card.qa-enter .qa-inner { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  .qa-orb, .qa-progress i, .qa-status > span, .qa-dots i, .qa-caret, .qa-chip-page.pending .host { animation: none !important; }
+  .qa-card.qa-enter { animation: qa-fade .14s ease both; }
+  .qa-card.qa-enter .qa-inner, .qa-chip-page, .qa-chip-sel, .qa-thumb, .qa-answer, .qa-actions, .qa-picker, .qa-chats, .qa-menu, .qa-calc { animation: none !important; }
+  .qa-card[data-busy="1"] .qa-progress i { opacity: .8; left: 35%; }
+}
+
+/* Round 31 (wave 2): the model's reasoning — a live line while it thinks, folded «Ход мысли» after the answer */
+.qa-think-live { margin: -2px 0 6px 26px; color: var(--muted); font-size: 12.5px; line-height: 1.45; opacity: .85;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.qa-think { margin: 2px 0 8px; font-size: 12.5px; color: var(--muted); }
+.qa-think > summary { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; list-style: none; padding: 2px 8px 2px 6px;
+  border-radius: 7px; user-select: none; }
+.qa-think > summary::-webkit-details-marker { display: none; }
+.qa-think > summary:hover { color: var(--text); background: var(--qa-hover); }
+.qa-think > summary svg { width: 13px; height: 13px; opacity: .8; }
+.qa-think-body { margin: 6px 0 2px; padding: 8px 10px; border-left: 2px solid color-mix(in srgb, var(--muted) 35%, transparent);
+  white-space: pre-wrap; max-height: 220px; overflow: auto; line-height: 1.5; user-select: text; }
+

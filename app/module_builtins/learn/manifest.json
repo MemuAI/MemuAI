@@ -1,0 +1,62 @@
+{
+  "id": "learn",
+  "title": "MemuLearn",
+  "title_en": "MemuLearn",
+  "summary": "ИИ-академия: курс из книги, документации, MemuNote или просто темы, умные карточки с интервальным повторением FSRS, импорт и экспорт Anki и экзаменатор, который проверяет ответы и код.",
+  "summary_en": "An AI academy: a course from a book, docs, MemuNote or just a topic, smart flashcards with FSRS spaced repetition, Anki import and export, and an examiner that grades answers and code.",
+  "version": "1.0",
+  "icon": "icon.svg",
+  "enabled": false,
+  "default_locale": "ru",
+  "launcher": {
+    "hidden": false,
+    "slot": "sidebar"
+  },
+  "window": {
+    "default_width": 1200,
+    "default_height": 800,
+    "min_width": 640,
+    "min_height": 460,
+    "max_width": 3200,
+    "max_height": 2000,
+    "fixed": false,
+    "resizable": true,
+    "size_mode": "user",
+    "center": true
+  },
+  "persist": [
+    "model",
+    "prefs",
+    "last"
+  ],
+  "permissions": [
+    "learn",
+    "chat",
+    "models",
+    "storage",
+    "download",
+    "notify"
+  ],
+  "bridge": {},
+  "contributes": {
+    "panels": [
+      {"id": "today", "title": "Повторить сегодня", "title_en": "Review today", "icon": "brain", "size": "m", "height": 214,
+       "summary": "Сколько карточек ждёт повторения и сколько минут это займёт, серия дней, запуск в один клик",
+       "summary_en": "How many cards are due and how many minutes it takes, the day streak, one-click start",
+       "data": "learn.panel", "entry": "integration/panel.html", "scripts": ["integration/panels.js"], "styles": ["integration/panels.css"]}
+    ],
+    "commands": [
+      {"id": "due", "title": "Что повторить сегодня", "title_en": "What to review today", "run": {"handler": "learn.due"},
+       "description": "Сколько карточек MemuLearn нужно повторить сегодня (по курсам) и сколько это займёт минут",
+       "description_en": "How many MemuLearn cards are due today (per course) and how many minutes it takes",
+       "phrases": ["что повторить сегодня", "сколько карточек повторить", "повторение карточек"],
+       "phrases_en": ["what to review today", "how many cards are due"]},
+      {"id": "review", "title": "Начать повторение", "title_en": "Start reviewing", "run": {"open": true},
+       "description": "Открыть MemuLearn и начать сессию повторения карточек",
+       "description_en": "Open MemuLearn and start a flashcard review session",
+       "phrases": ["начни повторение", "повторить карточки", "открой тренажёр карточек"],
+       "phrases_en": ["start reviewing", "review my flashcards"]}
+    ],
+    "skill": "integration/skill.md"
+  }
+}

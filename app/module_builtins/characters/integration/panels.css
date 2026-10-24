@@ -1,0 +1,13 @@
+/* Round 38: «Персонажи» panels — on top of the shared panel kit (app/pgstatic/module-panel-kit.css). */
+.mk { --c: hsl(var(--h, 280) 62% 62%); }
+:root[data-theme="light"] .mk { --c: hsl(var(--h, 280) 55% 46%); }
+.ch-fav { color: #e8b04a; font-size: 11px; }
+.ch-day { position: relative; display: flex; gap: 14px; align-items: center; min-width: 0; flex: 1 1 auto; }
+.ch-day .mk-mono { box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 28%, transparent), 0 10px 24px -12px var(--c); }
+.ch-name { font-size: 16px; }
+.ch-tags { display: flex; gap: 4px; overflow: hidden; margin: 2px 0 4px; }
+.ch-quote { color: var(--muted); font-style: italic; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; quotes: "«" "»"; }
+.ch-actions { position: relative; display: flex; align-items: center; gap: 10px; margin-top: auto; min-width: 0; }
+.ch-actions .mk-sub { min-width: 0; }
+html[data-size="s"] .ch-day .mk-mono { width: 56px !important; height: 56px !important; }
+html[data-size="s"] .ch-quote { -webkit-line-clamp: 1; }

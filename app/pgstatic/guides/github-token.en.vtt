@@ -1,0 +1,33 @@
+WEBVTT
+
+1
+00:00:00.000 --> 00:00:04.450 line:88%
+github.com → Settings → Developer settings → Personal access tokens.
+
+2
+00:00:04.500 --> 00:00:07.774 line:88%
+Tokens (classic) → Generate new token (classic).
+
+3
+00:00:07.824 --> 00:00:12.921 line:88%
+Tick the scopes: repo, workflow, gist, delete_repo; read:org for organisations.
+
+4
+00:00:12.971 --> 00:00:17.538 line:88%
+Generate token → copy the ghp_… token (GitHub shows it only once).
+
+5
+00:00:17.588 --> 00:00:21.509 line:88%
+Settings → Integrations → GitHub. Detailed help is below.
+
+6
+00:00:21.559 --> 00:00:26.619 line:88%
+Paste the token. A fine-grained one (github_pat_…) works too.
+
+7
+00:00:26.669 --> 00:00:31.413 line:88%
+«Save» and «Test connection» — MemuAI tells you which rights are missing.
+
+8
+00:00:31.463 --> 00:00:37.590 line:88%
+Done: «read the README of my repository».

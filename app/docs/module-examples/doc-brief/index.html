@@ -1,0 +1,28 @@
+<div class="mu-page brief">
+  <div class="mu-title" data-i18n="title"></div>
+  <p class="mu-sub" data-i18n="subtitle"></p>
+  <label class="brief-drop mu-card" id="drop">
+    <input type="file" id="file" accept=".pdf,.docx,.txt,.md,.csv,.json,.html" hidden>
+    <span class="mu-badge" data-i18n="formats"></span>
+    <b id="file-name" data-i18n="pick"></b>
+    <span class="mu-muted" data-i18n="drop"></span>
+  </label>
+  <div class="mu-grid">
+    <label class="mu-field"><span data-i18n="model"></span><select class="mu-select" id="model"></select></label>
+    <label class="mu-field"><span data-i18n="length"></span>
+      <select class="mu-select" id="length">
+        <option value="short" data-i18n="len.short"></option>
+        <option value="medium" data-i18n="len.medium"></option>
+        <option value="long" data-i18n="len.long"></option>
+      </select>
+    </label>
+  </div>
+  <div class="mu-row">
+    <button class="mu-btn primary" id="go" data-i18n="go" disabled></button>
+    <span class="mu-muted" id="status" aria-live="polite"></span>
+    <span class="mu-grow"></span>
+    <button class="mu-btn ghost" id="copy" data-i18n="copy" hidden></button>
+    <button class="mu-btn ghost" id="save" data-i18n="save" hidden></button>
+  </div>
+  <div class="mu-card brief-out" id="out" hidden></div>
+</div>

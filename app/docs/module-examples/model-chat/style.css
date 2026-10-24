@@ -1,0 +1,11 @@
+.chat { gap: 10px; }
+.chat-model { width: auto; min-width: 220px; }
+.chat-system summary { cursor: pointer; color: var(--muted); font-size: .9em; }
+.chat-system .mu-textarea { margin-top: 6px; min-height: 54px; }
+.chat-log { flex: 1; min-height: 0; }
+.mu-msg { position: relative; }
+.mu-msg .copy { position: absolute; top: 4px; right: 4px; opacity: 0; }
+.mu-msg:hover .copy, .mu-msg .copy:focus-visible { opacity: 1; }
+.mu-msg.error { color: var(--danger); border: 1px solid color-mix(in srgb, var(--danger) 40%, transparent); }
+.mu-msg.pending::after { content: "▍"; animation: blink 1s steps(2) infinite; color: var(--accent); }
+@keyframes blink { 50% { opacity: 0; } }

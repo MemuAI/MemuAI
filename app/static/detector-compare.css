@@ -1,0 +1,38 @@
+/* Round 35 (detector): сравнение двух запусков бок о бок. Round 36: ссылка на внешнюю галерею задания
+   (эталоны Claude Opus 5.5 убраны по просьбе пользователя). */
+/* плитки одной высоты в ряду: содержимое прижато кверху, а не растянуто по высоте соседней плитки */
+.det-visual-main .det-visual-tile { align-content: start; }
+.det-visual-gallery { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; margin-top: 2px; padding: 8px 10px;
+  border: 1px solid var(--border); border-radius: 10px; color: var(--text); text-decoration: none; background: var(--card);
+  transition: border-color .12s ease, background-color .12s ease; }
+.det-visual-gallery:hover { border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  background: color-mix(in srgb, var(--accent) 7%, var(--card)); }
+.det-visual-gallery:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.det-visual-gallery-ico { flex: 0 0 auto; display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 8px;
+  color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.det-visual-gallery-txt { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; line-height: 1.3; }
+.det-visual-gallery-txt b { font-size: 12.5px; font-weight: 600; }
+.det-visual-gallery-txt span { font-size: 11.5px; color: var(--muted); }
+.det-visual-gallery-go { flex: 0 0 auto; color: var(--muted); font-size: 14px; }
+.det-visual-gallery:hover .det-visual-gallery-go { color: var(--accent); }
+
+.modal.det-compare-modal { width: min(1520px, calc(100vw - 36px)); max-height: calc(100vh - 36px); }
+.det-cmp { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 10px; }
+.det-cmp-side { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.det-cmp-head { display: flex; gap: 8px; align-items: center; }
+.det-cmp-head select { flex: 1 1 auto; min-width: 0; }
+.det-cmp-head a.btn { text-decoration: none; white-space: nowrap; }
+.det-cmp-frame { position: relative; aspect-ratio: 16 / 10; min-height: 220px; border: 1px solid var(--border); border-radius: 12px;
+  overflow: hidden; background: #0b0f17; }
+.det-cmp-frame iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #0b0f17; }
+.det-cmp-meta { font-size: 12px; color: var(--muted); line-height: 1.45; min-height: 1.45em; }
+
+@media (max-width: 900px) {
+  .det-cmp { grid-template-columns: minmax(0, 1fr); }
+  .det-cmp-head { flex-wrap: wrap; }
+  .det-cmp-head select { flex-basis: 100%; }
+}
+/* finish-a: on a narrow window the «more prompts» select took ~1/3 of the row and cut the title («Billion-Piec…») */
+@media (max-width: 560px) {
+  .det-visual-more #det-visual-pick { flex: 1 1 100%; min-width: 0; }
+}

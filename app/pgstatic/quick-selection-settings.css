@@ -1,0 +1,21 @@
+/* Settings → Быстрый доступ → «Выделенный текст» (Round 27, quick-selection-settings.js). Kit tokens only. */
+.qss-list { display: flex; flex-direction: column; }
+.qss-item { display: flex; align-items: center; gap: 12px; padding: 10px 16px 10px 14px; border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent); }
+.qss-item:last-child { border-bottom: 0; }
+.qss-item.off .qss-text b, .qss-item.off .qss-num { opacity: .5; }
+.qss-num { flex: none; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; font: 600 11.5px/1 var(--sans, inherit);
+  color: var(--muted); background: color-mix(in srgb, var(--text) 6%, transparent); }
+.qss-text { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
+.qss-text b { font-weight: 600; }
+.qss-text i { font-style: normal; font-size: 11px; color: var(--accent); padding: 1px 6px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.qss-text small { flex-basis: 100%; min-width: 0; color: var(--muted); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qss-tools { flex: none; display: inline-flex; align-items: center; gap: 2px; }
+.qss-ic { display: grid; place-items: center; width: 28px; height: 28px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); cursor: pointer; }
+.qss-ic svg { width: 16px; height: 16px; }
+.qss-ic:hover:not(:disabled) { color: var(--text); background: color-mix(in srgb, var(--text) 7%, transparent); }
+.qss-ic.danger:hover { color: var(--danger, #e5534b); }
+.qss-ic:disabled { opacity: .3; cursor: default; }
+.qss-ic:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: 1px; }
+.qss-tools .sx-switch { margin-left: 8px; }
+.qss-root code { font-family: var(--mono, monospace); font-size: .92em; padding: 0 4px; border-radius: 4px; background: color-mix(in srgb, var(--text) 7%, transparent); }
+@media (max-width: 640px) { .qss-text small { white-space: normal; } }

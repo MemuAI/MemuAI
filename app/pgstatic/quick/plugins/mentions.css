@@ -1,0 +1,43 @@
+/* Round 35 (r35-finish-b, zone «mentions») — @-mentions in Quick Access (plugins/mentions.js).
+   Built from the window's own pieces (.qa-row, .qa-section, .qa-hints, .qa-chip-sel, .qa-attach) so every Quick
+   Access design restyles it; only the category pills, the preview and the chip button are new. */
+.qa-plugin.qmn-menu-host, .qa-plugin.qmn-chips-host { min-width: 0; }
+.qmn-menu { display: flex; flex-direction: column; max-height: min(300px, 46vh); overflow-y: auto; padding: 4px 8px 8px;
+  scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--muted) 30%, transparent) transparent; }
+.qmn-menu .qa-section { display: flex; align-items: center; gap: 7px; }
+.qmn-head svg { width: 13px; height: 13px; color: var(--accent); }
+.qmn-head span { color: var(--text); }
+.qmn-head small { margin-left: auto; font-weight: 400; color: var(--qa-faint, var(--muted)); letter-spacing: 0; }
+.qmn-row .tx { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qmn-sub { flex: 0 1 auto; max-width: 42%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 12px; }
+.qmn-row.off .tx, .qmn-row.off .ic { opacity: .6; }
+.qmn-connect { flex: none; font-size: 12px; font-weight: 600; color: var(--accent); padding: 2px 8px; border-radius: 6px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.qmn-info { padding: 8px 10px; }
+.qmn-cats { display: flex; flex-wrap: wrap; gap: 5px; padding: 4px 6px 6px; }
+.qmn-cat { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 9px 0 7px; border-radius: 7px; cursor: pointer;
+  border: 1px solid var(--qa-chip-line, var(--border)); background: var(--qa-chip, transparent); color: var(--text); font-size: 12px; white-space: nowrap; }
+.qmn-cat svg { width: 13px; height: 13px; color: var(--accent); flex: none; }
+.qmn-cat:hover, .qmn-cat:focus-visible { background: var(--qa-hover, color-mix(in srgb, var(--accent) 10%, transparent)); outline: none; }
+.qmn-cat.off { opacity: .55; }
+.qmn-cat.off svg { color: var(--muted); }
+
+.qmn-chips { padding-top: 8px; }
+.qmn-chip { padding-left: 0; max-width: min(100%, 232px); }
+.qmn-chip-main { display: inline-flex; align-items: center; gap: 7px; min-width: 0; height: 100%; padding: 0 2px 0 8px; border: 0; background: none;
+  color: inherit; font: inherit; cursor: pointer; border-radius: 8px 0 0 8px; }
+.qmn-chip-main .tl { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 560; }
+.qmn-chip-main:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.qmn-chip.on { border-color: color-mix(in srgb, var(--accent) 55%, var(--qa-chip-line, var(--border))); }
+.qmn-chip.err { border-color: color-mix(in srgb, var(--danger, #d9534f) 55%, transparent); }
+.qmn-chip.err .n { color: var(--danger, #d9534f); font-weight: 700; }
+.qmn-chip.pending .n { animation: qa-breath 1.4s ease-in-out infinite; }
+.qmn-total { font-size: 11.5px; color: var(--muted); padding-left: 2px; }
+.qmn-preview { margin: 6px 14px 0 var(--qa-pad, 14px); border: 1px solid var(--qa-chip-line, var(--border)); border-radius: 9px; background: var(--qa-chip, transparent); overflow: hidden; }
+.qmn-pv-head { display: flex; align-items: baseline; gap: 8px; padding: 6px 10px; font-size: 12px; border-bottom: 1px solid var(--qa-chip-line, var(--border)); }
+.qmn-pv-head b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qmn-pv-head span { margin-left: auto; flex: none; color: var(--muted); }
+.qmn-preview pre { margin: 0; padding: 8px 10px; max-height: 150px; overflow: auto; white-space: pre-wrap; word-break: break-word;
+  font: 11.5px/1.45 var(--mono, ui-monospace, Consolas, monospace); color: var(--text); }
+:root[data-design="terminal"] :is(.qmn-cat, .qmn-preview, .qmn-connect) { border-radius: 0; }
+:root[data-design="brutal"] :is(.qmn-cat, .qmn-preview) { border-width: 2px; border-color: var(--text); }

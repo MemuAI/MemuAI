@@ -1,0 +1,4 @@
+.brief-drop { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 26px; text-align: center;
+  border-style: dashed; cursor: pointer; transition: border-color .15s, background-color .15s; }
+.brief-drop:hover, .brief-drop.over { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--panel)); }
+.brief-out { white-space: pre-wrap; line-height: 1.6; }

@@ -1,0 +1,73 @@
+/* MemuFiles · round 41 (r41-files): Explorer-like «Tiles», the settings window, archives opened as folders. */
+
+/* ---------------------------------------------------------------- Tiles (Explorer «Плитка») */
+.tile.card { flex-direction: row; align-items: center; gap: 10px; padding: 6px 10px 6px 6px; text-align: left; }
+.tile.card .th { flex: none; border-radius: 6px; }
+.tile.card .th .fi { width: 100%; height: 100%; }
+.tile.card .th img { box-shadow: 0 1px 4px rgba(0,0,0,.16); }
+.tile.card .tc { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 1px; }
+.tile.card .tl { text-align: left; -webkit-line-clamp: 1; font-size: 13px; line-height: 1.3; word-break: normal; overflow-wrap: anywhere; white-space: nowrap; text-overflow: ellipsis; display: block; }
+.tile.card .sub { font-size: 11.5px; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---------------------------------------------------------------- settings window */
+.modal.st41 { width: min(900px, 100%); height: min(680px, calc(100vh - 40px)); }
+.modal.st41 .modal-body { display: flex; overflow: hidden; padding-bottom: 0; }
+.modal.st41 .modal-foot { justify-content: flex-end; }
+.st41-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 196px minmax(0, 1fr); gap: 0; margin: 0 -4px; }
+.st41-side { display: flex; flex-direction: column; min-height: 0; padding: 0 12px 12px 4px; border-right: 1px solid var(--border); }
+.st41-nav { display: flex; flex-direction: column; gap: 2px; overflow: auto; }
+.st41-nav button { display: flex; align-items: center; gap: 10px; height: 32px; padding: 0 10px; border: 0; border-radius: 8px; background: none; color: var(--text); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.st41-nav button:hover { background: var(--hover); }
+.st41-nav button.on { background: var(--sel); font-weight: 600; }
+.st41-nav button .ic { color: var(--muted); }
+.st41-nav button.on .ic { color: var(--accent); }
+.st41-search { margin: 0 0 8px; }
+.st41-pane { overflow: auto; padding: 0 4px 8px 20px; scrollbar-gutter: stable; }
+.st41-h { margin: 6px 0 4px; font-size: 15px; font-weight: 650; }
+.st41-sec { margin: 16px 0 4px; font-size: 11.5px; font-weight: 650; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.st41-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 44px; padding: 8px 0; border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent); }
+.st41-row:last-child { border-bottom: 0; }
+.st41-row .lbl { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.st41-row .lbl b { font-weight: 500; font-size: 13px; }
+.st41-row .lbl span { font-size: 12px; color: var(--muted); text-wrap: pretty; }
+.st41-row .ctl { flex: none; display: flex; align-items: center; gap: 8px; }
+.st41-row .ctl select.input { min-width: 180px; max-width: 260px; }
+.st41-row .ctl input.input { width: 220px; }
+.st41-row .ctl input[type=range] { width: 160px; accent-color: var(--accent); }
+.st41-row .ctl .val { min-width: 52px; text-align: right; font-variant-numeric: tabular-nums; font-size: 12px; color: var(--muted); }
+.st41-row.off { opacity: .5; pointer-events: none; }
+.st41-row.hit { background: var(--accent-soft); border-radius: 8px; padding-left: 8px; padding-right: 8px; }
+.st41-sw { position: relative; width: 36px; height: 20px; flex: none; appearance: none; -webkit-appearance: none; margin: 0; border-radius: 10px; background: color-mix(in srgb, var(--text) 22%, transparent); cursor: pointer; transition: background .15s; }
+.st41-sw::after { content: ""; position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.3); transition: transform .15s; }
+.st41-sw:checked { background: var(--accent); }
+.st41-sw:checked::after { transform: translateX(16px); }
+.st41-sw:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.st41-swatches { display: flex; gap: 6px; }
+.st41-swatches button { width: 22px; height: 22px; border-radius: 50%; border: 2px solid transparent; background: var(--c); cursor: pointer; padding: 0; }
+.st41-swatches button.on { border-color: var(--text); }
+.st41-swatches button.auto { background: conic-gradient(#e5484d, #f5a524, #30a46c, #3e8bff, #8e4ec6, #e5484d); }
+.st41-extra { padding: 8px 0; }
+.st41-foot { font-size: 12px; color: var(--muted); }
+@media (max-width: 700px) {
+  .st41-body { grid-template-columns: 1fr; }
+  .st41-side { border-right: 0; border-bottom: 1px solid var(--border); padding: 0 0 6px; }
+  .st41-nav { flex-direction: row; overflow-x: auto; contain: inline-size; scrollbar-width: thin; }   /* r41-finish: the tab strip scrolls instead of widening the dialog past the window */
+  .st41-nav button { flex: none; white-space: nowrap; }
+  .st41-pane { padding-left: 4px; }
+  .st41-row { flex-wrap: wrap; gap: 8px 16px; }
+  .st41-row .ctl { flex: 1 1 auto; justify-content: flex-end; max-width: 100%; }
+  .st41-row .ctl select.input, .st41-row .ctl input.input { min-width: 0; width: auto; flex: 1 1 180px; max-width: 260px; }
+}
+
+/* ---------------------------------------------------------------- user-facing customisation hooks */
+html[data-rowlines="1"] .fv .row:nth-child(even of .row) { background: color-mix(in srgb, var(--text) 2.5%, transparent); }
+html[data-motion="off"] *, html[data-motion="off"] *::before, html[data-motion="off"] *::after { transition: none !important; animation: none !important; }
+html[data-sel="outline"] .row.sel, html[data-sel="outline"] .tile.sel { background: transparent; box-shadow: inset 0 0 0 1.5px var(--accent); }
+html[data-groups="plain"] .group-head { color: var(--muted); }
+html[data-groups="plain"] .group-head::after { opacity: .6; }
+
+/* ---------------------------------------------------------------- archives as folders */
+.pane .banner .btn.primary .ic { color: inherit; }   /* the accent icon vanished on the accent button */
+.zip41 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.zip41 .field { margin-bottom: 12px; }
+.zip41 .hint { font-size: 12px; color: var(--muted); }

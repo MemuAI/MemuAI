@@ -1,0 +1,53 @@
+/* Replayable voice messages use the same roomy player for both chat roles. */
+.msg-user .bubble.voice-bubble { width: min(420px, 100%); max-width: 100%; box-sizing: border-box; }
+.voice-message { width: min(400px, 100%); max-width: 100%; margin: 5px 0 12px; }
+.voice-player { display: grid; grid-template-columns: 38px minmax(0, 1fr) 30px; gap: 10px; align-items: center; padding: 12px; min-height: 62px; box-sizing: border-box; border: 1px solid color-mix(in srgb, var(--border) 80%, transparent); background: color-mix(in srgb, var(--panel) 72%, transparent); border-radius: 18px; color: var(--text); }
+.voice-player audio { display: none; }
+.voice-player button { display: grid; place-items: center; padding: 0; border: 0; cursor: pointer; color: inherit; font: inherit; }
+.voice-player-play { width: 38px; height: 38px; border-radius: 50%; background: color-mix(in srgb, var(--accent) 13%, transparent); color: var(--accent) !important; transition: background .16s, transform .16s; }
+.voice-player-play:hover { background: color-mix(in srgb, var(--accent) 23%, transparent); transform: scale(1.04); }
+.voice-player-play svg { width: 18px; height: 18px; }
+.voice-player-more { width: 30px; height: 36px; align-self: center; border-radius: 10px; background: transparent; font-size: 23px !important; line-height: 1; }
+.voice-player-more:hover, .voice-player-more[aria-expanded="true"] { background: color-mix(in srgb, var(--accent) 11%, transparent); }
+.voice-player-main { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.voice-player-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; font: 500 11px/1.3 var(--d-text, var(--font, sans-serif)); color: var(--muted); }
+.voice-player-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.voice-player-time { flex: 0 0 auto; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.voice-player input.voice-player-seek { -webkit-appearance: none; appearance: none; display: block; width: 100%; min-width: 0; height: 18px; margin: 0; padding: 0; background: transparent; accent-color: var(--accent); cursor: pointer; border: 0; box-shadow: none; }
+.voice-player-seek::-webkit-slider-runnable-track { height: 4px; border-radius: 4px; background: linear-gradient(to right, var(--accent) var(--voice-progress, 0%), color-mix(in srgb, var(--muted) 24%, transparent) var(--voice-progress, 0%)); }
+.voice-player-seek::-webkit-slider-thumb { -webkit-appearance: none; width: 10px; height: 10px; margin-top: -3px; border-radius: 50%; background: var(--accent); transition: transform .15s; }
+.voice-player-seek:hover::-webkit-slider-thumb { transform: scale(1.3); }
+.voice-player-seek::-moz-range-track { height: 4px; border-radius: 4px; background: color-mix(in srgb, var(--muted) 24%, transparent); }
+.voice-player-seek::-moz-range-progress { height: 4px; border-radius: 4px; background: var(--accent); }
+.voice-player-seek::-moz-range-thumb { width: 10px; height: 10px; border: 0; border-radius: 50%; background: var(--accent); }
+.voice-player button:focus-visible, .voice-player input:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.voice-player[data-error="true"] .voice-player-label { color: var(--danger, #b54050); }
+.voice-player-menu { position: fixed; z-index: 10040; width: 224px; padding: 7px; box-sizing: border-box; border: 1px solid var(--border); border-radius: 15px; background: var(--panel); color: var(--text); box-shadow: 0 12px 38px rgba(0,0,0,.16); animation: voice-menu-in .14s ease-out; }
+.voice-player-menu-label { padding: 7px 9px 5px; font-size: 11px; color: var(--muted); }
+.voice-player-menu button { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; border: 0; border-radius: 8px; padding: 9px; background: transparent; color: inherit; cursor: pointer; text-align: left; font: inherit; font-size: 13px; }
+.voice-player-menu button:hover, .voice-player-menu button:focus-visible { background: color-mix(in srgb, var(--accent) 10%, transparent); outline: none; }
+.voice-player-menu button[aria-checked="true"] { color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.voice-player-menu hr { border: 0; border-top: 1px solid var(--border); margin: 6px 2px; }
+@keyframes voice-menu-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@media (max-width: 480px) { .voice-player { gap: 8px; padding: 10px; } .voice-message { margin-top: 3px; } }
+@media (prefers-reduced-motion: reduce) { .voice-player-menu, .voice-player-play { animation: none; transition: none; } }
+
+/* Round 25: Settings → Voice → Reading replies aloud (voice-settings.js). */
+.vs-pick { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.vs-pick select, .vs-pick input { width: 100%; box-sizing: border-box; margin: 0; }
+.vs-key-link { margin-left: 8px; font-weight: 500; font-size: 12px; color: var(--accent); text-decoration: none; }
+.vs-key-link:hover { text-decoration: underline; }
+.vs-warn { color: var(--warn, #b7791f); }
+.vs-status.vs-ok { color: var(--ok, #2f855a); }
+.vs-status.vs-bad { color: var(--danger, #c53030); white-space: normal; overflow-wrap: anywhere; }
+.vs-grid > .sx-field { align-content: start; }
+.vs-download { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px 12px; align-items: center; width: min(100%, 420px); font-size: 12px; }
+.vs-download [data-voice-progress-label] { min-width: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.vs-download progress { grid-column: 1; width: 100%; height: 5px; accent-color: var(--accent); border: 0; border-radius: 6px; overflow: hidden; }
+.vs-download button { grid-column: 2; grid-row: 1 / 3; min-height: 34px; padding-inline: 12px; }
+.voice-model-title .vs-model-select { margin-left: auto; color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); border: 1px solid var(--border); border-radius: 8px; min-height: 32px; padding: 4px 11px; font: inherit; cursor: pointer; }
+.voice-model-title .vs-model-select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.vs-status { overflow-wrap: anywhere; white-space: normal; }
+:is([id^="st-stt-"], [id^="st-tts-"], [id^="st-voice-"], [id^="st-live-"]):focus-visible {
+  outline: 2px solid var(--accent, #cc785c); outline-offset: 2px;
+}

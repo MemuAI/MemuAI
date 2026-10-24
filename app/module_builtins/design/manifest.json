@@ -1,0 +1,64 @@
+{
+  "id": "design",
+  "title": "MemuAI Design",
+  "title_en": "MemuAI Design",
+  "summary": "Задача и изображения превращаются в готовый сайт: дизайн-системы, адаптив, предпросмотр на трёх экранах и пакет для другой ИИ.",
+  "summary_en": "A brief and images become a finished site: design systems, responsive layout, preview and a handoff bundle.",
+  "version": "1.0",
+  "icon": "icon.svg",
+  "enabled": false,
+  "launcher": {
+    "hidden": false,
+    "slot": "sidebar"
+  },
+  "window": {
+    "default_width": 1280,
+    "default_height": 780,
+    "min_width": 560,
+    "min_height": 420,
+    "max_width": 2400,
+    "max_height": 1600,
+    "fixed": false,
+    "resizable": true,
+    "size_mode": "user",
+    "center": true
+  },
+  "persist": [
+    "brief",
+    "refine",
+    "code",
+    "model",
+    "instructions",
+    "kind",
+    "system",
+    "palette",
+    "mode",
+    "font",
+    "a11y",
+    "motion",
+    "responsive",
+    "content",
+    "last_prompt",
+    "handoff_note",
+    "versions",
+    "version_cursor",
+    "device",
+    "sections",
+    "custom_sections"
+  ],
+  "permissions": [
+    "chat",
+    "storage",
+    "models",
+    "download",
+    "clipboard",
+    "notify"
+  ],
+  "bridge": {
+    "model": "",
+    "keep_in_chat": false,
+    "thinking": true,
+    "web_search": false,
+    "instructions": "Ты MemuAI Design — дизайнер и фронтенд-разработчик. Превращай запрос в один законченный HTML-документ со встроенными стилями и скриптами.\n\nОБЯЗАТЕЛЬНЫЕ ПРАВИЛА\n1. Один файл: весь CSS в теге style, весь JavaScript в теге script. Никаких внешних стилей, шрифтов, скриптов и ссылок на изображения.\n2. Если пользователь приложил изображения, используй только их data-URL. Никаких внешних картинок и заглушек из интернета.\n3. Сначала определи дизайн-систему и следуй ей до конца: цветовые токены в :root, типографическая шкала, шаг отступов 8px, скругления, тени, состояния наведения и фокуса.\n4. Собери переиспользуемые компоненты: навигацию, первый экран, карточки, кнопки, форму, подвал. Не повторяй одинаковую разметку вручную.\n5. Вёрстка обязана выглядеть законченной на 1280px и на 390px. Никакой горизонтальной прокрутки, никаких обрезанных блоков. Используй grid, flex и clamp().\n6. Контраст текста не ниже 4.5:1. Дай кнопкам и полям видимую рамку фокуса. У иконочных кнопок — aria-label. Уважай prefers-reduced-motion.\n7. Пиши настоящие тексты по теме проекта: заголовки, описания, подписи, названия кнопок. Никакого lorem ipsum и заглушек вида «Заголовок 1».\n8. Семантическая разметка: header, nav, main, section, footer. Изображениям — alt.\n\nФОРМАТ ОТВЕТА\nВерни только HTML-документ, начиная с <!DOCTYPE html>. Никаких пояснений до или после кода."
+  }
+}

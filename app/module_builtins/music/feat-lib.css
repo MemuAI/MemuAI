@@ -1,0 +1,30 @@
+/* MemuMusic · feat-lib.css (r39-music-lib) — сортируемые заголовки, кнопка «Сортировка», ручной порядок, редактор исполнителя. */
+.mm-thead-sort { align-items: center; }
+.mm-thead-sort > span { min-width: 0; display: flex; align-items: center; gap: 2px; }
+.mm-thead-sort > span.r { justify-content: flex-end; }
+.mm-th-pair { overflow: hidden; }
+.mm-th { display: inline-flex; align-items: center; gap: 4px; min-width: 0; padding: 2px 4px; margin: -2px -4px; border-radius: calc(6px * var(--mm-rk, 1));
+  font: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: color .15s, background-color .15s; }
+.mm-th + .mm-th-sep + .mm-th { margin-left: 0; }
+.mm-th:hover { color: var(--mm-text); background: var(--mm-hover, var(--mm-panel-2)); }
+.mm-th:focus-visible { outline: 2px solid var(--tint); outline-offset: 1px; }
+.mm-th[aria-sort] { color: var(--tint-ink); }
+.mm-th-dir { width: 0; height: 0; border: 4px solid transparent; flex: none; display: none; }
+.mm-th[aria-sort="descending"] .mm-th-dir { display: block; border-top-color: currentColor; border-bottom-width: 0; margin-top: 2px; }
+.mm-th[aria-sort="ascending"] .mm-th-dir { display: block; border-bottom-color: currentColor; border-top-width: 0; margin-bottom: 2px; }
+.mm-th-sep { opacity: .5; padding: 0 4px; }
+.mm-th-menu { margin: -6px 0; color: var(--mm-faint); }
+.mm-th-menu:hover { color: var(--mm-text); }
+.mm-sort-btn span { white-space: nowrap; }
+.mm-grid-bar { display: flex; justify-content: flex-end; margin: 0 0 12px; }
+/* ручной порядок: плитка/строка под курсором показывает место вставки */
+.mm-side-pl.dragging, .mm-tile.dragging { opacity: .45; }
+.mm-side-pl.drop-before { box-shadow: inset 0 2px 0 var(--tint); }
+.mm-tile.drop-before .mm-tile-art { outline: 2px solid var(--tint); outline-offset: 3px; }
+.mm-qrow.drop-before { box-shadow: inset 0 2px 0 var(--tint); }
+/* исполнитель */
+.mm-ed-art.round { border-radius: 50%; }
+.mm-ed-sec { font-size: 12px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--mm-faint); margin-top: 4px; }
+.mm-artist-bio { margin: 6px 0 0; max-width: 64ch; color: var(--mm-muted); font-size: 14px; line-height: 1.5;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.mm-artist-bio.open { -webkit-line-clamp: unset; }

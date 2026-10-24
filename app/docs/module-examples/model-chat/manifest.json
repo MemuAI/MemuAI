@@ -1,0 +1,14 @@
+{
+  "id": "model-chat",
+  "title": "Чат с моделью",
+  "title_en": "Model chat",
+  "summary": "Разговор с любой моделью MemuAI: поток, остановка, история между запусками.",
+  "summary_en": "Talk to any MemuAI model: streaming, stop, history between launches.",
+  "version": "1.0",
+  "author": "MemuAI examples",
+  "icon": "chat",
+  "window": { "default_width": 720, "default_height": 620, "min_width": 380, "min_height": 360 },
+  "persist": ["history", "model", "system"],
+  "permissions": ["chat", "models", "storage", "clipboard"],
+  "bridge": { "instructions": "", "keep_in_chat": false }
+}

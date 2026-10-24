@@ -1,0 +1,132 @@
+/* Round 33 — modules outside the MemuAI window (module-apps.js, app/module_apps.py). */
+
+/* ---------------- a module's own window: /?module_app=<id> ----------------
+   The same MemuAI page, but only the module is visible and it fills the window.
+   Minimize / maximize / close are Windows' own caption buttons. */
+:root[data-module-app] { background: var(--module-app-bg, var(--bg)) !important; }
+:root[data-module-app] body { background: var(--module-app-bg, var(--bg)) !important; overflow: hidden; }
+:root[data-module-app] #app,
+:root[data-module-app] #live-call,
+:root[data-module-app] #live-mini,
+:root[data-module-app] #module-taskbar,
+:root[data-module-app] .module-snap { display: none !important; }
+:root[data-module-app] #startup-cover .startup-name::after { content: ""; }
+:root[data-module-app] .module-layer { inset: 0; }
+:root[data-module-app] .module-window {
+  left: 0 !important; top: 0 !important; right: 0 !important; bottom: 0 !important;
+  width: 100vw !important; height: 100vh !important; max-width: none !important; max-height: none !important;
+  min-width: 0 !important; min-height: 0 !important; transform: none !important;
+  border: 0 !important; border-radius: 0 !important; box-shadow: none !important; animation: none !important;
+  background: var(--module-app-bg, var(--bg)) !important;
+  -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+}
+:root[data-module-app] .module-window-bar { border-radius: 0 !important; cursor: default !important; padding-left: 12px; }
+:root[data-module-app] .module-window-bar .module-grip,
+:root[data-module-app] .module-window .module-resize,
+:root[data-module-app] .module-window [data-win="min"],
+:root[data-module-app] .module-window [data-win="full"],
+:root[data-module-app] .module-window [data-win="close"],
+:root[data-module-app] .module-window [data-win="esc"] { display: none !important; }
+:root[data-module-app] .module-window-body { border-radius: 0 !important; }
+:root[data-module-app] .module-window-body,
+:root[data-module-app] .module-window-body iframe { background: var(--module-app-bg, var(--bg)); }
+.mapp-main-btn .ui-icon svg { stroke-width: 1.7; }
+.module-window-tools.module-window-tools .mapp-main-btn:hover { color: var(--accent); background: var(--accent-soft); }
+
+.mapp-gone { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: auto; background: var(--bg); }
+.mapp-gone-card { max-width: 420px; padding: 24px; border-radius: 16px; border: 1px solid var(--border); background: var(--panel);
+  text-align: center; box-shadow: var(--shadow); }
+.mapp-gone-card > .ui-icon { width: 28px; height: 28px; color: var(--muted); }
+.mapp-gone-card p { margin: 10px 0 16px; color: var(--text); line-height: 1.5; }
+.mapp-gone-card .row-end { justify-content: center; gap: 8px; }
+
+/* Launchers of modules that live in their own window. */
+.module-launch.is-detached::after {
+  content: ""; width: 6px; height: 6px; margin-left: auto; flex: none; border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 70%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+/* ---------------------------------------- dialogs ---------------------------------------- */
+.panel.module-apps-panel { width: min(560px, calc(100vw - 32px)); }
+.mapp-dialog h2 { margin: 0 0 6px; }
+.mapp-dialog .sub { margin: 0; color: var(--muted); line-height: 1.5; }
+.mapp-hero { display: flex; gap: 16px; align-items: flex-start; padding-right: 28px; }
+.mapp-tile { flex: none; width: 64px; height: 64px; border-radius: 16px; display: grid; place-items: center; overflow: hidden;
+  background: var(--accent); color: var(--on-accent, #fff); box-shadow: 0 8px 22px color-mix(in srgb, var(--accent) 30%, transparent); }
+.mapp-tile img { width: 64px; height: 64px; display: block; }
+.mapp-tile .ui-icon { width: 30px; height: 30px; }
+.mapp-name { display: flex; align-items: center; gap: 10px; margin: 16px 0 12px; padding: 10px 12px; border-radius: 12px;
+  border: 1px dashed color-mix(in srgb, var(--border) 90%, transparent); background: color-mix(in srgb, var(--panel-2) 60%, transparent); }
+.mapp-name-ico { width: 20px; height: 20px; border-radius: 5px; overflow: hidden; flex: none; }
+.mapp-name-ico img { width: 20px; height: 20px; display: block; }
+.mapp-name b { font-size: 13.5px; }
+.mapp-cmd { margin-left: auto; font: 500 11.5px/1.3 var(--mono, ui-monospace, monospace); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.mapp-options { display: grid; gap: 6px; margin-bottom: 12px; }
+.mapp-check, .mapp-radio { display: flex; gap: 10px; align-items: flex-start; padding: 9px 11px; border-radius: 11px; cursor: pointer;
+  border: 1px solid transparent; transition: background .12s, border-color .12s; }
+.mapp-check:hover, .mapp-radio:hover { background: var(--panel-2); }
+.mapp-check input, .mapp-radio input { margin-top: 3px; accent-color: var(--accent); flex: none; }
+.mapp-check span, .mapp-radio span { display: grid; gap: 2px; min-width: 0; }
+.mapp-check b, .mapp-radio b { font-size: 13.5px; font-weight: 600; }
+.mapp-check small, .mapp-radio small { color: var(--muted); font-size: 12.5px; line-height: 1.4; }
+.mapp-check:has(input:disabled) { opacity: .55; cursor: default; }
+.mapp-note { display: flex; gap: 8px; align-items: flex-start; margin: 0 0 12px; padding: 9px 11px; border-radius: 11px;
+  background: color-mix(in srgb, var(--accent) 7%, var(--panel-2)); color: var(--text); font-size: 12.5px; line-height: 1.45; }
+.mapp-note .ui-icon { width: 16px; height: 16px; flex: none; margin-top: 1px; color: var(--accent); }
+.mapp-note.warn { background: color-mix(in srgb, #e5a33a 13%, var(--panel-2)); }
+.mapp-note.warn .ui-icon { color: #d18a1d; }
+.mapp-dialog .row-end { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.mapp-dialog .mu-grow { flex: 1; }
+.pbtn.danger-text, .pbtn.ghost.danger-text { color: var(--danger, #e5484d); }
+.pbtn.danger-text:hover { background: color-mix(in srgb, var(--danger, #e5484d) 12%, transparent); }
+
+/* MemuAI closes while modules are open (#6). */
+.mapp-mods { list-style: none; margin: 12px 0 14px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.mapp-mods li { display: inline-flex; align-items: center; gap: 7px; padding: 6px 11px 6px 9px; border-radius: 999px;
+  background: var(--panel-2); border: 1px solid color-mix(in srgb, var(--border) 80%, transparent); font-size: 13px; }
+.mapp-mods li .ui-icon { width: 15px; height: 15px; color: var(--accent); }
+.mapp-mods li em { font-style: normal; font-size: 11.5px; color: var(--muted); padding: 0 6px; border-radius: 999px; background: color-mix(in srgb, var(--text) 7%, transparent); }
+.mapp-mods li em.warn { color: #b8730f; background: color-mix(in srgb, #e5a33a 18%, transparent); }
+.mapp-choices { display: grid; gap: 8px; margin-bottom: 12px; }
+.mapp-choice { display: flex; gap: 12px; align-items: flex-start; width: 100%; text-align: left; padding: 12px 14px; border-radius: 13px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--panel); color: var(--text); font: inherit; transition: border-color .12s, background .12s, box-shadow .12s; }
+.mapp-choice > .ui-icon { width: 20px; height: 20px; flex: none; margin-top: 1px; color: var(--muted); }
+.mapp-choice span { display: grid; gap: 3px; }
+.mapp-choice b { font-size: 14px; font-weight: 650; }
+.mapp-choice small { color: var(--muted); font-size: 12.5px; line-height: 1.4; }
+.mapp-choice:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); background: color-mix(in srgb, var(--accent) 4%, var(--panel)); }
+.mapp-choice:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: 2px; }
+.mapp-choice.primary { border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); background: color-mix(in srgb, var(--accent) 8%, var(--panel)); }
+.mapp-choice.primary > .ui-icon { color: var(--accent); }
+.mapp-choice:disabled { opacity: .5; cursor: not-allowed; }
+.mapp-remember { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 2px 0 14px; font-size: 13px; cursor: pointer; }
+.mapp-remember input { accent-color: var(--accent); }
+.mapp-remember small { flex-basis: 100%; padding-left: 24px; color: var(--muted); font-size: 12px; }
+
+/* --------------------------------- Settings → Modules --------------------------------- */
+.mapp-settings { margin-top: 18px; padding: 16px; border-radius: var(--radius-lg, 16px); border: 1px solid var(--border); background: var(--panel); }
+.mapp-settings-head { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 6px; }
+.mapp-settings-head > .ui-icon { width: 22px; height: 22px; flex: none; color: var(--accent); margin-top: 1px; }
+.mapp-settings-head b { display: block; font-size: 15px; margin-bottom: 3px; }
+.mapp-settings-head span { color: var(--muted); font-size: 13px; line-height: 1.5; }
+.mapp-subhead { margin: 14px 0 6px; font-size: 12px; font-weight: 650; letter-spacing: .03em; text-transform: uppercase; color: var(--muted); }
+.mapp-radios { display: grid; gap: 4px; }
+.mapp-radio.on { background: color-mix(in srgb, var(--accent) 7%, transparent); border-color: color-mix(in srgb, var(--accent) 28%, transparent); }
+.mapp-list { display: grid; gap: 6px; }
+.mapp-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--border) 80%, transparent); background: var(--panel-2); flex-wrap: wrap; }
+.mapp-row-ico { width: 32px; height: 32px; border-radius: 9px; overflow: hidden; flex: none; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); }
+.mapp-row-ico img { width: 32px; height: 32px; display: block; }
+.mapp-row-text { flex: 1; min-width: 140px; display: grid; gap: 3px; }
+.mapp-row-text b { font-size: 13.5px; }
+.mapp-row-text span { display: flex; flex-wrap: wrap; gap: 4px; }
+.mapp-row-text em { font-style: normal; font-size: 11.5px; color: var(--muted); padding: 0 7px; border-radius: 999px; background: color-mix(in srgb, var(--text) 7%, transparent); }
+.mapp-empty { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+:root[data-design="grid"] .mapp-settings, :root[data-design="grid"] .mapp-choice, :root[data-design="grid"] .mapp-row { border-radius: var(--g-r-sm, 4px); }
+:root[data-design="glass"] .mapp-settings, :root[data-design="glass"] .mapp-choice {
+  background: color-mix(in srgb, var(--panel) 72%, transparent); backdrop-filter: blur(14px) saturate(1.2); }
+
+/* Round 38: «Own window title bar» switches (module-appbar.js). */
+.mapp-appbar-all { margin-bottom: 4px; }
+.mapp-appbar-one { display: inline-flex; align-items: center; gap: 6px; flex: none; padding: 0 6px; font-size: 12px; color: var(--muted); cursor: pointer; white-space: nowrap; }
+.mapp-appbar-one input { margin: 0; accent-color: var(--accent); }
+.mapp-appbar-one:has(input:disabled) { opacity: .5; cursor: default; }

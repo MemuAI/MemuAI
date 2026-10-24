@@ -1,0 +1,3572 @@
+{
+ "schema": 1,
+ "version": "2026-10-11",
+ "source": "Curated by MemuAI; files/sizes/KV refreshed from the Hugging Face API by tools/update_local_catalog.py",
+ "scores_note": "Scores are editorial 0-100 estimates per task, based on the published benchmarks in the model cards and community evaluations; they compare models with each other, not absolute quality.",
+ "models": [
+  {
+   "id": "qwen3.5-0.8b",
+   "name": "Qwen3.5 0.8B",
+   "family": "Qwen",
+   "vendor": "Alibaba Qwen",
+   "repo": "unsloth/Qwen3.5-0.8B-GGUF",
+   "base": "Qwen/Qwen3.5-0.8B",
+   "released": "2026-03",
+   "license": "apache-2.0",
+   "commercial": true,
+   "languages": [
+    "ru",
+    "en",
+    "zh",
+    "es",
+    "fr",
+    "de",
+    "ja",
+    "ko",
+    "ar",
+    "pt",
+    "it"
+   ],
+   "caps": {
+    "vision": true,
+    "reasoning": true,
+    "tools": true,
+    "audio": false
+   },
+   "scores": {
+    "chat": 30,
+    "coding": 22,
+    "ru": 25,
+    "vision": 30,
+    "reasoning": 20,
+    "agent": 15
+   },
+   "why": {
+    "ru": "Крошечная модель, которая работает даже на слабом ноутбуке без видеокарты; видит картинки. Для простых ответов и черновиков.",
+    "en": "A tiny model that runs even on a weak laptop without a GPU and can see images. For simple answers and drafts."
+   },
+   "sampling": {
+    "temperature": 0.6,
+    "top_p": 0.95,
+    "top_k": 20,
+    "min_p": 0.0
+   },
+   "quants": [
+    "Q4_K_M",
+    "Q5_K_M",
+    "Q6_K",
+    "Q8_0"
+   ],
+   "tags": [
+    "tiny"
+   ],
+   "files": {
+    "Q4_K_M": {
+     "files": [
+      "Qwen3.5-0.8B-Q4_K_M.gguf"
+     ],
+     "size": 532517120,
+     "quant": "Q4_K_M"
+    },
+    "Q5_K_M": {
+     "files": [
+      "Qwen3.5-0.8B-Q5_K_M.gguf"
+     ],
+     "size": 590057728,
+     "quant": "Q5_K_M"
+    },
+    "Q6_K": {
+     "files": [
+      "Qwen3.5-0.8B-Q6_K.gguf"
+     ],
+     "size": 639029504,
+     "quant": "Q6_K"
+    },
+    "Q8_0": {
+     "files": [
+      "Qwen3.5-0.8B-Q8_0.gguf"
+     ],
+     "size": 811843840,
+     "quant": "Q8_0"
+    }
+   },
+   "mmproj": {
+    "path": "mmproj-F16.gguf",
+    "size": 204987232
+   },
+   "draft": null,
+   "params": 752393024,
+   "ctx_max": 262144,
+   "arch": "qwen35",
+   "gated": false,
+   "downloads": 215951,
+   "kv": {
+    "per_token": 12288,
+    "fixed": 0
+   },
+   "moe": false,
+   "checked": "2026-10-11"
+  },
+  {
+   "id": "qwen3.5-2b",
+   "name": "Qwen3.5 2B",
+   "family": "Qwen",
+   "vendor": "Alibaba Qwen",
+   "repo": "unsloth/Qwen3.5-2B-GGUF",
+   "base": "Qwen/Qwen3.5-2B",
+   "released": "2026-02",
+   "license": "apache-2.0",
+   "commercial": true,
+   "languages": [
+    "ru",
+    "en",
+    "zh",
+    "es",
+    "fr",
+    "de",
+    "ja",
+    "ko",
+    "ar",
+    "pt",
+    "it"
+   ],
+   "caps": {
+    "vision": true,
+    "reasoning": true,
+    "tools": true,
+    "audio": false
+   },
+   "scores": {
+    "chat": 42,
+    "coding": 35,
+    "ru": 38,
+    "vision": 42,
+    "reasoning": 35,
+    "agent": 28
+   },
+   "why": {
+    "ru": "Маленькая и быстрая: подходит для слабых ПК, понимает изображения и умеет «думать» перед ответом.",
+    "en": "Small and fast: fits weak PCs, understands images and can think before answering."
+   },
+   "sampling": {
+    "temperature": 0.6,
+    "top_p": 0.95,
+    "top_k": 20,
+    "min_p": 0.0
+   },
+   "quants": [
+    "Q4_K_M",
+    "Q5_K_M",
+    "Q6_K",
+    "Q8_0"
+   ],
+   "tags": [
+    "tiny"
+   ],
+   "files": {
+    "Q4_K_M": {
+     "files": [
+      "Qwen3.5-2B-Q4_K_M.gguf"
+     ],
+     "size": 1280835840,
+     "quant": "Q4_K_M"
+    },
+    "Q5_K_M": {
+     "files": [
+      "Qwen3.5-2B-Q5_K_M.gguf"
+     ],
+     "size": 1435238656,
+     "quant": "Q5_K_M"
+    },
+    "Q6_K": {
+     "files": [
+      "Qwen3.5-2B-Q6_K.gguf"
+     ],
+     "size": 1574961408,
+     "quant": "Q6_K"
+    },
+    "Q8_0": {
+     "files": [
+      "Qwen3.5-2B-Q8_0.gguf"
+     ],
+     "size": 2012012800,
+     "quant": "Q8_0"
+    }
+   },
+   "mmproj": {
+    "path": "mmproj-F16.gguf",
+    "size": 668227264
+   },
+   "draft": null,
+   "params": 1881825088,
+   "ctx_max": 262144,
+   "arch": "qwen35",
+   "gated": false,
+   "downloads": 354241,
+   "kv": {
+    "per_token": 12288,
+    "fixed": 0
+   },
+   "moe": false,
+   "checked": "2026-10-11"
+  },
+  {
+   "id": "gemma-4-e2b",
+   "name": "Gemma 4 E2B",
+   "family": "Gemma",
+   "vendor": "Google DeepMind",
+   "repo": "unsloth/gemma-4-E2B-it-GGUF",
+   "base": "google/gemma-4-E2B-it",
+   "released": "2026-04",
+   "license": "apache-2.0",
+   "commercial": true,
+   "languages": [
+    "ru",
+    "en",
+    "zh",
+    "es",
+    "fr",
+    "de",
+    "ja",
+    "ko",
+    "ar",
+    "pt",
+    "it",
+    "uk",
+    "pl",
+    "tr"
+   ],
+   "caps": {
+    "vision": true,
+    "reasoning": true,
+    "tools": true,
+    "audio": true
+   },
+   "scores": {
+    "chat": 48,
+    "coding": 40,
+    "ru": 50,
+    "vision": 45,
+    "reasoning": 38,
+    "agent": 30
+   },
+   "why": {
+    "ru": "Модель Google для ноутбуков и телефонов: 140+ языков (хороший русский для своего размера), картинки, режим размышлений.",
+    "en": "Google's model for laptops and phones: 140+ languages (good Russian for its size), images and a thinking mode."
+   },
+   "sampling": {
+    "temperature": 1.0,
+    "top_p": 0.95,
+    "top_k": 64
+   },
+   "quants": [
+    "Q3_K_M",
+    "Q4_K_M",
+    "Q5_K_M",
+    "Q6_K",
+    "Q8_0"
+   ],
+   "tags": [
+    "tiny"
+   ],
+   "files": {
+    "Q3_K_M": {
+     "files": [
+      "gemma-4-E2B-it-Q3_K_M.gguf"
+     ],
+     "size": 2536786016,
+     "quant": "Q3_K_M"
+    },
+    "Q4_K_M": {
+     "files": [
+      "gemma-4-E2B-it-Q4_K_M.gguf"
+     ],
+     "size": 3106738272,
+     "quant": "Q4_K_M"
+    },
+    "Q5_K_M": {
+     "files": [
+      "gemma-4-E2B-it-Q5_K_M.gguf"
+     ],
+     "size": 3356037216,
+     "quant": "Q5_K_M"
+    },
+    "Q6_K": {
+     "files": [
+      "gemma-4-E2B-it-Q6_K.gguf"
+     ],
+     "size": 4501721184,
+     "quant": "Q6_K"
+    },
+    "Q8_0": {
+     "files": [
+      "gemma-4-E2B-it-Q8_0.gguf"
+     ],
+     "size": 5048352864,
+     "quant": "Q8_0"
+    }
+   },
+   "mmproj": {
+    "path": "mmproj-F16.gguf",
+    "size": 985654080
+   },
+   "draft": {
+    "path": "MTP/mtp-gemma-4-E2B-it-Q8_0.gguf",
+    "size": 97817664,
+    "quant": "Q8_0"
+   },
+   "params": 4647450147,
+   "ctx_max": 131072,
+   "arch": "gemma4",
+   "gated": false,
+   "downloads": 370106,
+   "kv": {
+    "per_token": 14336,
+    "fixed": 14680064
+   },
+   "moe": false,
+   "checked": "2026-10-11"
+  },
+  {
+   "id": "llama-3.2-3b",
+   "name": "Llama 3.2 3B",
+   "family": "Llama",
+   "vendor": "Meta",
+   "repo": "unsloth/Llama-3.2-3B-Instruct-GGUF",
+   "base": "meta-llama/Llama-3.2-3B-Instruct",
+   "released": "2024-09",
+   "license": "llama3.2",
+   "commercial": true,
+   "languages": [
+    "en",
+    "de",
+    "fr",
+    "it",
+    "pt",
+    "hi",
+    "es",
+    "th"
+   ],
+   "caps": {
+    "vision": false,
+    "reasoning": false,
+    "tools": true,
+    "audio": false
+   },
+   "scores": {
+    "chat": 40,
+    "coding": 30,
+    "ru": 22,
+    "vision": 0,
+    "reasoning": 25,
+    "agent": 25
+   },
+   "why": {
+    "ru": "Проверенная временем маленькая модель Meta; хорошо на английском, по-русски заметно слабее.",
+    "en": "Meta's time-tested small model; good in English, noticeably weaker in Russian."
+   },
+   "sampling": {
+    "temperature": 0.6,
+    "top_p": 0.9
+   },
+   "quants": [
+    "Q3_K_M",
+    "Q4_K_M",
+    "Q5_K_M",
+    "Q6_K",
+    "Q8_0"
+   ],
+   "tags": [
+    "tiny"
+   ],
+   "kv": {
+    "per_token": 114688,
+    "fixed": 0
+   },
+   "files": {
+    "Q3_K_M": {
+     "files": [
+      "Llama-3.2-3B-Instruct-Q3_K_M.gguf"
+     ],
+     "size": 1687159232,
+     "quant": "Q3_K_M"
+    },
+    "Q4_K_M": {
+     "files": [
+      "Llama-3.2-3B-Instruct-Q4_K_M.gguf"
+     ],
+     "size": 2019377600,
+     "quant": "Q4_K_M"
+    },
+    "Q5_K_M": {
+     "files": [
+      "Llama-3.2-3B-Instruct-Q5_K_M.gguf"
+     ],
+     "size": 2322153920,
+     "quant": "Q5_K_M"
+    },
+    "Q6_K": {
+     "files": [
+      "Llama-3.2-3B-Instruct-Q6_K.gguf"
+     ],
+     "size": 2643853760,
+     "quant": "Q6_K"
+    },
+    "Q8_0": {
+     "files": [
+      "Llama-3.2-3B-Instruct-Q8_0.gguf"
+     ],
+     "size": 3421898816,
+     "quant": "Q8_0"
+    }
+   },
+   "mmproj": null,
+   "draft": null,
+   "params": 3212749888,
+   "ctx_max": 131072,
+   "arch": "llama",
+   "gated": false,
+   "downloads": 87042,
+   "checked": "2026-10-11"
+  },
+  {
+   "id": "phi-4-mini",
+   "name": "Phi-4 mini 3.8B",
+   "family": "Phi",
+   "vendor": "Microsoft",
+   "repo": "unsloth/Phi-4-mini-instruct-GGUF",
+   "base": "microsoft/Phi-4-mini-instruct",
+   "released": "2025-02",
+   "license": "mit",
+   "commercial": true,
+   "languages": [
+    "en",
+    "multilingual"
+   ],
+   "caps": {
+    "vision": false,
+    "reasoning": false,
+    "tools": true,
+    "audio": false
+   },
+   "scores": {
+    "chat": 46,
+    "coding": 45,
+    "ru": 25,
+    "vision": 0,
+    "reasoning": 45,
+    "agent": 30
+   },
+   "why": {
+    "ru": "Компактная модель Microsoft с сильной математикой и логикой для своего размера; лицензия MIT. Русский — базовый.",
+    "en": "Microsoft's compact model with strong maths and logic for its size; MIT licence. Basic Russian."
+   },
+   "sampling": {
+    "temperature": 0.7
+   },
+   "quants": [
+    "Q3_K_M",
+    "Q4_K_M",
+    "Q5_K_M",
+    "Q6_K",
+    "Q8_0"
+   ],
+   "tags": [
+    "tiny"
+   ],
+   "files": {
+    "Q3_K_M": {
+     "files": [
+      "Phi-4-mini-instruct-Q3_K_M.gguf"
+     ],
+     "size": 2117532640,
+     "quant": "Q3_K_M"
+    },
+    "Q4_K_M": {
+     "files": [
+      "Phi-4-mini-instruct-Q4_K_M.gguf"
+     ],
+     "size": 2491874272,
+     "quant": "Q4_K_M"
+    },
+    "Q5_K_M": {
+     "files": [
+      "Phi-4-mini-instruct-Q5_K_M.gguf"
+     ],
+     "size": 2848127968,
+     "quant": "Q5_K_M"
+    },
+    "Q6_K": {
+     "files": [
+      "Phi-4-mini-instruct-Q6_K.gguf"
+     ],
+     "size": 3155622880,
+     "quant": "Q6_K"
+    },
+    "Q8_0": {
+     "files": [
+      "Phi-4-mini-instruct.Q8_0.gguf"
+     ],
+     "size": 4084611040,
+     "quant": "Q8_0"
+    }
+   },
+   "mmproj": null,
+   "draft": null,
+   "params": 3836021856,
+   "ctx_max": 131072,
+   "arch": "phi3",
+   "gated": false,
+   "downloads": 105469,
+   "kv": {
+    "per_token": 131072,
+    "fixed": 0
+   },
+   "moe": false,
+   "checked": "2026-10-11"
+  },
+  {
+   "id": "ministral-3-3b",
+   "name": "Ministral 3 3B",
+   "family": "Mistral",
+   "vendor": "Mistral AI",
+   "repo": "unsloth/Ministral-3-3B-Instruct-2512-GGUF",
+   "base": "mistralai/Ministral-3-3B-Instruct-2512",
+   "released": "2025-12",
+   "license": "apache-2.0",
+   "commercial": true,
+   "languages": [
+    "en",
+    "fr",
+    "es",
+    "de",
+    "it",
+    "pt",
+    "nl",
+    "zh",
+    "ja",
+    "ko",
+    "ar"
+   ],
+   "caps": {
+    "vision": true,
+    "reasoning": false,
+    "tools": true,
+    "audio": false
+   },
+   "scores": {
+    "chat": 46,
+    "coding": 40,
+    "ru": 35,
+    "vision": 40,
+    "reasoning": 38,
+    "agent": 35
+   },
+   "why": {
+    "ru": "Маленькая модель Mistral с пониманием изображений и вызовом инструментов, контекст до 256K.",
+    "en": "Mistral's small model with image understanding and tool calling, context up to 256K."
+   },
+   "sampling": {
+    "temperature": 0.15
+   },
+   "quants": [
+    "Q3_K_M",
+    "Q4_K_M",
+    "Q5_K_M",
+    "Q6_K",
+    "Q8_0"
+   ],
+   "tags": [
+    "tiny"
+   ],
+   "files": {
+    "Q3_K_M": {
+     "files": [
+      "Ministral-3-3B-Instruct-2512-Q3_K_M.gguf"
+     ],
+     "size": 1795552544,
+     "quant": "Q3_K_M"
+    },
+    "Q4_K_M": {
+     "files": [
+      "Ministral-3-3B-Instruct-2512-Q4_K_M.gguf"
+     ],
+     "size": 2146497824,
+     "quant": "Q4_K_M"
+    },
+    "Q5_K_M": {
+     "files": [
+      "Ministral-3-3B-Instruct-2512-Q5_K_M.gguf"
+     ],
+     "size": 2473653536,
+     "quant": "Q5_K_M"
+    },
+    "Q6_K": {
+     "files": [
+      "Ministral-3-3B-Instruct-2512-Q6_K.gguf"
+     ],
+     "size": 2821256480,
+     "quant": "Q6_K"
+    },
+    "Q8_0": {
+     "files": [
+      "Ministral-3-3B-Instruct-2512-Q8_0.gguf"
+     ],
+     "size": 3651679520,
+     "quant": "Q8_0"
+    }
+   },
+   "mmproj": {
+    "path": "mmproj-F16.gguf",
+    "size": 840296608
+   },
+   "draft": null,
+   "params": 3429006336,
+   "ctx_max": 262144,
+   "arch": "mistral3",
+   "gated": false,
+   "downloads": 24896,
+   "kv": {
+    "per_token": 106496,
+    "fixed": 0
+   },
+   "moe": false,
+   "checked": "2026-10-11"
+  },
+  {
+   "id": "nemotron-3-nano-4b",
+   "name": "Nemotron 3 Nano 4B",
+   "family": "Nemotron",
+   "vendor": "NVIDIA",
+   "repo": "lmstudio-community/NVIDIA-Nemotron-3-Nano-4B-GGUF",
+   "base": "nvidia/NVIDIA-Nemotron-3-Nano-4B-BF16",
+   "released": "2026-03",
+   "license": "nvidia-open-model",
+   "commercial": true,
+   "languages": [
+    "en"
+   ],
+   "caps": {
+    "vision": false,
+    "reasoning": true,
+    "tools": true,
+    "audio": false
+   },
+   "scores": {
+    "chat": 48,
+    "coding": 48,
+    "ru": 25,
+    "vision": 0,
+    "reasoning": 52,
+    "agent": 40
+   },
+   "why": {
+    "ru": "Гибрид Mamba-Transformer от NVIDIA: очень экономно расходует память на длинном контексте, хорошо рассуждает. Русский слабый.",
+    "en": "NVIDIA's Mamba-Transformer hybrid: very memory-efficient with long context, reasons well. Weak Russian."
+   },
+   "sampling": {
+    "temperature": 1.0,
+    "top_p": 1.0
+   },
+   "quants": [
+    "Q3_K_M",
+    "Q4_K_M",
+    "Q5_K_M",
+    "Q6_K",
+    "Q8_0"
+   ],
+   "tags": [
+    "tiny"
+   ],
+   "files": {
+    "Q4_K_M": {
+     "files": [
+      "NVIDIA-Nemotron-3-Nano-4B-Q4_K_M.gguf"
+     ],
+     "size": 2837072896,
+     "quant": "Q4_K_M"
+    },
+    "Q6_K": {
+     "files": [
+      "NVIDIA-Nemotron-3-Nano-4B-Q6_K.gguf"
+     ],
+     "size": 3933669376,
+     "quant": "Q6_K"
+    },
+    "Q8_0": {
+     "files": [
+      "NVIDIA-Nemotron-3-Nano-4B-Q8_0.gguf"
+     ],
+     "size": 4233677952,
+     "quant": "Q8_0"
+    }
+   },
+   "mmproj": null,
+   "draft": null,
+   "params": 3973556832,
+   "ctx_max": 1048576,
+   "arch": "nemotron_h",
+   "gated": false,
+   "downloads": 39952,
+   "kv": {
+    "per_token": 16384,
+    "fixed": 0
+   },
+   "moe": false,
+   "checked": "2026-10-11"
+  },
+  {
+   "id": "qwen3.5-4b",
+   "name": "Qwen3.5 4B",
+   "family": "Qwen",
+   "vendor": "Alibaba Qwen",
+   "repo": "unsloth/Qwen3.5-4B-GGUF",
+   "base": "Qwen/Qwen3.5-4B",
+   "released": "2026-03",
+   "license": "apache-2.0",
+   "commercial": true,
+   "languages": [
+    "ru",
+    "en",
+    "zh",
+    "es",
+    "fr",
+    "de",
+    "ja",
+    "ko",
+    "ar",
+    "pt",
+    "it"
+   ],
+   "caps": {
+    "vision": true,
+    "reasoning": true,
+    "tools": true,
+    "audio": false
+   },
+   "scores": {
+    "chat": 58,
+    "coding": 55,
+    "ru": 52,
+    "vision": 55,
+    "reasoning": 58,
+    "agent": 50
+   },
+   "why": {
+    "ru": "Лучшее соотношение «качество/размер» среди малых моделей: картинки, размышления, инструменты, 256K контекста.",
+    "en": "The best quality-per-size among small models: images, thinking, tools, 256K context."
+   },
+   "sampling": {
+    "temperature": 0.6,
+    "top_p": 0.95,
+    "top_k": 20,
+    "min_p": 0.0
+   },
+   "quants": [
+    "Q3_K_M",
+    "Q4_K_M",
+    "Q5_K_M",
+    "Q6_K",
+    "Q8_0"
+   ],
+   "tags": [
+    "small"
+   ],
+   "files": {
+    "Q3_K_M": {
+     "files": [
+      "Qwen3.5-4B-Q3_K_M.gguf"
+     ],
+     "size": 2293388448,
+     "quant": "Q3_K_M"
+    },
+    "Q4_K_M": {
+     "files": [
+      "Qwen3.5-4B-Q4_K_M.gguf"
+     ],
+     "size": 2740937888,
+     "quant": "Q4_K_M"
+    },
+    "Q5_K_M": {
+     "files": [
+      "Qwen3.5-4B-Q5_K_M.gguf"
+     ],
+     "size": 3143656608,
+     "quant": "Q5_K_M"
+    },
+    "Q6_K": {
+     "files": [
+      "Qwen3.5-4B-Q6_K.gguf"
+     ],
+     "size": 3525956768,
+     "quant": "Q6_K"
+    },
+    "Q8_0": {
+     "files": [
+      "Qwen3.5-4B-Q8_0.gguf"
+     ],
+     "size": 4482403488,
+     "quant": "Q8_0"
+    }
+   },
+   "mmproj": {
+    "path": "mmproj-F16.gguf",
+    "size": 672423616
+   },
+   "draft": null,
+   "params": 4205751296,
+   "ctx_max": 262144,
+   "arch": "qwen35",
+   "gated": false,
+   "downloads": 1190570,
+   "kv": {
+    "per_token": 32768,
+    "fixed": 0
+   },
+   "moe": false,
+   "checked": "2026-10-11"
+  },
+  {
+   "id": "gemma-4-e4b",
+   "name": "Gemma 4 E4B",
+   "family": "Gemma",
+   "vendor": "Google DeepMind",
+   "repo": "unsloth/gemma-4-E4B-it-GGUF",
+   "base": "google/gemma-4-E4B-it",
+   "released": "2026-04",
+   "license": "apache-2.0",
+   "commercial": true,
+   "languages": [
+    "ru",
+    "en",
+    "zh",
+    "es",
+    "fr",
+    "de",
+    "ja",
+    "ko",
+    "ar",
+    "pt",
+    "it",
+    "uk",
+    "pl",
+    "tr"
+   ],
+   "caps": {
+    "vision": true,
+    "reasoning": true,
+    "tools": true,
+    "audio": true
+   },
+   "scores": {
+    "chat": 60,
+    "coding": 52,
+    "ru": 62,
+    "vision": 55,
+    "reasoning": 50,
+    "agent": 45
+   },
+   "why": {
+    "ru": "Сильный русский язык в небольшом размере: Google обучал её на 140+ языках; видит картинки, умеет размышлять.",
+    "en": "Strong Russian at a small size: Google trained it on 140+ languages; sees images and can think."
+   },
+   "sampling": {
+    "temperature": 1.0,
+    "top_p": 0.95,
+    "top_k": 64
+   },
+   "quants": [
+    "Q3_K_M",
+    "Q4_K_M",
+    "Q5_K_M",
+    "Q6_K",
+    "Q8_0"
+   ],
+   "tags": [
+    "small"
+   ],
+   "files": {
+    "Q3_K_M": {
+     "files": [
+      "gemma-4-E4B-it-Q3_K_M.gguf"
+     ],
+     "size": 4058137728,
+     "quant": "Q3_K_M"
+    },
+    "Q4_K_M": {
+     "files": [
+      "gemma-4-E4B-it-Q4_K_M.gguf"
+     ],
+     "size": 4977171584,
+     "quant": "Q4_K_M"
+    },
+    "Q5_K_M": {
+     "files": [
+      "gemma-4-E4B-it-Q5_K_M.gguf"
+     ],
+     "size": 5481798784,
+     "quant": "Q5_K_M"
+    },
+    "Q6_K": {
+     "files": [
+      "gemma-4-E4B-it-Q6_K.gguf"
+     ],
+     "size": 7074929792,
+     "quant": "Q6_K"
+    },
+    "Q8_0": {
+     "files": [
+      "gemma-4-E4B-it-Q8_0.gguf"
+     ],
+     "size": 8192953472,
+     "quant": "Q8_0"
+    }
+   },
+   "mmproj": {
+    "path": "mmproj-F16.gguf",
+    "size": 990372672
+   },
+   "draft": {
+    "path": "MTP/mtp-gemma-4-E4B-it-Q8_0.gguf",
+    "size": 98653248,
+    "quant": "Q8_0"
+   },
+   "params": 7518069290,
+   "ctx_max": 131072,
+   "arch": "gemma4",
+   "gated": false,
+   "downloads": 592091,
+   "kv": {
+    "per_token": 28672,
+    "fixed": 36700160
+   },
+   "moe": false,
+   "checked": "2026-10-11"
+  },
+  {
+   "id": "gigachat3.1-10b-a1.8b",
+   "name": "GigaChat 3.1 Lightning 10B-A1.8B",
+   "family": "GigaChat",
+   "vendor": "Sber AI",
+   "repo": "ai-sage/GigaChat3.1-10B-A1.8B-GGUF",
+   "base": "ai-sage/GigaChat3.1-10B-A1.8B",
+   "released": "2026-03",
+   "license": "mit",
+   "commercial": true,
+   "languages": [
+    "ru",
+    "en"
+   ],
+   "caps": {
+    "vision": false,
+    "reasoning": false,
+    "tools": true,
+    "audio": false
+   },
+   "scores": {
+    "chat": 55,
+    "coding": 45,
+    "ru": 78,
+    "vision": 0,
+    "reasoning": 45,
+    "agent": 50
+   },
+   "why": {
+    "ru": "Российская MoE-модель Сбера: обучена прежде всего на русском, активны лишь 1,8 млрд параметров — очень быстрая даже на процессоре.",
+    "en": "Sber's Russian MoE model: trained primarily on Russian, only 1.8B parameters active — very fast even on a CPU."
+   },
+   "sampling": {
+    "temperature": 0.5
+   },
+   "quants": [
+    "Q3_K_M",
+    "Q4_K_M",
+    "Q5_K_M",
+    "Q6_K",
+    "Q8_0"
+   ],
+   "tags": [
+    "ru"
+   ],
+   "active_b": 1.8,
+   "files": {
+    "Q4_K_M": {
+     "files": [
+      "GigaChat3.1-10B-A1.8B-q4_K_M.gguf"
+     ],
+     "size": 6474702976,
+     "quant": "Q4_K_M"
+    },
+    "Q6_K": {
+     "files": [
+      "GigaChat3.1-10B-A1.8B-q6_K.gguf"
+     ],
+     "size": 8782243456,
+     "quant": "Q6_K"
+    },
+    "Q8_0": {
+     "files": [
+      "GigaChat3.1-10B-A1.8B-q8_0.gguf"
+     ],
+     "size": 11353174144,
+     "quant": "Q8_0"
+    }
+   },
+   "mmproj": null,
+   "draft": null,
+   "params": 10672535616,
+   "ctx_max": 262144,
+   "arch": "deepseek2",
+   "gated": false,
+   "downloads": 13738,
+   "kv": {
+    "per_token": 29952,
+    "fixed": 0
+   },
+   "moe": true,
+   "checked": "2026-10-11"
+  },
+  {
+   "id": "qwen3.5-9b",
+   "name": "Qwen3.5 9B",
+   "family": "Qwen",
+   "vendor": "Alibaba Qwen",
+   "repo": "unsloth/Qwen3.5-9B-GGUF",
+   "base": "Qwen/Qwen3.5-9B",
+   "released": "2026-02",
+   "license": "apache-2.0",
+   "commercial": true,
+   "languages": [
+    "ru",
+    "en",
+    "zh",
+    "es",
+    "fr",
+    "de",
+    "ja",
+    "ko",
+    "ar",
+    "pt",
+    "it"
+   ],
+   "caps": {
+    "vision": true,
+    "reasoning": true,
+    "tools": true,
+    "audio": false
+   },
+   "scores": {
+    "chat": 70,
+    "coding": 68,
+    "ru": 64,
+    "vision": 68,
+    "reasoning": 72,
+    "agent": 64
+   },
+   "why": {
+    "ru": "Универсал для видеокарт на 8–12 ГБ: сильный код и рассуждения, картинки, инструменты, длинный контекст.",
+    "en": "An all-rounder for 8–12 GB GPUs: strong coding and reasoning, images, tools, long context."
+   },
+   "sampling": {
+    "temperature": 0.6,
+    "top_p": 0.95,
+    "top_k": 20,
+    "min_p": 0.0
+   },
+   "quants": [
+    "Q3_K_M",
+    "Q4_K_M",
+    "Q5_K_M",
+    "Q6_K",
+    "Q8_0"
+   ],
+   "tags": [
+    "medium"
+   ],
+   "files": {
+    "Q3_K_M": {
+     "files": [
+      "Qwen3.5-9B-Q3_K_M.gguf"
+     ],
+     "size": 4673643744,
+     "quant": "Q3_K_M"
+    },
+    "Q4_K_M": {
+     "files": [
+      "Qwen3.5-9B-Q4_K_M.gguf"
+     ],
+     "size": 5680522464,
+     "quant": "Q4_K_M"
+    },
+    "Q5_K_M": {
+     "files": [
+      "Qwen3.5-9B-Q5_K_M.gguf"
+     ],
+     "size": 6577841376,
+     "quant": "Q5_K_M"
+    },
+    "Q6_K": {
+     "files": [
+      "Qwen3.5-9B-Q6_K.gguf"
+     ],
+     "size": 7458301152,
+     "quant": "Q6_K"
+    },
+    "Q8_0": {
+     "files": [
+      "Qwen3.5-9B-Q8_0.gguf"
+     ],
+     "size": 9527502048,
+     "quant": "Q8_0"
+    }
+   },
+   "mmproj": {
+    "path": "mmproj-F16.gguf",
+    "size": 918166080
+   },
+   "draft": null,
+   "params": 8953803264,
+   "ctx_max": 262144,
+   "arch": "qwen35",
+   "gated": false,
+   "downloads": 1190523,
+   "kv": {
+    "per_token": 32768,
+    "fixed": 0
+   },
+   "moe": false,
+   "checked": "2026-10-11"
+  },
+  {
+   "id": "mimo-v2.6-distill-qwen-9b",
+   "name": "MiMo V2.6 Distill 9B",
+   "family": "MiMo",
+   "vendor": "Xiaomi",
+   "repo": "bartowski/MiMo-V2.6-Distill-Qwen-9B-GGUF",
+   "base": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+   "released": "2026-09",
+   "license": "mit",
+   "commercial": true,
+   "languages": [
+    "ru",
+    "en",
+    "zh",
+    "es",
+    "fr",
+    "de",
+    "ja",
+    "ko",
+    "ar",
+    "pt",
+    "it"
+   ],
+   "caps": {
+    "vision": true,
+    "reasoning": true,
+    "tools": true,
+    "audio": false
+   },
+   "scores": {
+    "chat": 68,
+    "coding": 70,
+    "ru": 58,
+    "vision": 62,
+    "reasoning": 78,
+    "agent": 62
+   },
+   "why": {
+    "ru": "Qwen3.5 9B, дообученная Xiaomi на рассуждениях большой модели MiMo V2.6: сильнее в математике и логике.",
+    "en": "Qwen3.5 9B distilled by Xiaomi from the large MiMo V2.6: stronger at maths and logic."
+   },
+   "sampling": {
+    "temperature": 0.6,
+    "top_p": 0.95,
+    "top_k": 20,
+    "min_p": 0.0
+   },
+   "quants": [
+    "Q3_K_M",
+    "Q4_K_M",
+    "Q5_K_M",
+    "Q6_K",
+    "Q8_0"
+   ],
+   "tags": [
+    "medium",
+    "reasoning"
+   ],
+   "files": {
+    "Q3_K_M": {
+     "files": [
+      "MiMo-V2.6-Distill-Qwen-9B-Q3_K_M.gguf"
+     ],
+     "size": 4479948320,
+     "quant": "Q3_K_M"
+    },
+    "Q4_K_M": {
+     "files": [
+      "MiMo-V2.6-Distill-Qwen-9B-Q4_K_M.gguf"
+     ],
+     "size": 5841049120,
+     "quant": "Q4_K_M"
+    },
+    "Q5_K_M": {
+     "files": [
+      "MiMo-V2.6-Distill-Qwen-9B-Q5_K_M.gguf"
+     ],
+     "size": 6876124704,
+     "quant": "Q5_K_M"
+    },
+    "Q6_K": {
+     "files": [
+      "MiMo-V2.6-Distill-Qwen-9B-Q6_K.gguf"
+     ],
+     "size": 7793710624,
+     "quant": "Q6_K"
+    },
+    "Q8_0": {
+     "files": [
+      "MiMo-V2.6-Distill-Qwen-9B-Q8_0.gguf"
+     ],
+     "size": 9545979424,
+     "quant": "Q8_0"
+    }
+   },
+   "mmproj": {
+    "path": "mmproj-MiMo-V2.6-Distill-Qwen-9B-f16.gguf",
+    "size": 918166048
+   },
+   "draft": null,
+   "params": 8953803264,
+   "ctx_max": 262144,
+   "arch": "qwen35",
+   "gated": false,
+   "downloads": 590914,
+   "kv": {
+    "per_token": 32768,
+    "fixed": 0
+   },
+   "moe": false,
+   "checked": "2026-10-11"
+  },
+  {
+   "id": "ministral-3-8b",
+   "name": "Ministral 3 8B",
+   "family": "Mistral",
+   "vendor": "Mistral AI",
+   "repo": "unsloth/Ministral-3-8B-Instruct-2512-GGUF",
+   "base": "mistralai/Ministral-3-8B-Instruct-2512",
+   "released": "2025-12",
+   "license": "apache-2.0",
+   "commercial": true,
+   "languages": [
+    "en",
+    "fr",
+    "es",
+    "de",
+    "it",
+    "pt",
+    "nl",
+    "zh",
+    "ja",
+    "ko",
+    "ar"
+   ],
+   "caps": {
+    "vision": true,
+    "reasoning": false,
+    "tools": true,
+    "audio": false
+   },
+   "scores": {
+    "chat": 60,
+    "coding": 55,
+    "ru": 50,
+    "vision": 55,
+    "reasoning": 55,
+    "agent": 55
+   },
+   "why": {
+    "ru": "Европейская модель Mistral: ровные ответы без лишних размышлений, картинки и инструменты.",
+    "en": "Mistral's European model: steady answers without long thinking, images and tools."
+   },
+   "sampling": {
+    "temperature": 0.15
+   },
+   "quants": [
+    "Q3_K_M",
+    "Q4_K_M",
+    "Q5_K_M",
+    "Q6_K",
+    "Q8_0"
+   ],
+   "tags": [
+    "medium"
+   ],
+   "files": {
+    "Q3_K_M": {
+     "files": [
+      "Ministral-3-8B-Instruct-2512-Q3_K_M.gguf"
+     ],
+     "size": 4242052640,
+     "quant": "Q3_K_M"
+    },
+    "Q4_K_M": {
+     "files": [
+      "Ministral-3-8B-Instruct-2512-Q4_K_M.gguf"
+     ],
+     "size": 5198386720,
+     "quant": "Q4_K_M"
+    },
+    "Q5_K_M": {
+     "files": [
+      "Ministral-3-8B-Instruct-2512-Q5_K_M.gguf"
+     ],
+     "size": 6058743328,
+     "quant": "Q5_K_M"
+    },
+    "Q6_K": {
+     "files": [
+      "Ministral-3-8B-Instruct-2512-Q6_K.gguf"
+     ],
+     "size": 6972872224,
+     "quant": "Q6_K"
+    },
+    "Q8_0": {
+     "files": [
+      "Ministral-3-8B-Instruct-2512-Q8_0.gguf"
+     ],
+     "size": 9028867616,
+     "quant": "Q8_0"
+    }
+   },
+   "mmproj": {
+    "path": "mmproj-F16.gguf",
+    "size": 857077920
+   },
+   "draft": null,
+   "params": 8489553920,
+   "ctx_max": 262144,
+   "arch": "mistral3",
+   "gated": false,
+   "downloads": 19525,
+   "kv": {
+    "per_token": 139264,
+    "fixed": 0
+   },
+   "moe": false,
+   "checked": "2026-10-11"
+  },
+  {
+   "id": "yandexgpt-5-lite-8b",
+   "name": "YandexGPT 5 Lite 8B",
+   "family": "YandexGPT",
+   "vendor": "Yandex",
+   "repo": "yandex/YandexGPT-5-Lite-8B-instruct-GGUF",
+   "base": "yandex/YandexGPT-5-Lite-8B-instruct",
+   "released": "2025-03",
+   "license": "yandexgpt-5-lite",
+   "commercial": false,
+   "languages": [
+    "ru",
+    "en"
+   ],
+   "caps": {
+    "vision": false,
+    "reasoning": false,
+    "tools": false,
+    "audio": false
+   },
+   "scores": {
+    "chat": 55,
+    "coding": 40,
+    "ru": 76,
+    "vision": 0,
+    "reasoning": 40,
+    "agent": 35
+   },
+   "why": {
+    "ru": "Модель Яндекса, обученная на русском: естественный русский текст. Контекст 32K, без инструментов; лицензия ограничивает коммерческое использование.",
+    "en": "Yandex's model trained on Russian: natural Russian text. 32K context, no tools; the licence restricts commercial use."
+   },
+   "sampling": {},
+   "quants": [
+    "Q4_K_M",
+    "Q8_0"
+   ],
+   "tags": [
+    "ru"
+   ],
+   "files": {
+    "Q4_K_M": {
+     "files": [
+      "YandexGPT-5-Lite-8B-instruct-Q4_K_M.gguf"
+     ],
+     "size": 4920741184,
+     "quant": "Q4_K_M"
+    }
+   },
+   "mmproj": null,
+   "draft": null,
+   "params": 8036552704,
+   "ctx_max": 32768,
+   "arch": "llama",
+   "gated": false,
+   "downloads": 5572,
+   "kv": {
+    "per_token": 131072,
+    "fixed": 0
+   },
+   "moe": false,
+   "checked": "2026-10-11"
+  },
+  {
+   "id": "llama-3.1-8b",
+   "name": "Llama 3.1 8B",
+   "family": "Llama",
+   "vendor": "Meta",
+   "repo": "bartowski/Meta-Llama-3.1-8B-Instruct-GGUF",
+   "base": "meta-llama/Meta-Llama-3.1-8B-Instruct",
+   "released": "2024-07",
+   "license": "llama3.1",
+   "commercial": true,
+   "languages": [
+    "en",
+    "de",
+    "fr",
+    "it",
+    "pt",
+    "hi",
+    "es",
+    "th"
+   ],
+   "caps": {
+    "vision": false,
+    "reasoning": false,
+    "tools": true,
+    "audio": false
+   },
+   "scores": {
+    "chat": 52,
+    "coding": 45,
+    "ru": 40,
+    "vision": 0,
+    "reasoning": 40,
+    "agent": 45
+   },
+   "why": {
+    "ru": "Классика: огромная экосистема дообучений и стабильный вызов инструментов. Уступает новым моделям по качеству.",
+    "en": "A classic: a huge ecosystem of fine-tunes and stable tool calling. Behind newer models in quality."
+   },
+   "sampling": {
+    "temperature": 0.6,
+    "top_p": 0.9
+   },
+   "quants": [
+    "Q3_K_M",
+    "Q4_K_M",
+    "Q5_K_M",
+    "Q6_K",
+    "Q8_0"
+   ],
+   "tags": [
+    "medium"
+   ],
+   "kv": {
+    "per_token": 131072,
+    "fixed": 0
+   },
+   "files": {
+    "Q3_K_M": {
+     "files": [
+      "Meta-Llama-3.1-8B-Instruct-Q3_K_M.gguf"
+     ],
+     "size": 4018922912,
+     "quant": "Q3_K_M"
+    },
+    "Q4_K_M": {
+     "files": [
+      "Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf"
+     ],
+     "size": 4920739232,
+     "quant": "Q4_K_M"
+    },
+    "Q5_K_M": {
+     "files": [
+      "Meta-Llama-3.1-8B-Instruct-Q5_K_M.gguf"
+     ],
+     "size": 5732992416,
+     "quant": "Q5_K_M"
+    },
+    "Q6_K": {
+     "files": [
+      "Meta-Llama-3.1-8B-Instruct-Q6_K.gguf"
+     ],
+     "size": 6596011424,
+     "quant": "Q6_K"
+    },
+    "Q8_0": {
+     "files": [
+      "Meta-Llama-3.1-8B-Instruct-Q8_0.gguf"
+     ],
+     "size": 8540775840,
+     "quant": "Q8_0"
+    }
+   },
+   "mmproj": null,
+   "draft": null,
+   "params": 8030261312,
+   "ctx_max": 131072,
+   "arch": "llama",
+   "gated": false,
+   "downloads": 490118,
+   "checked": "2026-10-11"
+  },
+  {
+   "id": "deepseek-r1-0528-qwen3-8b",
+   "name": "DeepSeek R1 0528 Qwen3 8B",
+   "family": "DeepSeek",
+   "vendor": "DeepSeek",
+   "repo": "unsloth/DeepSeek-R1-0528-Qwen3-8B-GGUF",
+   "base": "deepseek-ai/DeepSeek-R1-0528-Qwen3-8B",
+   "released": "2025-05",
+   "license": "mit",
+   "commercial": true,
+   "languages": [
+    "en",
+    "zh",
+    "ru"
+   ],
+   "caps": {
+    "vision": false,
+    "reasoning": true,
+    "tools": false,
+    "audio": false
+   },
+   "scores": {
+    "chat": 58,
+    "coding": 62,
+    "ru": 45,
+    "vision": 0,
+    "reasoning": 76,
+    "agent": 40
+   },
+   "why": {
+    "ru": "Дистиллят DeepSeek R1: длинные рассуждения для математики и задач на логику. Для обычного чата многословна.",
+    "en": "A DeepSeek R1 distill: long reasoning for maths and logic puzzles. Verbose for everyday chat."
+   },
+   "sampling": {
+    "temperature": 0.6,
+    "top_p": 0.95
+   },
+   "quants": [
+    "Q3_K_M",
+    "Q4_K_M",
+    "Q5_K_M",
+    "Q6_K",
+    "Q8_0"
+   ],
+   "tags": [
+    "medium",
+    "reasoning"
+   ],
+   "files": {
+    "Q3_K_M": {
+     "files": [
+      "DeepSeek-R1-0528-Qwen3-8B-Q3_K_M.gguf"
+     ],
+     "size": 4124162560,
+     "quant": "Q3_K_M"
+    },
+    "Q4_K_M": {
+     "files": [
+      "DeepSeek-R1-0528-Qwen3-8B-Q4_K_M.gguf"
+     ],
+     "size": 5027785216,
+     "quant": "Q4_K_M"
+    },
+    "Q5_K_M": {
+     "files": [
+      "DeepSeek-R1-0528-Qwen3-8B-Q5_K_M.gguf"
+     ],
+     "size": 5851113984,
+     "quant": "Q5_K_M"
+    },
+    "Q6_K": {
+     "files": [
+      "DeepSeek-R1-0528-Qwen3-8B-Q6_K.gguf"
+     ],
+     "size": 6725900800,
+     "quant": "Q6_K"
+    },
+    "Q8_0": {
+     "files": [
+      "DeepSeek-R1-0528-Qwen3-8B-Q8_0.gguf"
+     ],
+     "size": 8709519872,
+     "quant": "Q8_0"
+    }
+   },
+   "mmproj": null,
+   "draft": null,
+   "params": 8190735360,
+   "ctx_max": 131072,
+   "arch": "qwen3",
+   "gated": false,
+   "downloads": 97208,
+   "kv": {
+    "per_token": 147456,
+    "fixed": 0
+   },
+   "moe": false,
+   "checked": "2026-10-11"
+  },
+  {
+   "id": "glm-4.6v-flash",
+   "name": "GLM-4.6V Flash 9B",
+   "family": "GLM",
+   "vendor": "Z.ai",
+   "repo": "ggml-org/GLM-4.6V-Flash-GGUF",
+   "base": "zai-org/GLM-4.6V-Flash",
+   "released": "2025-12",
+   "license": "mit",
+   "commercial": true,
+   "languages": [
+    "en",
+    "zh"
+   ],
+   "caps": {
+    "vision": true,
+    "reasoning": true,
+    "tools": true,
+    "audio": false
+   },
+   "scores": {
+    "chat": 62,
+    "coding": 58,
+    "ru": 50,
+    "vision": 75,
+    "reasoning": 60,
+    "agent": 60
+   },
+   "why": {
+    "ru": "Лёгкая модель Z.ai для зрения: документы, скриншоты, графики, распознавание текста на картинках.",
+    "en": "Z.ai's light vision model: documents, screenshots, charts and text in images."
+   },
+   "sampling": {
+    "temperature": 0.8,
+    "top_p": 0.6
+   },
+   "quants": [
+    "Q4_K_M",
+    "Q8_0"
+   ],
+   "tags": [
+    "medium",
+    "vision"
+   ],
+   "files": {
+    "Q4_K_M": {
+     "files": [
+      "GLM-4.6V-Flash-Q4_K_M.gguf"
+     ],
+     "size": 6166577888,
+     "quant": "Q4_K_M"
+    },
+    "Q8_0": {
+     "files": [
+      "GLM-4.6V-Flash-Q8_0.gguf"
+     ],
+     "size": 9999614816,
+     "quant": "Q8_0"
+    }
+   },
+   "mmproj": {
+    "path": "mmproj-GLM-4.6V-Flash-Q8_0.gguf",
+    "size": 980055680
+   },
+   "draft": null,
+   "params": 9400279040,
+   "ctx_max": 131072,
+   "arch": "glm4",
+   "gated": false,
+   "downloads": 13299,
+   "kv": {
+    "per_token": 40960,
+    "fixed": 0
+   },
+   "moe": false,
+   "checked": "2026-10-11"
+  },
+  {
+   "id": "gemma-4-12b",
+   "name": "Gemma 4 12B",
+   "family": "Gemma",
+   "vendor": "Google DeepMind",
+   "repo": "unsloth/gemma-4-12b-it-GGUF",
+   "base": "google/gemma-4-12B-it",
+   "released": "2026-05",
+   "license": "apache-2.0",
+   "commercial": true,
+   "languages": [
+    "ru",
+    "en",
+    "zh",
+    "es",
+    "fr",
+    "de",
+    "ja",
+    "ko",
+    "ar",
+    "pt",
+    "it",
+    "uk",
+    "pl",
+    "tr"
+   ],
+   "caps": {
+    "vision": true,
+    "reasoning": true,
+    "tools": true,
+    "audio": true
+   },
+   "scores": {
+    "chat": 76,
+    "coding": 72,
+    "ru": 74,
+    "vision": 72,
+    "reasoning": 76,
+    "agent": 68
+   },
+   "why": {
+    "ru": "Пожалуй, лучший русский язык в классе до 12 ГБ: Google, 140+ языков, картинки и звук, размышления, 256K контекста.",
+    "en": "Arguably the best Russian in the up-to-12 GB class: Google, 140+ languages, images and audio, thinking, 256K context."
+   },
+   "sampling": {
+    "temperature": 1.0,
+    "top_p": 0.95,
+    "top_k": 64
+   },
+   "quants": [
+    "Q3_K_M",
+    "Q4_K_M",
+    "Q5_K_M",
+    "Q6_K",
+    "Q8_0"
+   ],
+   "tags": [
+    "medium"
+   ],
+   "files": {
+    "Q3_K_M": {
+     "files": [
+      "gemma-4-12b-it-Q3_K_M.gguf"
+     ],
+     "size": 5693872960,
+     "quant": "Q3_K_M"
+    },
+    "Q4_K_M": {
+     "files": [
+      "gemma-4-12b-it-Q4_K_M.gguf"
+     ],
+     "size": 7121861440,
+     "quant": "Q4_K_M"
+    },
+    "Q5_K_M": {
+     "files": [
+      "gemma-4-12b-it-Q5_K_M.gguf"
+     ],
+     "size": 8413576000,
+     "quant": "Q5_K_M"
+    },
+    "Q6_K": {
+     "files": [
+      "gemma-4-12b-it-Q6_K.gguf"
+     ],
+     "size": 9786022720,
+     "quant": "Q6_K"
+    },
+    "Q8_0": {
+     "files": [
+      "gemma-4-12b-it-Q8_0.gguf"
+     ],
+     "size": 12669647680,
+     "quant": "Q8_0"
+    }
+   },
+   "mmproj": {
+    "path": "mmproj-F16.gguf",
+    "size": 175115840
+   },
+   "draft": {
+    "path": "MTP/mtp-gemma-4-12b-it-Q8_0.gguf",
+    "size": 465109248,
+    "quant": "Q8_0"
+   },
+   "params": 11907350576,
+   "ctx_max": 262144,
+   "arch": "gemma4",
+   "gated": false,
+   "downloads": 1695481,
+   "kv": {
+    "per_token": 16384,
+    "fixed": 335544320
+   },
+   "moe": false,
+   "checked": "2026-10-11"
+  },
+  {
+   "id": "ministral-3-14b",
+   "name": "Ministral 3 14B",
+   "family": "Mistral",
+   "vendor": "Mistral AI",
+   "repo": "unsloth/Ministral-3-14B-Instruct-2512-GGUF",
+   "base": "mistralai/Ministral-3-14B-Instruct-2512",
+   "released": "2025-12",
+   "license": "apache-2.0",
+   "commercial": true,
+   "languages": [
+    "en",
+    "fr",
+    "es",
+    "de",
+    "it",
+    "pt",
+    "nl",
+    "zh",
+    "ja",
+    "ko",
+    "ar"
+   ],
+   "caps": {
+    "vision": true,
+    "reasoning": false,
+    "tools": true,
+    "audio": false
+   },
+   "scores": {
+    "chat": 68,
+    "coding": 64,
+    "ru": 55,
+    "vision": 62,
+    "reasoning": 64,
+    "agent": 62
+   },
+   "why": {
+    "ru": "Старшая из Ministral 3: картинки, инструменты, быстрые ответы без длинных размышлений.",
+    "en": "The largest Ministral 3: images, tools, quick answers without long thinking."
+   },
+   "sampling": {
+    "temperature": 0.15
+   },
+   "quants": [
+    "Q3_K_M",
+    "Q4_K_M",
+    "Q5_K_M",
+    "Q6_K",
+    "Q8_0"
+   ],
+   "tags": [
+    "medium"
+   ],
+   "files": {
+    "Q3_K_M": {
+     "files": [
+      "Ministral-3-14B-Instruct-2512-Q3_K_M.gguf"
+     ],
+     "size": 6682096320,
+     "quant": "Q3_K_M"
+    },
+    "Q4_K_M": {
+     "files": [
+      "Ministral-3-14B-Instruct-2512-Q4_K_M.gguf"
+     ],
+     "size": 8239067840,
+     "quant": "Q4_K_M"
+    },
+    "Q5_K_M": {
+     "files": [
+      "Ministral-3-14B-Instruct-2512-Q5_K_M.gguf"
+     ],
+     "size": 9620566720,
+     "quant": "Q5_K_M"
+    },
+    "Q6_K": {
+     "files": [
+      "Ministral-3-14B-Instruct-2512-Q6_K.gguf"
+     ],
+     "size": 11088409280,
+     "quant": "Q6_K"
+    },
+    "Q8_0": {
+     "files": [
+      "Ministral-3-14B-Instruct-2512-Q8_0.gguf"
+     ],
+     "size": 14359311040,
+     "quant": "Q8_0"
+    }
+   },
+   "mmproj": {
+    "path": "mmproj-F16.gguf",
+    "size": 878053536
+   },
+   "draft": null,
+   "params": 13506073600,
+   "ctx_max": 262144,
+   "arch": "mistral3",
+   "gated": false,
+   "downloads": 12836,
+   "kv": {
+    "per_token": 163840,
+    "fixed": 0
+   },
+   "moe": false,
+   "checked": "2026-10-11"
+  },
+  {
+   "id": "gpt-oss-20b",
+   "name": "gpt-oss 20B",
+   "family": "gpt-oss",
+   "vendor": "OpenAI",
+   "repo": "ggml-org/gpt-oss-20b-GGUF",
+   "base": "openai/gpt-oss-20b",
+   "released": "2025-08",
+   "license": "apache-2.0",
+   "commercial": true,
+   "languages": [
+    "en",
+    "multilingual"
+   ],
+   "caps": {
+    "vision": false,
+    "reasoning": true,
+    "tools": true,
+    "audio": false
+   },
+   "scores": {
+    "chat": 70,
+    "coding": 72,
+    "ru": 58,
+    "vision": 0,
+    "reasoning": 80,
+    "agent": 72
+   },
+   "why": {
+    "ru": "Открытая модель OpenAI: сильные рассуждения с уровнями усилия, вызов инструментов; MoE — быстрая (3,6 млрд активных параметров).",
+    "en": "OpenAI's open model: strong reasoning with effort levels and tool calling; MoE, so it is fast (3.6B active parameters)."
+   },
+   "sampling": {
+    "temperature": 1.0,
+    "top_p": 1.0
+   },
+   "quants": [
+    "MXFP4"
+   ],
+   "tags": [
+    "medium",
+    "reasoning"
+   ],
+   "active_b": 3.6,
+   "files": {
+    "MXFP4": {
+     "files": [
+      "gpt-oss-20b-MXFP4.gguf"
+     ],
+     "size": 12109566624,
+     "quant": "MXFP4"
+    }
+   },
+   "mmproj": null,
+   "draft": null,
+   "params": 20914757184,
+   "ctx_max": 131072,
+   "arch": "gpt-oss",
+   "gated": false,
+   "downloads": 163494,
+   "kv": {
+    "per_token": 24576,
+    "fixed": 3145728
+   },
+   "moe": true,
+   "checked": "2026-10-11"
+  },
+  {
+   "id": "mistral-small-3.2-24b",
+   "name": "Mistral Small 3.2 24B",
+   "family": "Mistral",
+   "vendor": "Mistral AI",
+   "repo": "unsloth/Mistral-Small-3.2-24B-Instruct-2506-GGUF",
+   "base": "mistralai/Mistral-Small-3.2-24B-Instruct-2506",
+   "released": "2025-06",
+   "license": "apache-2.0",
+   "commercial": true,
+   "languages": [
+    "ru",
+    "en",
+    "fr",
+    "de",
+    "es",
+    "pt",
+    "it",
+    "ja",
+    "ko",
+    "zh",
+    "ar",
+    "uk",
+    "pl"
+   ],
+   "caps": {
+    "vision": true,
+    "reasoning": false,
+    "tools": true,
+    "audio": false
+   },
+   "scores": {
+    "chat": 72,
+    "coding": 68,
+    "ru": 70,
+    "vision": 68,
+    "reasoning": 62,
+    "agent": 70
+   },
+   "why": {
+    "ru": "Надёжная универсальная модель с официальной поддержкой русского, картинками и аккуратным вызовом инструментов.",
+    "en": "A reliable all-rounder with official Russian support, images and careful tool calling."
+   },
+   "sampling": {
+    "temperature": 0.15
+   },
+   "quants": [
+    "Q3_K_M",
+    "Q4_K_M",
+    "Q5_K_M",
+    "Q6_K",
+    "Q8_0"
+   ],
+   "tags": [
+    "large"
+   ],
+   "files": {
+    "Q3_K_M": {
+     "files": [
+      "Mistral-Small-3.2-24B-Instruct-2506-Q3_K_M.gguf"
+     ],
+     "size": 11474095648,
+     "quant": "Q3_K_M"
+    },
+    "Q4_K_M": {
+     "files": [
+      "Mistral-Small-3.2-24B-Instruct-2506-Q4_K_M.gguf"
+     ],
+     "size": 14333922848,
+     "quant": "Q4_K_M"
+    },
+    "Q5_K_M": {
+     "files": [
+      "Mistral-Small-3.2-24B-Instruct-2506-Q5_K_M.gguf"
+     ],
+     "size": 16763997728,
+     "quant": "Q5_K_M"
+    },
+    "Q6_K": {
+     "files": [
+      "Mistral-Small-3.2-24B-Instruct-2506-Q6_K.gguf"
+     ],
+     "size": 19345952288,
+     "quant": "Q6_K"
+    },
+    "Q8_0": {
+     "files": [
+      "Mistral-Small-3.2-24B-Instruct-2506-Q8_0.gguf"
+     ],
+     "size": 25054793248,
+     "quant": "Q8_0"
+    }
+   },
+   "mmproj": {
+    "path": "mmproj-F16.gguf",
+    "size": 878053568
+   },
+   "draft": null,
+   "params": 23572403200,
+   "ctx_max": 131072,
+   "arch": "llama",
+   "gated": false,
+   "downloads": 55336,
+   "kv": {
+    "per_token": 163840,
+    "fixed": 0
+   },
+   "moe": false,
+   "checked": "2026-10-11"
+  },
+  {
+   "id": "magistral-small-2509",
+   "name": "Magistral Small 2509 24B",
+   "family": "Mistral",
+   "vendor": "Mistral AI",
+   "repo": "unsloth/Magistral-Small-2509-GGUF",
+   "base": "mistralai/Magistral-Small-2509",
+   "released": "2025-09",
+   "license": "apache-2.0",
+   "commercial": true,
+   "languages": [
+    "ru",
+    "en",
+    "fr",
+    "de",
+    "es",
+    "pt",
+    "it",
+    "ja",
+    "ko",
+    "zh",
+    "ar",
+    "uk",
+    "pl"
+   ],
+   "caps": {
+    "vision": true,
+    "reasoning": true,
+    "tools": true,
+    "audio": false
+   },
+   "scores": {
+    "chat": 72,
+    "coding": 70,
+    "ru": 68,
+    "vision": 66,
+    "reasoning": 78,
+    "agent": 66
+   },
+   "why": {
+    "ru": "Рассуждающая версия Mistral Small: думает перед ответом, понимает картинки, поддерживает русский.",
+    "en": "The reasoning version of Mistral Small: thinks before answering, understands images, supports Russian."
+   },
+   "sampling": {
+    "temperature": 0.7,
+    "top_p": 0.95
+   },
+   "quants": [
+    "Q3_K_M",
+    "Q4_K_M",
+    "Q5_K_M",
+    "Q6_K",
+    "Q8_0"
+   ],
+   "tags": [
+    "large",
+    "reasoning"
+   ],
+   "files": {
+    "Q3_K_M": {
+     "files": [
+      "Magistral-Small-2509-Q3_K_M.gguf"
+     ],
+     "size": 11474086080,
+     "quant": "Q3_K_M"
+    },
+    "Q4_K_M": {
+     "files": [
+      "Magistral-Small-2509-Q4_K_M.gguf"
+     ],
+     "size": 14333913280,
+     "quant": "Q4_K_M"
+    },
+    "Q5_K_M": {
+     "files": [
+      "Magistral-Small-2509-Q5_K_M.gguf"
+     ],
+     "size": 16763988160,
+     "quant": "Q5_K_M"
+    },
+    "Q6_K": {
+     "files": [
+      "Magistral-Small-2509-Q6_K.gguf"
+     ],
+     "size": 19345942720,
+     "quant": "Q6_K"
+    },
+    "Q8_0": {
+     "files": [
+      "Magistral-Small-2509-Q8_0.gguf"
+     ],
+     "size": 25054783680,
+     "quant": "Q8_0"
+    }
+   },
+   "mmproj": {
+    "path": "mmproj-F16.gguf",
+    "size": 878054208
+   },
+   "draft": null,
+   "params": 23572403200,
+   "ctx_max": 131072,
+   "arch": "llama",
+   "gated": false,
+   "downloads": 5897,
+   "kv": {
+    "per_token": 163840,
+    "fixed": 0
+   },
+   "moe": false,
+   "checked": "2026-10-11"
+  },
+  {
+   "id": "devstral-small-2-24b",
+   "name": "Devstral Small 2 24B",
+   "family": "Mistral",
+   "vendor": "Mistral AI",
+   "repo": "unsloth/Devstral-Small-2-24B-Instruct-2512-GGUF",
+   "base": "mistralai/Devstral-Small-2-24B-Instruct-2512",
+   "released": "2025-12",
+   "license": "other",
+   "commercial": true,
+   "languages": [
+    "en"
+   ],
+   "caps": {
+    "vision": false,
+    "reasoning": false,
+    "tools": true,
+    "audio": false
+   },
+   "scores": {
+    "chat": 62,
+    "coding": 82,
+    "ru": 55,
+    "vision": 0,
+    "reasoning": 60,
+    "agent": 84
+   },
+   "why": {
+    "ru": "Модель Mistral для программирования-агента: правит код в репозитории, пользуется инструментами (подходит для MemuCode).",
+    "en": "Mistral's coding-agent model: edits code across a repository and uses tools (a good fit for MemuCode)."
+   },
+   "sampling": {
+    "temperature": 0.15
+   },
+   "quants": [
+    "Q3_K_M",
+    "Q4_K_M",
+    "Q5_K_M",
+    "Q6_K",
+    "Q8_0"
+   ],
+   "tags": [
+    "large",
+    "coding"
+   ],
+   "files": {
+    "Q3_K_M": {
+     "files": [
+      "Devstral-Small-2-24B-Instruct-2512-Q3_K_M.gguf"
+     ],
+     "size": 11474619552,
+     "quant": "Q3_K_M"
+    },
+    "Q4_K_M": {
+     "files": [
+      "Devstral-Small-2-24B-Instruct-2512-Q4_K_M.gguf"
+     ],
+     "size": 14334446752,
+     "quant": "Q4_K_M"
+    },
+    "Q5_K_M": {
+     "files": [
+      "Devstral-Small-2-24B-Instruct-2512-Q5_K_M.gguf"
+     ],
+     "size": 16764521632,
+     "quant": "Q5_K_M"
+    },
+    "Q6_K": {
+     "files": [
+      "Devstral-Small-2-24B-Instruct-2512-Q6_K.gguf"
+     ],
+     "size": 19346476192,
+     "quant": "Q6_K"
+    },
+    "Q8_0": {
+     "files": [
+      "Devstral-Small-2-24B-Instruct-2512-Q8_0.gguf"
+     ],
+     "size": 25055317152,
+     "quant": "Q8_0"
+    }
+   },
+   "mmproj": null,
+   "draft": null,
+   "params": 23572403200,
+   "ctx_max": 393216,
+   "arch": "mistral3",
+   "gated": false,
+   "downloads": 50948,
+   "kv": {
+    "per_token": 163840,
+    "fixed": 0
+   },
+   "moe": false,
+   "checked": "2026-10-11"
+  },
+  {
+   "id": "gemma-4-26b-a4b",
+   "name": "Gemma 4 26B-A4B",
+   "family": "Gemma",
+   "vendor": "Google DeepMind",
+   "repo": "unsloth/gemma-4-26B-A4B-it-GGUF",
+   "base": "google/gemma-4-26B-A4B-it",
+   "released": "2026-04",
+   "license": "apache-2.0",
+   "commercial": true,
+   "languages": [
+    "ru",
+    "en",
+    "zh",
+    "es",
+    "fr",
+    "de",
+    "ja",
+    "ko",
+    "ar",
+    "pt",
+    "it",
+    "uk",
+    "pl",
+    "tr"
+   ],
+   "caps": {
+    "vision": true,
+    "reasoning": true,
+    "tools": true,
+    "audio": false
+   },
+   "scores": {
+    "chat": 82,
+    "coding": 76,
+    "ru": 78,
+    "vision": 76,
+    "reasoning": 84,
+    "agent": 72
+   },
+   "why": {
+    "ru": "MoE-модель Google: качество большой модели при скорости 4B (активны 3,8 млрд параметров). Отличный русский, картинки.",
+    "en": "Google's MoE model: big-model quality at 4B speed (3.8B parameters active). Excellent Russian, images."
+   },
+   "sampling": {
+    "temperature": 1.0,
+    "top_p": 0.95,
+    "top_k": 64
+   },
+   "quants": [
+    "Q3_K_M",
+    "Q4_K_M",
+    "Q5_K_M",
+    "Q6_K",
+    "Q8_0"
+   ],
+   "tags": [
+    "large",
+    "moe"
+   ],
+   "active_b": 3.8,
+   "files": {
+    "Q3_K_M": {
+     "files": [
+      "gemma-4-26B-A4B-it-UD-Q3_K_M.gguf"
+     ],
+     "size": 12728497888,
+     "quant": "Q3_K_M"
+    },
+    "Q4_K_M": {
+     "files": [
+      "gemma-4-26B-A4B-it-UD-Q4_K_M.gguf"
+     ],
+     "size": 16947541728,
+     "quant": "Q4_K_M"
+    },
+    "Q5_K_M": {
+     "files": [
+      "gemma-4-26B-A4B-it-UD-Q5_K_M.gguf"
+     ],
+     "size": 21150365408,
+     "quant": "Q5_K_M"
+    },
+    "Q6_K": {
+     "files": [
+      "gemma-4-26B-A4B-it-UD-Q6_K.gguf"
+     ],
+     "size": 23172478688,
+     "quant": "Q6_K"
+    },
+    "Q8_0": {
+     "files": [
+      "gemma-4-26B-A4B-it-Q8_0.gguf"
+     ],
+     "size": 26859861728,
+     "quant": "Q8_0"
+    }
+   },
+   "mmproj": {
+    "path": "mmproj-F16.gguf",
+    "size": 1193058784
+   },
+   "draft": {
+    "path": "MTP/mtp-gemma-4-26B-A4B-it-Q8_0.gguf",
+    "size": 461766816,
+    "quant": "Q8_0"
+   },
+   "params": 25233142046,
+   "ctx_max": 262144,
+   "arch": "gemma4",
+   "gated": false,
+   "downloads": 599240,
+   "kv": {
+    "per_token": 20480,
+    "fixed": 209715200
+   },
+   "moe": true,
+   "checked": "2026-10-11"
+  },
+  {
+   "id": "qwen3.6-27b",
+   "name": "Qwen3.6 27B",
+   "family": "Qwen",
+   "vendor": "Alibaba Qwen",
+   "repo": "unsloth/Qwen3.6-27B-GGUF",
+   "base": "Qwen/Qwen3.6-27B",
+   "released": "2026-04",
+   "license": "apache-2.0",
+   "commercial": true,
+   "languages": [
+    "ru",
+    "en",
+    "zh",
+    "es",
+    "fr",
+    "de",
+    "ja",
+    "ko",
+    "ar",
+    "pt",
+    "it"
+   ],
+   "caps": {
+    "vision": true,
+    "reasoning": true,
+    "tools": true,
+    "audio": false
+   },
+   "scores": {
+    "chat": 84,
+    "coding": 86,
+    "ru": 76,
+    "vision": 80,
+    "reasoning": 86,
+    "agent": 84
+   },
+   "why": {
+    "ru": "Сильная плотная модель для видеокарт на 24 ГБ: код, агенты, картинки, размышления.",
+    "en": "A strong dense model for 24 GB GPUs: code, agents, images and thinking."
+   },
+   "sampling": {
+    "temperature": 0.6,
+    "top_p": 0.95,
+    "top_k": 20,
+    "min_p": 0.0
+   },
+   "quants": [
+    "Q3_K_M",
+    "Q4_K_M",
+    "Q5_K_M",
+    "Q6_K",
+    "Q8_0"
+   ],
+   "tags": [
+    "large"
+   ],
+   "files": {
+    "Q3_K_M": {
+     "files": [
+      "Qwen3.6-27B-Q3_K_M.gguf"
+     ],
+     "size": 13586217184,
+     "quant": "Q3_K_M"
+    },
+    "Q4_K_M": {
+     "files": [
+      "Qwen3.6-27B-Q4_K_M.gguf"
+     ],
+     "size": 16817244384,
+     "quant": "Q4_K_M"
+    },
+    "Q5_K_M": {
+     "files": [
+      "Qwen3.6-27B-Q5_K_M.gguf"
+     ],
+     "size": 19509790944,
+     "quant": "Q5_K_M"
+    },
+    "Q6_K": {
+     "files": [
+      "Qwen3.6-27B-Q6_K.gguf"
+     ],
+     "size": 22523238624,
+     "quant": "Q6_K"
+    },
+    "Q8_0": {
+     "files": [
+      "Qwen3.6-27B-Q8_0.gguf"
+     ],
+     "size": 28595763424,
+     "quant": "Q8_0"
+    }
+   },
+   "mmproj": {
+    "path": "mmproj-F16.gguf",
+    "size": 927607360
+   },
+   "draft": null,
+   "params": 26895998464,
+   "ctx_max": 262144,
+   "arch": "qwen35",
+   "gated": false,
+   "downloads": 604278,
+   "kv": {
+    "per_token": 65536,
+    "fixed": 0
+   },
+   "moe": false,
+   "checked": "2026-10-11"
+  },
+  {
+   "id": "qwen3.8-27b",
+   "name": "Qwen3.8 27B",
+   "family": "Qwen",
+   "vendor": "Alibaba Qwen",
+   "repo": "unsloth/Qwen3.8-27B-GGUF",
+   "base": "Qwen/Qwen3.8-27B",
+   "released": "2026-08",
+   "license": "apache-2.0",
+   "commercial": true,
+   "languages": [
+    "ru",
+    "en",
+    "zh",
+    "es",
+    "fr",
+    "de",
+    "ja",
+    "ko",
+    "ar",
+    "pt",
+    "it"
+   ],
+   "caps": {
+    "vision": true,
+    "reasoning": true,
+    "tools": true,
+    "audio": false
+   },
+   "scores": {
+    "chat": 90,
+    "coding": 92,
+    "ru": 80,
+    "vision": 84,
+    "reasoning": 90,
+    "agent": 92
+   },
+   "why": {
+    "ru": "Самая сильная открытая модель своего размера на осень 2026: код, агенты, картинки и видео, 256K контекста.",
+    "en": "The strongest open model of its size as of autumn 2026: code, agents, images and video, 256K context."
+   },
+   "sampling": {
+    "temperature": 0.6,
+    "top_p": 0.95,
+    "top_k": 20,
+    "min_p": 0.0
+   },
+   "quants": [
+    "Q3_K_M",
+    "Q4_K_M",
+    "Q5_K_M",
+    "Q6_K",
+    "Q8_0"
+   ],
+   "tags": [
+    "large",
+    "top"
+   ],
+   "files": {
+    "Q3_K_M": {
+     "files": [
+      "Qwen3.8-27B-UD-Q3_K_XL.gguf"
+     ],
+     "size": 13146393504,
+     "quant": "Q3_K_XL"
+    },
+    "Q4_K_M": {
+     "files": [
+      "Qwen3.8-27B-UD-Q4_K_M.gguf"
+     ],
+     "size": 16464440224,
+     "quant": "Q4_K_M"
+    },
+    "Q5_K_M": {
+     "files": [
+      "Qwen3.8-27B-UD-Q5_K_M.gguf"
+     ],
+     "size": 19771509664,
+     "quant": "Q5_K_M"
+    },
+    "Q6_K": {
+     "files": [
+      "Qwen3.8-27B-UD-Q6_K.gguf"
+     ],
+     "size": 21983677344,
+     "quant": "Q6_K"
+    },
+    "Q8_0": {
+     "files": [
+      "Qwen3.8-27B-Q8_0.gguf"
+     ],
+     "size": 29047086048,
+     "quant": "Q8_0"
+    }
+   },
+   "mmproj": {
+    "path": "mmproj-F16.gguf",
+    "size": 927607488
+   },
+   "draft": {
+    "path": "MTP/mtp-Qwen3.8-27B-Q4_0.gguf",
+    "size": 1369590656,
+    "quant": "Q4_0"
+   },
+   "params": 27320697856,
+   "ctx_max": 262144,
+   "arch": "qwen35",
+   "gated": false,
+   "downloads": 6488262,
+   "kv": {
+    "per_token": 65536,
+    "fixed": 0
+   },
+   "moe": false,
+   "checked": "2026-10-11"
+  },
+  {
+   "id": "gemma-4-31b",
+   "name": "Gemma 4 31B",
+   "family": "Gemma",
+   "vendor": "Google DeepMind",
+   "repo": "unsloth/gemma-4-31B-it-GGUF",
+   "base": "google/gemma-4-31B-it",
+   "released": "2026-04",
+   "license": "apache-2.0",
+   "commercial": true,
+   "languages": [
+    "ru",
+    "en",
+    "zh",
+    "es",
+    "fr",
+    "de",
+    "ja",
+    "ko",
+    "ar",
+    "pt",
+    "it",
+    "uk",
+    "pl",
+    "tr"
+   ],
+   "caps": {
+    "vision": true,
+    "reasoning": true,
+    "tools": true,
+    "audio": false
+   },
+   "scores": {
+    "chat": 86,
+    "coding": 80,
+    "ru": 82,
+    "vision": 80,
+    "reasoning": 88,
+    "agent": 78
+   },
+   "why": {
+    "ru": "Флагман Gemma 4: лучший русский среди открытых моделей до 32B, сильные рассуждения и зрение.",
+    "en": "The Gemma 4 flagship: the best Russian among open models up to 32B, strong reasoning and vision."
+   },
+   "sampling": {
+    "temperature": 1.0,
+    "top_p": 0.95,
+    "top_k": 64
+   },
+   "quants": [
+    "Q3_K_M",
+    "Q4_K_M",
+    "Q5_K_M",
+    "Q6_K",
+    "Q8_0"
+   ],
+   "tags": [
+    "large"
+   ],
+   "files": {
+    "Q3_K_M": {
+     "files": [
+      "gemma-4-31B-it-Q3_K_M.gguf"
+     ],
+     "size": 14736608192,
+     "quant": "Q3_K_M"
+    },
+    "Q4_K_M": {
+     "files": [
+      "gemma-4-31B-it-Q4_K_M.gguf"
+     ],
+     "size": 18323733440,
+     "quant": "Q4_K_M"
+    },
+    "Q5_K_M": {
+     "files": [
+      "gemma-4-31B-it-Q5_K_M.gguf"
+     ],
+     "size": 21658401728,
+     "quant": "Q5_K_M"
+    },
+    "Q6_K": {
+     "files": [
+      "gemma-4-31B-it-Q6_K.gguf"
+     ],
+     "size": 25201486784,
+     "quant": "Q6_K"
+    },
+    "Q8_0": {
+     "files": [
+      "gemma-4-31B-it-Q8_0.gguf"
+     ],
+     "size": 32635677632,
+     "quant": "Q8_0"
+    }
+   },
+   "mmproj": {
+    "path": "mmproj-F16.gguf",
+    "size": 1198957024
+   },
+   "draft": {
+    "path": "MTP/mtp-gemma-4-31B-it-Q8_0.gguf",
+    "size": 514687104,
+    "quant": "Q8_0"
+   },
+   "params": 30697345596,
+   "ctx_max": 262144,
+   "arch": "gemma4",
+   "gated": false,
+   "downloads": 274185,
+   "kv": {
+    "per_token": 81920,
+    "fixed": 838860800
+   },
+   "moe": false,
+   "checked": "2026-10-11"
+  },
+  {
+   "id": "qwen3.6-35b-a3b",
+   "name": "Qwen3.6 35B-A3B",
+   "family": "Qwen",
+   "vendor": "Alibaba Qwen",
+   "repo": "unsloth/Qwen3.6-35B-A3B-GGUF",
+   "base": "Qwen/Qwen3.6-35B-A3B",
+   "released": "2026-04",
+   "license": "apache-2.0",
+   "commercial": true,
+   "languages": [
+    "ru",
+    "en",
+    "zh",
+    "es",
+    "fr",
+    "de",
+    "ja",
+    "ko",
+    "ar",
+    "pt",
+    "it"
+   ],
+   "caps": {
+    "vision": true,
+    "reasoning": true,
+    "tools": true,
+    "audio": false
+   },
+   "scores": {
+    "chat": 82,
+    "coding": 85,
+    "ru": 74,
+    "vision": 78,
+    "reasoning": 84,
+    "agent": 85
+   },
+   "why": {
+    "ru": "MoE: активны только 3 млрд параметров, поэтому быстро работает даже частично в ОЗУ. Сильный код и агенты, картинки.",
+    "en": "MoE: only 3B parameters active, so it is fast even partly in RAM. Strong coding and agents, images."
+   },
+   "sampling": {
+    "temperature": 0.6,
+    "top_p": 0.95,
+    "top_k": 20,
+    "min_p": 0.0
+   },
+   "quants": [
+    "Q3_K_M",
+    "Q4_K_M",
+    "Q5_K_M",
+    "Q6_K",
+    "Q8_0"
+   ],
+   "tags": [
+    "large",
+    "moe"
+   ],
+   "active_b": 3.0,
+   "files": {
+    "Q3_K_M": {
+     "files": [
+      "Qwen3.6-35B-A3B-UD-Q3_K_M.gguf"
+     ],
+     "size": 16600710112,
+     "quant": "Q3_K_M"
+    },
+    "Q4_K_M": {
+     "files": [
+      "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"
+     ],
+     "size": 22134528992,
+     "quant": "Q4_K_M"
+    },
+    "Q5_K_M": {
+     "files": [
+      "Qwen3.6-35B-A3B-UD-Q5_K_M.gguf"
+     ],
+     "size": 26456194016,
+     "quant": "Q5_K_M"
+    },
+    "Q6_K": {
+     "files": [
+      "Qwen3.6-35B-A3B-UD-Q6_K.gguf"
+     ],
+     "size": 29308320736,
+     "quant": "Q6_K"
+    },
+    "Q8_0": {
+     "files": [
+      "Qwen3.6-35B-A3B-Q8_0.gguf"
+     ],
+     "size": 36903140320,
+     "quant": "Q8_0"
+    }
+   },
+   "mmproj": {
+    "path": "mmproj-F16.gguf",
+    "size": 899283680
+   },
+   "draft": null,
+   "params": 34660610688,
+   "ctx_max": 262144,
+   "arch": "qwen35moe",
+   "gated": false,
+   "downloads": 1234313,
+   "kv": {
+    "per_token": 20480,
+    "fixed": 0
+   },
+   "moe": true,
+   "checked": "2026-10-11"
+  },
+  {
+   "id": "qwen3-coder-30b-a3b",
+   "name": "Qwen3 Coder 30B-A3B",
+   "family": "Qwen",
+   "vendor": "Alibaba Qwen",
+   "repo": "unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF",
+   "base": "Qwen/Qwen3-Coder-30B-A3B-Instruct",
+   "released": "2025-07",
+   "license": "apache-2.0",
+   "commercial": true,
+   "languages": [
+    "ru",
+    "en",
+    "zh",
+    "es",
+    "fr",
+    "de",
+    "ja",
+    "ko",
+    "ar",
+    "pt",
+    "it"
+   ],
+   "caps": {
+    "vision": false,
+    "reasoning": false,
+    "tools": true,
+    "audio": false
+   },
+   "scores": {
+    "chat": 62,
+    "coding": 80,
+    "ru": 55,
+    "vision": 0,
+    "reasoning": 62,
+    "agent": 80
+   },
+   "why": {
+    "ru": "Специализированная модель для кода: быстрая MoE, хорошо работает агентом с инструментами.",
+    "en": "A specialised coding model: a fast MoE that works well as a tool-using agent."
+   },
+   "sampling": {
+    "temperature": 0.7,
+    "top_p": 0.8,
+    "top_k": 20,
+    "repeat_penalty": 1.05
+   },
+   "quants": [
+    "Q3_K_M",
+    "Q4_K_M",
+    "Q5_K_M",
+    "Q6_K",
+    "Q8_0"
+   ],
+   "tags": [
+    "large",
+    "coding",
+    "moe"
+   ],
+   "active_b": 3.3,
+   "files": {
+    "Q3_K_M": {
+     "files": [
+      "Qwen3-Coder-30B-A3B-Instruct-Q3_K_M.gguf"
+     ],
+     "size": 14711850144,
+     "quant": "Q3_K_M"
+    },
+    "Q4_K_M": {
+     "files": [
+      "Qwen3-Coder-30B-A3B-Instruct-Q4_K_M.gguf"
+     ],
+     "size": 18556689568,
+     "quant": "Q4_K_M"
+    },
+    "Q5_K_M": {
+     "files": [
+      "Qwen3-Coder-30B-A3B-Instruct-Q5_K_M.gguf"
+     ],
+     "size": 21725584544,
+     "quant": "Q5_K_M"
+    },
+    "Q6_K": {
+     "files": [
+      "Qwen3-Coder-30B-A3B-Instruct-Q6_K.gguf"
+     ],
+     "size": 25092535456,
+     "quant": "Q6_K"
+    },
+    "Q8_0": {
+     "files": [
+      "Qwen3-Coder-30B-A3B-Instruct-Q8_0.gguf"
+     ],
+     "size": 32483935392,
+     "quant": "Q8_0"
+    }
+   },
+   "mmproj": null,
+   "draft": null,
+   "params": 30532122624,
+   "ctx_max": 262144,
+   "arch": "qwen3moe",
+   "gated": false,
+   "downloads": 4699742,
+   "kv": {
+    "per_token": 98304,
+    "fixed": 0
+   },
+   "moe": true,
+   "checked": "2026-10-11"
+  },
+  {
+   "id": "glm-4.7-flash",
+   "name": "GLM-4.7 Flash 30B-A3B",
+   "family": "GLM",
+   "vendor": "Z.ai",
+   "repo": "unsloth/GLM-4.7-Flash-GGUF",
+   "base": "zai-org/GLM-4.7-Flash",
+   "released": "2026-01",
+   "license": "mit",
+   "commercial": true,
+   "languages": [
+    "en",
+    "zh"
+   ],
+   "caps": {
+    "vision": false,
+    "reasoning": true,
+    "tools": true,
+    "audio": false
+   },
+   "scores": {
+    "chat": 78,
+    "coding": 82,
+    "ru": 60,
+    "vision": 0,
+    "reasoning": 80,
+    "agent": 82
+   },
+   "why": {
+    "ru": "Быстрая MoE от Z.ai для кода и агентов; компактный KV-кэш (MLA) позволяет длинный контекст. Лицензия MIT.",
+    "en": "Z.ai's fast MoE for code and agents; a compact KV cache (MLA) allows long context. MIT licence."
+   },
+   "sampling": {
+    "temperature": 1.0,
+    "top_p": 0.95
+   },
+   "quants": [
+    "Q3_K_M",
+    "Q4_K_M",
+    "Q5_K_M",
+    "Q6_K",
+    "Q8_0"
+   ],
+   "tags": [
+    "large",
+    "moe",
+    "coding"
+   ],
+   "active_b": 3.0,
+   "files": {
+    "Q3_K_M": {
+     "files": [
+      "GLM-4.7-Flash-Q3_K_M.gguf"
+     ],
+     "size": 14614624608,
+     "quant": "Q3_K_M"
+    },
+    "Q4_K_M": {
+     "files": [
+      "GLM-4.7-Flash-Q4_K_M.gguf"
+     ],
+     "size": 18312339808,
+     "quant": "Q4_K_M"
+    },
+    "Q5_K_M": {
+     "files": [
+      "GLM-4.7-Flash-Q5_K_M.gguf"
+     ],
+     "size": 21408850272,
+     "quant": "Q5_K_M"
+    },
+    "Q6_K": {
+     "files": [
+      "GLM-4.7-Flash-Q6_K.gguf"
+     ],
+     "size": 24693098848,
+     "quant": "Q6_K"
+    },
+    "Q8_0": {
+     "files": [
+      "GLM-4.7-Flash-Q8_0.gguf"
+     ],
+     "size": 31842799968,
+     "quant": "Q8_0"
+    }
+   },
+   "mmproj": null,
+   "draft": null,
+   "params": 29943393920,
+   "ctx_max": 202752,
+   "arch": "deepseek2",
+   "gated": false,
+   "downloads": 168046,
+   "kv": {
+    "per_token": 54144,
+    "fixed": 0
+   },
+   "moe": true,
+   "checked": "2026-10-11"
+  },
+  {
+   "id": "nemotron-3.5-lightning-30b-a3b",
+   "name": "Nemotron 3.5 Lightning 30B-A3B",
+   "family": "Nemotron",
+   "vendor": "NVIDIA",
+   "repo": "unsloth/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-GGUF",
+   "base": "nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-BF16",
+   "released": "2026-08",
+   "license": "nvidia-open-model",
+   "commercial": true,
+   "languages": [
+    "en",
+    "es",
+    "fr",
+    "de",
+    "it",
+    "ja"
+   ],
+   "caps": {
+    "vision": false,
+    "reasoning": true,
+    "tools": true,
+    "audio": false
+   },
+   "scores": {
+    "chat": 76,
+    "coding": 78,
+    "ru": 50,
+    "vision": 0,
+    "reasoning": 82,
+    "agent": 78
+   },
+   "why": {
+    "ru": "Гибрид Mamba-MoE от NVIDIA: до 1 млн токенов контекста почти без роста памяти, быстрые рассуждения.",
+    "en": "NVIDIA's Mamba-MoE hybrid: up to 1M tokens of context with barely growing memory, fast reasoning."
+   },
+   "sampling": {
+    "temperature": 1.0,
+    "top_p": 1.0
+   },
+   "quants": [
+    "Q3_K_M",
+    "Q4_K_M",
+    "Q5_K_M",
+    "Q8_0"
+   ],
+   "tags": [
+    "large",
+    "moe",
+    "long"
+   ],
+   "active_b": 3.5,
+   "files": {
+    "Q3_K_M": {
+     "files": [
+      "NVIDIA-Nemotron-3.5-Lightning-30B-A3B-UD-Q3_K_XL.gguf"
+     ],
+     "size": 21235202112,
+     "quant": "Q3_K_XL"
+    },
+    "Q4_K_M": {
+     "files": [
+      "NVIDIA-Nemotron-3.5-Lightning-30B-A3B-UD-Q4_K_M.gguf"
+     ],
+     "size": 25266255936,
+     "quant": "Q4_K_M"
+    },
+    "Q5_K_M": {
+     "files": [
+      "NVIDIA-Nemotron-3.5-Lightning-30B-A3B-UD-Q5_K_M.gguf"
+     ],
+     "size": 30215272512,
+     "quant": "Q5_K_M"
+    },
+    "Q8_0": {
+     "files": [
+      "NVIDIA-Nemotron-3.5-Lightning-30B-A3B-Q8_0.gguf"
+     ],
+     "size": 35004643392,
+     "quant": "Q8_0"
+    }
+   },
+   "mmproj": null,
+   "draft": null,
+   "params": 32913266240,
+   "ctx_max": 1048576,
+   "arch": "nemotron_h_moe",
+   "gated": false,
+   "downloads": 48832,
+   "kv": {
+    "per_token": 6144,
+    "fixed": 0
+   },
+   "moe": true,
+   "checked": "2026-10-11"
+  },
+  {
+   "id": "t-pro-it-2.1",
+   "name": "T-pro 2.1 32B",
+   "family": "T-pro",
+   "vendor": "T-Технологии",
+   "repo": "t-tech/T-pro-it-2.1-GGUF",
+   "base": "t-tech/T-pro-it-2.1",
+   "released": "2025-12",
+   "license": "apache-2.0",
+   "commercial": true,
+   "languages": [
+    "ru",
+    "en"
+   ],
+   "caps": {
+    "vision": false,
+    "reasoning": true,
+    "tools": true,
+    "audio": false
+   },
+   "scores": {
+    "chat": 76,
+    "coding": 70,
+    "ru": 86,
+    "vision": 0,
+    "reasoning": 74,
+    "agent": 70
+   },
+   "why": {
+    "ru": "Российская модель на базе Qwen3 32B, дообученная на русском: лучший русский язык среди локальных моделей, но нужна мощная видеокарта.",
+    "en": "A Russian model based on Qwen3 32B, further trained on Russian: the best Russian among local models, but it needs a powerful GPU."
+   },
+   "sampling": {
+    "temperature": 0.6,
+    "top_p": 0.95
+   },
+   "quants": [
+    "Q4_K_M",
+    "Q5_K_M",
+    "Q6_K",
+    "Q8_0"
+   ],
+   "tags": [
+    "large",
+    "ru"
+   ],
+   "files": {
+    "Q4_K_M": {
+     "files": [
+      "T-pro-it-2.1-Q4_K_M.gguf"
+     ],
+     "size": 19761766048,
+     "quant": "Q4_K_M"
+    },
+    "Q5_K_M": {
+     "files": [
+      "T-pro-it-2.1-Q5_K_M.gguf"
+     ],
+     "size": 23214290208,
+     "quant": "Q5_K_M"
+    },
+    "Q6_K": {
+     "files": [
+      "T-pro-it-2.1-Q6_K.gguf"
+     ],
+     "size": 26882597152,
+     "quant": "Q6_K"
+    },
+    "Q8_0": {
+     "files": [
+      "T-pro-it-2.1-Q8_0.gguf"
+     ],
+     "size": 34816397344,
+     "quant": "Q8_0"
+    }
+   },
+   "mmproj": null,
+   "draft": null,
+   "params": 32759593984,
+   "ctx_max": 40960,
+   "arch": "qwen3",
+   "gated": false,
+   "downloads": 2792,
+   "kv": {
+    "per_token": 262144,
+    "fixed": 0
+   },
+   "moe": false,
+   "checked": "2026-10-11"
+  },
+  {
+   "id": "qwen3-coder-next",
+   "name": "Qwen3 Coder Next 80B-A3B",
+   "family": "Qwen",
+   "vendor": "Alibaba Qwen",
+   "repo": "unsloth/Qwen3-Coder-Next-GGUF",
+   "base": "Qwen/Qwen3-Coder-Next",
+   "released": "2026-02",
+   "license": "apache-2.0",
+   "commercial": true,
+   "languages": [
+    "ru",
+    "en",
+    "zh",
+    "es",
+    "fr",
+    "de",
+    "ja",
+    "ko",
+    "ar",
+    "pt",
+    "it"
+   ],
+   "caps": {
+    "vision": false,
+    "reasoning": false,
+    "tools": true,
+    "audio": false
+   },
+   "scores": {
+    "chat": 75,
+    "coding": 90,
+    "ru": 65,
+    "vision": 0,
+    "reasoning": 78,
+    "agent": 90
+   },
+   "why": {
+    "ru": "Агентная модель для программирования уровня облачных: 80 млрд параметров, но активны 3 млрд — тянет ПК с 64 ГБ ОЗУ.",
+    "en": "A cloud-class coding agent: 80B parameters with 3B active — runs on a PC with 64 GB of RAM."
+   },
+   "sampling": {
+    "temperature": 1.0,
+    "top_p": 0.95,
+    "top_k": 40
+   },
+   "quants": [
+    "Q3_K_M",
+    "Q4_K_M",
+    "Q5_K_M",
+    "Q6_K",
+    "Q8_0"
+   ],
+   "tags": [
+    "huge",
+    "coding",
+    "moe"
+   ],
+   "active_b": 3.0,
+   "files": {
+    "Q3_K_M": {
+     "files": [
+      "Qwen3-Coder-Next-Q3_K_M.gguf"
+     ],
+     "size": 38322487328,
+     "quant": "Q3_K_M"
+    },
+    "Q4_K_M": {
+     "files": [
+      "Qwen3-Coder-Next-Q4_K_M.gguf"
+     ],
+     "size": 48528320544,
+     "quant": "Q4_K_M"
+    },
+    "Q5_K_M": {
+     "files": [
+      "Q5_K_M/Qwen3-Coder-Next-Q5_K_M-00001-of-00003.gguf",
+      "Q5_K_M/Qwen3-Coder-Next-Q5_K_M-00002-of-00003.gguf",
+      "Q5_K_M/Qwen3-Coder-Next-Q5_K_M-00003-of-00003.gguf"
+     ],
+     "size": 56847886688,
+     "quant": "Q5_K_M"
+    },
+    "Q6_K": {
+     "files": [
+      "Q6_K/Qwen3-Coder-Next-Q6_K-00001-of-00003.gguf",
+      "Q6_K/Qwen3-Coder-Next-Q6_K-00002-of-00003.gguf",
+      "Q6_K/Qwen3-Coder-Next-Q6_K-00003-of-00003.gguf"
+     ],
+     "size": 65613992288,
+     "quant": "Q6_K"
+    },
+    "Q8_0": {
+     "files": [
+      "Q8_0/Qwen3-Coder-Next-Q8_0-00001-of-00003.gguf",
+      "Q8_0/Qwen3-Coder-Next-Q8_0-00002-of-00003.gguf",
+      "Q8_0/Qwen3-Coder-Next-Q8_0-00003-of-00003.gguf"
+     ],
+     "size": 84812255584,
+     "quant": "Q8_0"
+    }
+   },
+   "mmproj": null,
+   "draft": null,
+   "params": 79674391296,
+   "ctx_max": 262144,
+   "arch": "qwen3next",
+   "gated": false,
+   "downloads": 141738,
+   "kv": {
+    "per_token": 24576,
+    "fixed": 0
+   },
+   "moe": true,
+   "checked": "2026-10-11"
+  },
+  {
+   "id": "gpt-oss-120b",
+   "name": "gpt-oss 120B",
+   "family": "gpt-oss",
+   "vendor": "OpenAI",
+   "repo": "ggml-org/gpt-oss-120b-GGUF",
+   "base": "openai/gpt-oss-120b",
+   "released": "2025-08",
+   "license": "apache-2.0",
+   "commercial": true,
+   "languages": [
+    "en",
+    "multilingual"
+   ],
+   "caps": {
+    "vision": false,
+    "reasoning": true,
+    "tools": true,
+    "audio": false
+   },
+   "scores": {
+    "chat": 84,
+    "coding": 84,
+    "ru": 68,
+    "vision": 0,
+    "reasoning": 90,
+    "agent": 84
+   },
+   "why": {
+    "ru": "Большая открытая модель OpenAI: рассуждения уровня облачных моделей; MoE, 5,1 млрд активных — нужно ~64 ГБ ОЗУ+VRAM.",
+    "en": "OpenAI's large open model: cloud-class reasoning; MoE with 5.1B active — needs ~64 GB of RAM+VRAM."
+   },
+   "sampling": {
+    "temperature": 1.0,
+    "top_p": 1.0
+   },
+   "quants": [
+    "MXFP4"
+   ],
+   "tags": [
+    "huge",
+    "reasoning",
+    "moe"
+   ],
+   "active_b": 5.1,
+   "files": {
+    "MXFP4": {
+     "files": [
+      "gpt-oss-120b-MXFP4.gguf"
+     ],
+     "size": 63387346208,
+     "quant": "MXFP4"
+    }
+   },
+   "mmproj": null,
+   "draft": null,
+   "params": 116829156672,
+   "ctx_max": 131072,
+   "arch": "gpt-oss",
+   "gated": false,
+   "downloads": 146052,
+   "kv": {
+    "per_token": 36864,
+    "fixed": 4718592
+   },
+   "moe": true,
+   "checked": "2026-10-11"
+  },
+  {
+   "id": "qwen3.5-122b-a10b",
+   "name": "Qwen3.5 122B-A10B",
+   "family": "Qwen",
+   "vendor": "Alibaba Qwen",
+   "repo": "unsloth/Qwen3.5-122B-A10B-GGUF",
+   "base": "Qwen/Qwen3.5-122B-A10B",
+   "released": "2026-02",
+   "license": "apache-2.0",
+   "commercial": true,
+   "languages": [
+    "ru",
+    "en",
+    "zh",
+    "es",
+    "fr",
+    "de",
+    "ja",
+    "ko",
+    "ar",
+    "pt",
+    "it"
+   ],
+   "caps": {
+    "vision": true,
+    "reasoning": true,
+    "tools": true,
+    "audio": false
+   },
+   "scores": {
+    "chat": 90,
+    "coding": 88,
+    "ru": 80,
+    "vision": 84,
+    "reasoning": 90,
+    "agent": 88
+   },
+   "why": {
+    "ru": "Для рабочих станций: качество, близкое к облачным моделям, картинки и размышления; нужно 96+ ГБ памяти.",
+    "en": "For workstations: close to cloud-model quality, images and thinking; needs 96+ GB of memory."
+   },
+   "sampling": {
+    "temperature": 0.6,
+    "top_p": 0.95,
+    "top_k": 20,
+    "min_p": 0.0
+   },
+   "quants": [
+    "Q3_K_M",
+    "Q4_K_M",
+    "Q5_K_M"
+   ],
+   "tags": [
+    "huge",
+    "moe"
+   ],
+   "active_b": 10.0,
+   "files": {
+    "Q3_K_M": {
+     "files": [
+      "Q3_K_M/Qwen3.5-122B-A10B-Q3_K_M-00001-of-00003.gguf",
+      "Q3_K_M/Qwen3.5-122B-A10B-Q3_K_M-00002-of-00003.gguf",
+      "Q3_K_M/Qwen3.5-122B-A10B-Q3_K_M-00003-of-00003.gguf"
+     ],
+     "size": 56420881952,
+     "quant": "Q3_K_M"
+    },
+    "Q4_K_M": {
+     "files": [
+      "Q4_K_M/Qwen3.5-122B-A10B-Q4_K_M-00001-of-00003.gguf",
+      "Q4_K_M/Qwen3.5-122B-A10B-Q4_K_M-00002-of-00003.gguf",
+      "Q4_K_M/Qwen3.5-122B-A10B-Q4_K_M-00003-of-00003.gguf"
+     ],
+     "size": 76536964608,
+     "quant": "Q4_K_M"
+    },
+    "Q5_K_M": {
+     "files": [
+      "Q5_K_M/Qwen3.5-122B-A10B-Q5_K_M-00001-of-00003.gguf",
+      "Q5_K_M/Qwen3.5-122B-A10B-Q5_K_M-00002-of-00003.gguf",
+      "Q5_K_M/Qwen3.5-122B-A10B-Q5_K_M-00003-of-00003.gguf"
+     ],
+     "size": 91519219200,
+     "quant": "Q5_K_M"
+    }
+   },
+   "mmproj": {
+    "path": "mmproj-F16.gguf",
+    "size": 908724960
+   },
+   "draft": null,
+   "params": 122111526912,
+   "ctx_max": 262144,
+   "arch": "qwen35moe",
+   "gated": false,
+   "downloads": 53625,
+   "kv": {
+    "per_token": 24576,
+    "fixed": 0
+   },
+   "moe": true,
+   "checked": "2026-10-11"
+  }
+ ]
+}

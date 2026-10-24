@@ -1,0 +1,70 @@
+/* Round 37 (r37-gemini): Gemini Web account guide, cookie import feedback and step-by-step check. */
+.gw-guide .gw-steps { margin: 14px 0 8px; padding-left: 22px; display: grid; gap: 12px; }
+.gw-guide .gw-steps li::marker { color: var(--muted-2); font-variant-numeric: tabular-nums; }
+.gw-guide .gw-steps li b { font-weight: 600; }
+.gw-guide .gw-steps li p { margin: 3px 0 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
+.gw-muted { color: var(--muted); font-size: 12.5px; line-height: 1.5; }
+.gw-login { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 12px 0 4px; padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border-soft)); border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 6%, transparent); }
+.gw-login[hidden] { display: none; }
+.gw-ill { display: block; width: 100%; max-width: 360px; height: auto; margin-top: 8px; }
+.gw-ill-frame { fill: var(--code-bg); stroke: var(--border); }
+.gw-ill-bar { fill: var(--card-2); }
+.gw-ill-side { fill: var(--card); }
+.gw-ill-sel { fill: var(--accent); opacity: .9; }
+.gw-ill-sel2 { fill: color-mix(in srgb, var(--accent) 30%, transparent); }
+.gw-ill-menu { fill: var(--card); stroke: var(--border-strong); }
+.gw-ill-t { font: 500 7.5px/1 var(--mono, ui-monospace, monospace); fill: var(--text-2); white-space: pre; }
+.gw-ill-dim { fill: var(--muted-2); }
+.gw-ill-w { fill: var(--accent-text, #fff); }
+.gw-ill-hl { fill: var(--accent); font-weight: 700; }
+.gw-trouble { margin-top: 10px; }
+.gw-trouble summary { cursor: pointer; font-size: 13px; color: var(--text-2); }
+.gw-trouble dl { margin: 8px 0 0; display: grid; gap: 6px; }
+.gw-trouble dt { font-weight: 600; font-size: 12.5px; }
+.gw-trouble dd { margin: 0 0 4px; color: var(--muted); font-size: 12.5px; line-height: 1.5; }
+.gw-parse { display: grid; gap: 4px; margin-top: 6px; font-size: 12.5px; line-height: 1.45; }
+.gw-parse:empty { display: none; }
+.gw-ok { color: var(--ok); }
+.gw-warn { color: var(--warn); }
+.gw-err { color: var(--err); }
+.gw-tools { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.gw-diag { list-style: none; margin: 4px 0 8px; padding: 0; display: grid; gap: 6px; }
+.gw-diag li { display: grid; grid-template-columns: 20px 1fr; gap: 8px; padding: 8px 10px; border-radius: 8px; background: var(--bg-soft); border: 1px solid var(--border-soft); }
+.gw-diag i { font-style: normal; font-weight: 700; text-align: center; line-height: 1.4; }
+.gw-diag b { font-size: 13px; font-weight: 600; }
+.gw-diag p { margin: 2px 0 0; font-size: 12.5px; color: var(--muted); line-height: 1.45; overflow-wrap: anywhere; }
+.gw-diag .gw-fix { color: var(--text-2); }
+.gw-st-ok i { color: var(--ok); }
+.gw-st-warn i { color: var(--warn); }
+.gw-st-fail i { color: var(--err); }
+.gw-st-fail { border-color: color-mix(in srgb, var(--err) 40%, var(--border-soft)) !important; }
+.gw-st-skip, .gw-st-run { opacity: .7; }
+/* Round 41 (r41-gemini): the account's models under «Check connection» */
+.gw-models { margin: 2px 0 8px; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border-soft); background: var(--bg-soft); }
+.gw-models > b { font-size: 13px; font-weight: 600; }
+.gw-models ul { list-style: none; margin: 8px 0 6px; padding: 0; display: grid; gap: 6px; }
+.gw-models li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; font-size: 13px; }
+.gw-models li code { font-size: 12px; color: var(--muted); }
+.gw-models li p { flex-basis: 100%; margin: 0; font-size: 12.5px; color: var(--muted); line-height: 1.45; }
+.gw-models li.gw-off { opacity: .6; }
+.gw-models > p { margin: 0; font-size: 12px; }
+/* Round 41b (r41b-gemini): account limits under «Check connection» */
+.gw-limits { margin: 2px 0 8px; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border-soft); background: var(--bg-soft); }
+.gw-lim-head { display: flex; align-items: center; gap: 8px; }
+.gw-lim-head b { font-size: 13px; font-weight: 600; }
+.gw-lim-plan { margin-left: auto; padding: 2px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 600;
+  color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); white-space: nowrap; }
+.gw-limits ul { list-style: none; margin: 8px 0 6px; padding: 0; display: grid; gap: 8px; }
+.gw-limits li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 4px 12px; font-size: 13px; }
+.gw-lim-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gw-lim-val { font-variant-numeric: tabular-nums; color: var(--text-2); font-size: 12.5px; }
+.gw-lim-bar { grid-column: 1 / -1; height: 4px; border-radius: 4px; background: color-mix(in srgb, var(--text) 10%, transparent); overflow: hidden; }
+.gw-lim-bar i { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
+.gw-lim-high .gw-lim-bar i { background: var(--warn); }
+.gw-lim-full .gw-lim-bar i { background: var(--err); }
+.gw-lim-full .gw-lim-val { color: var(--err); }
+.gw-limits small { grid-column: 1 / -1; color: var(--muted); font-size: 11.5px; }
+.gw-limits > p { margin: 0; font-size: 12px; }
+.gw-models > p + p { margin-top: 4px; }

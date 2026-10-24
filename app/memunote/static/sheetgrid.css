@@ -1,0 +1,51 @@
+/* MemuNote — Round 40 (r40-note): the spreadsheet editor (js/sheetgrid.js). Calm grid, one accent, 4/8 px rhythm. */
+.sg { display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--bg); color: var(--text); font: 13px var(--sans); }
+.sg-bar { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-bottom: 1px solid var(--border); background: var(--panel); }
+.sg-name { width: 92px; height: 28px; padding: 0 8px; border: 1px solid var(--border); border-radius: var(--radius-sm, 6px); background: var(--bg); color: var(--text); font: 600 12px var(--mono); text-align: center; }
+.sg-name:focus, .sg-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.sg-fx { font: italic 600 12px var(--sans); color: var(--muted); padding: 0 2px; user-select: none; }
+.sg-input { flex: 1 1 auto; min-width: 0; height: 28px; padding: 0 10px; border: 1px solid var(--border); border-radius: var(--radius-sm, 6px); background: var(--bg); color: var(--text); font: 13px var(--mono); }
+.sg.readonly .sg-input { color: var(--muted); }
+.sg-ro { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); white-space: nowrap; }
+.sg-ro .ic, .sg-ro svg { width: 14px; height: 14px; }
+.sg-main { position: relative; flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: 52px 1fr; grid-template-rows: 26px 1fr; }
+.sg-corner { grid-area: 1 / 1; background: var(--panel-2); border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); cursor: pointer; }
+.sg-corner:hover { background: var(--hover); }
+.sg-colhead { grid-area: 1 / 2; position: relative; overflow: hidden; background: var(--panel-2); border-bottom: 1px solid var(--border); }
+.sg-rowhead { grid-area: 2 / 1; position: relative; overflow: hidden; background: var(--panel-2); border-right: 1px solid var(--border); }
+.sg-colhead-in, .sg-rowhead-in { position: absolute; left: 0; top: 0; will-change: transform; }
+.sg-h { position: absolute; top: 0; height: 26px; line-height: 26px; text-align: center; font: 600 11.5px var(--sans); color: var(--muted); border-right: 1px solid var(--border); user-select: none; cursor: default; }
+.sg-rh { position: absolute; left: 0; width: 52px; height: 26px; line-height: 26px; text-align: center; font: 500 11.5px var(--sans); color: var(--muted); border-bottom: 1px solid var(--border); user-select: none; box-sizing: border-box; }
+.sg-h.on, .sg-rh.on { background: var(--accent-soft); color: var(--accent); }
+.sg-rz { position: absolute; right: -3px; top: 0; width: 6px; height: 100%; cursor: col-resize; z-index: 1; }
+.sg-rz:hover { background: var(--accent); opacity: .5; }
+.sg-scroll { grid-area: 2 / 2; position: relative; overflow: auto; outline: none; overscroll-behavior: contain; }
+.sg-sizer { position: relative; background-image: linear-gradient(to bottom, transparent 25px, var(--border) 25px); background-size: 100% 26px; }
+.sg-cells { position: absolute; inset: 0; pointer-events: none; }
+.sg-c { position: absolute; height: 26px; line-height: 25px; padding: 0 8px; box-sizing: border-box; white-space: pre; overflow: hidden; text-overflow: ellipsis; border-right: 1px solid color-mix(in srgb, var(--border) 55%, transparent); }
+.sg-c.n { text-align: right; font-variant-numeric: tabular-nums; }
+.sg-c.err { color: var(--danger); font-weight: 600; }
+.sg-c.cached::after { content: ""; position: absolute; right: 2px; top: 2px; border: 4px solid transparent; border-top-color: var(--warn); border-right-color: var(--warn); }
+.sg-selrect { position: absolute; pointer-events: none; box-sizing: border-box; }
+.sg-selrect.multi { background: color-mix(in srgb, var(--accent) 9%, transparent); border: 1px solid var(--accent); }
+.sg-active { position: absolute; pointer-events: none; box-sizing: border-box; border: 2px solid var(--accent); border-radius: 2px; }
+.sg-fill { position: absolute; width: 8px; height: 8px; background: var(--accent); border: 1.5px solid var(--bg); border-radius: 2px; cursor: crosshair; z-index: 3; box-sizing: border-box; }
+.sg-fillghost { position: absolute; pointer-events: none; border: 1.5px dashed var(--accent); box-sizing: border-box; z-index: 2; }
+.sg-flash { position: absolute; pointer-events: none; box-sizing: border-box; border-radius: 2px; z-index: 2; }
+.sg-flash.go { animation: sg-flash 1.5s ease-out forwards; }
+@keyframes sg-flash { 0% { background: color-mix(in srgb, var(--ok, #22a06b) 30%, transparent); box-shadow: 0 0 0 2px var(--ok, #22a06b); } 100% { background: transparent; box-shadow: 0 0 0 2px transparent; } }
+@media (prefers-reduced-motion: reduce) { .sg-flash.go { animation-duration: .01s; } }
+.sg-editor { position: absolute; z-index: 4; box-sizing: border-box; padding: 0 7px; border: 2px solid var(--accent); border-radius: 2px; background: var(--bg); color: var(--text); font: 13px var(--sans); outline: none; box-shadow: var(--shadow-sm, 0 2px 8px rgba(0,0,0,.12)); }
+.sg-tip { position: absolute; z-index: 5; display: flex; flex-direction: column; min-width: 140px; padding: 4px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); box-shadow: var(--shadow, 0 8px 24px rgba(0,0,0,.18)); }
+.sg-tip button { border: 0; background: transparent; color: var(--text); text-align: left; padding: 4px 8px; border-radius: 6px; font: 12px var(--mono); cursor: pointer; }
+.sg-tip button.on, .sg-tip button:hover { background: var(--accent-soft); color: var(--accent); }
+.sg-foot { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-top: 1px solid var(--border); background: var(--bg); min-height: 34px; }
+.sg-tabs { display: flex; align-items: center; gap: 2px; overflow-x: auto; scrollbar-width: none; min-width: 0; }
+.sg-tabs::-webkit-scrollbar { display: none; }
+.sg-tab { border: 0; background: transparent; color: var(--muted); padding: 4px 12px; border-radius: 6px; font: 12.5px var(--sans); white-space: nowrap; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+.sg-tab:hover { background: var(--hover); color: var(--text); }
+.sg-tab.on { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.sg-tab.add { padding: 4px 6px; }
+.sg-tab.add svg, .sg-tab.add .ic { width: 14px; height: 14px; }
+.sg-stat { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.sg-c.merged { background: var(--bg); border-bottom: 1px solid var(--border); text-align: center; z-index: 1; }

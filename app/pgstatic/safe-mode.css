@@ -1,0 +1,98 @@
+/* MemuAI · Safe mode (Round 29): banner, «what is disabled» dialog, restart cover.
+   Colours come from the theme tokens only (safe mode always uses the built-in look). */
+
+.memu-safe-banner {
+  position: fixed; z-index: 2147482000; left: 50%; bottom: 18px; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 10px; max-width: min(860px, calc(100vw - 24px));
+  padding: 8px 8px 8px 12px; border-radius: 14px;
+  background: color-mix(in srgb, var(--panel, #26262a) 92%, #e0a43a);
+  border: 1px solid color-mix(in srgb, #e0a43a 55%, var(--border, #3a3a40));
+  color: var(--text, #eee); box-shadow: 0 10px 34px rgba(0, 0, 0, .28);
+  font-size: 13px; line-height: 1.3; animation: memu-safe-in .28s ease both;
+}
+.memu-safe-mark {
+  display: inline-grid; place-items: center; flex: none; width: 30px; height: 30px; border-radius: 9px;
+  color: #b06d00; background: color-mix(in srgb, #e0a43a 22%, transparent);
+}
+:root[data-theme="dark"] .memu-safe-mark { color: #f0bf72; }
+.memu-safe-mark .ui-icon { width: 18px; height: 18px; }
+.memu-safe-text { display: flex; flex-direction: column; min-width: 0; margin-right: 4px; }
+.memu-safe-text b { font-weight: 650; }
+/* r29c: one nowrap line cut «… Data is unchanged.» — the reassurance that matters most; two lines max now. */
+.memu-safe-text small { color: var(--muted, #aaa); overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3; line-clamp: 3; max-width: 390px; }   /* r29f: 3 — wide mono fonts (Terminal) still cut «Your data is…» at 2 */
+.memu-safe-btn {
+  display: inline-flex; align-items: center; gap: 6px; flex: none; min-height: 32px; padding: 0 12px;
+  border-radius: 9px; border: 1px solid var(--control-border, var(--border, #444)); background: transparent;
+  color: var(--text, #eee); font: inherit; font-weight: 550; cursor: pointer;
+}
+.memu-safe-btn:hover { background: var(--hover, rgba(128, 128, 128, .16)); }
+.memu-safe-btn:focus-visible, .memu-safe-banner:focus-visible { outline: 2px solid var(--accent, #efa58b); outline-offset: 2px; }
+.memu-safe-btn.primary { background: var(--accent, #efa58b); color: var(--on-accent, #1a1a1c); border-color: transparent; }
+.memu-safe-btn.primary:hover { filter: brightness(1.06); background: var(--accent, #efa58b); }
+.memu-safe-btn.icon { width: 32px; padding: 0; justify-content: center; border-color: transparent; color: var(--muted, #aaa); }
+.memu-safe-btn .ui-icon { width: 15px; height: 15px; }
+
+/* Folded: a small pill in the corner, one click unfolds it. */
+.memu-safe-banner.is-folded {
+  left: auto; right: 16px; transform: none; padding: 5px; gap: 0; cursor: pointer; border-radius: 12px; animation: none;
+}
+.memu-safe-banner.is-folded > :not(.memu-safe-mark) { display: none; }
+.memu-safe-banner.is-folded .memu-safe-mark { width: 28px; height: 28px; }
+
+@media (max-width: 720px) {
+  .memu-safe-text small { display: none; }
+  .memu-safe-btn[data-what] span { display: none; }
+  .memu-safe-btn[data-what] { width: 32px; padding: 0; justify-content: center; }
+}
+@media (max-width: 480px) {
+  .memu-safe-btn.primary span { display: none; }
+  .memu-safe-btn.primary { width: 32px; padding: 0; justify-content: center; }
+}
+
+/* ---------------------------------------------------------------- dialog */
+.memu-safe-dialog {
+  position: fixed; inset: 0; z-index: 2147482500; display: grid; place-items: center; padding: 16px;
+  background: rgba(0, 0, 0, .42); animation: memu-safe-fade .16s ease both;
+}
+.memu-safe-dialog.is-closing { animation: memu-safe-fade .16s ease reverse both; }
+.memu-safe-dialog-card {
+  width: min(560px, 100%); max-height: calc(100vh - 32px); overflow: auto; padding: 20px 22px 18px;
+  border-radius: 18px; background: var(--panel, #26262a); color: var(--text, #eee);
+  border: 1px solid var(--border, #3a3a40); box-shadow: var(--shadow, 0 18px 60px rgba(0, 0, 0, .4));
+}
+.memu-safe-dialog-card header { display: flex; align-items: flex-start; gap: 12px; }
+.memu-safe-dialog-card header > div { flex: 1; min-width: 0; }
+.memu-safe-dialog-card h2 { margin: 2px 0 2px; font-size: 18px; }
+.memu-safe-dialog-card header p { margin: 0; color: var(--muted, #aaa); font-size: 13px; }
+.memu-safe-x { border: 0; background: transparent; color: var(--muted, #aaa); width: 32px; height: 32px; border-radius: 9px; cursor: pointer; display: grid; place-items: center; }
+.memu-safe-x:hover { background: var(--hover, rgba(128, 128, 128, .16)); color: var(--text, #eee); }
+.memu-safe-lead { margin: 14px 0 10px; font-size: 13.5px; line-height: 1.5; }
+.memu-safe-hint { margin: 12px 0 0; color: var(--muted, #aaa); font-size: 12.5px; line-height: 1.5; }
+.memu-safe-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; border: 1px solid var(--border, #3a3a40); border-radius: 12px; overflow: hidden; }
+.memu-safe-list li { display: flex; gap: 10px; align-items: flex-start; padding: 9px 12px; background: color-mix(in srgb, var(--panel-2, #303036) 50%, transparent); }
+.memu-safe-list li > .ui-icon { color: var(--muted, #aaa); margin-top: 1px; }
+.memu-safe-list b { display: flex; align-items: center; gap: 6px; font-size: 13.5px; font-weight: 600; }
+.memu-safe-list small { display: block; color: var(--muted, #aaa); font-size: 12.5px; margin-top: 1px; }
+.memu-safe-count { font-size: 11.5px; font-weight: 650; padding: 1px 7px; border-radius: 99px; background: var(--accent-soft, rgba(239, 165, 139, .18)); color: var(--accent, #efa58b); }
+.memu-safe-count[data-zero="1"] { background: var(--hover, rgba(128, 128, 128, .16)); color: var(--muted, #aaa); }
+.memu-safe-dialog-card footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+.memu-safe-dialog-card footer .pbtn { display: inline-flex; align-items: center; gap: 6px; }
+
+/* --------------------------------------------------------------- restart */
+.memu-safe-cover {
+  position: fixed; inset: 0; z-index: 2147483000; display: grid; place-items: center;
+  background: color-mix(in srgb, var(--bg, #1a1a1c) 86%, transparent); animation: memu-safe-fade .2s ease both;
+}
+.memu-safe-cover-card { display: flex; flex-direction: column; align-items: center; gap: 8px; color: var(--text, #eee); text-align: center; }
+.memu-safe-cover-card .ui-icon { width: 30px; height: 30px; color: var(--accent, #efa58b); animation: memu-safe-spin 1.1s linear infinite; }
+.memu-safe-cover-card small { color: var(--muted, #aaa); }
+
+@keyframes memu-safe-in { from { opacity: 0; transform: translate(-50%, 10px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@keyframes memu-safe-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes memu-safe-spin { to { transform: rotate(360deg); } }
+:root[data-motion="off"] .memu-safe-banner, :root[data-motion="off"] .memu-safe-dialog,
+:root[data-motion="off"] .memu-safe-cover-card .ui-icon { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  .memu-safe-banner, .memu-safe-dialog, .memu-safe-cover, .memu-safe-cover-card .ui-icon { animation: none; }
+}

@@ -1,0 +1,76 @@
+/* Round 37 (r37-extras): «Найти в этом чате» (Ctrl+F) and message bookmarks — chat-find.js */
+
+/* matches: CSS Custom Highlight API, no DOM changes */
+::highlight(memu-find) { background-color: color-mix(in srgb, #f5c542 42%, transparent); color: inherit; }
+::highlight(memu-find-current) { background-color: #f5a524; color: #1a1300; }
+
+.cfind {
+  position: fixed; z-index: 61; display: flex; align-items: center; gap: 2px; height: 40px;
+  padding: 0 4px 0 12px; border-radius: 12px; background: var(--d-panel, var(--panel)); border: 1px solid var(--d-line, var(--border));
+  box-shadow: var(--d-pop-shadow, var(--shadow)); font: 13px var(--d-text, var(--sans)); color: var(--text);
+  animation: cfind-in .16s var(--ease-out, ease);
+}
+@keyframes cfind-in { from { opacity: 0; transform: translateY(-6px); } }
+.cfind svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.cfind svg.filled { fill: currentColor; }
+.cfind-ico { display: grid; color: var(--muted); margin-right: 6px; }
+.cfind input {
+  width: 240px; min-width: 80px; flex: 1 1 auto; height: 30px; border: 0; outline: 0; background: none; color: var(--text); font: inherit; padding: 0;
+}
+.cfind input::placeholder { color: var(--muted); }
+.cfind-n { min-width: 48px; padding: 0 6px; text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; font-size: 12px; white-space: nowrap; }
+.cfind.none .cfind-n { color: var(--danger, #e5484d); }
+.cfind > button {
+  position: relative; width: 30px; height: 30px; flex: none; display: grid; place-items: center; border: 0; border-radius: 8px;
+  background: none; color: var(--muted); cursor: pointer;
+}
+.cfind > button:hover, .cfind > button[aria-expanded="true"] { background: var(--d-hover, var(--panel-2)); color: var(--text); }
+.cfind > button.cfind-opt { width: 28px; font: 600 12px/1 var(--d-text, var(--sans)); letter-spacing: -.01em; }
+.cfind > button.cfind-opt[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent); }
+.cfind-ab { padding: 0 1px 1px; border-bottom: 1.5px solid currentColor; line-height: 1; }
+#cfind-bm { width: auto; min-width: 30px; padding: 0 7px; display: flex; gap: 4px; margin-left: 4px; }
+#cfind-bm::before { content: ""; position: absolute; left: -3px; top: 7px; bottom: 7px; width: 1px; background: var(--d-line, var(--border)); }
+#cfind-bm.has { color: var(--accent); }
+#cfind-bm b { font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+#cfind-bm b:empty { display: none; }
+
+.cbm-pop {
+  position: absolute; top: calc(100% + 6px); right: 0; width: 360px; max-width: calc(100vw - 24px); max-height: 340px; overflow-y: auto;
+  padding: 6px; border-radius: 12px; background: var(--d-panel, var(--panel)); border: 1px solid var(--d-line, var(--border));
+  box-shadow: var(--d-pop-shadow, var(--shadow)); scrollbar-width: thin;
+}
+.cbm-h { display: flex; justify-content: space-between; align-items: center; padding: 6px 8px 8px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.cbm-h small { font-variant-numeric: tabular-nums; }
+.cbm-pop button {
+  width: 100%; display: flex; align-items: flex-start; gap: 8px; padding: 8px; border: 0; border-radius: 8px; background: none;
+  color: var(--text); font: inherit; text-align: left; cursor: pointer;
+}
+.cbm-pop button:hover, .cbm-pop button:focus-visible { background: var(--d-hover, var(--panel-2)); outline: 0; }
+.cbm-pop button:disabled { opacity: .5; cursor: default; }
+.cbm-role { flex: none; min-width: 52px; padding: 2px 6px; border-radius: 6px; font-size: 11px; font-weight: 600; text-align: center;
+  background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
+.cbm-role.u { background: var(--d-hover, var(--panel-2)); color: var(--muted); }
+.cbm-text { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.4; }
+.cbm-empty { display: grid; gap: 4px; padding: 14px 12px; color: var(--muted); font-size: 12.5px; line-height: 1.45; }
+.cbm-empty b { color: var(--text); font-size: 13px; }
+
+/* a bookmarked message: a ribbon in the left gutter */
+#messages > .msg.msg-bm { position: relative; }
+#messages > .msg.msg-bm::before {
+  content: ""; position: absolute; left: -18px; top: 6px; width: 8px; height: 14px; background: var(--accent);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 72%, 0 100%); opacity: .9;
+}
+#messages > .msg.msg-user.msg-bm::before { left: auto; right: -18px; }
+.msg-tool.cbm-tool svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linejoin: round; }
+.msg-tool.cbm-tool.on { color: var(--accent); }
+.msg-tool.cbm-tool.on svg { fill: currentColor; }
+#messages > .msg.cbm-flash { animation: cbm-flash 1.3s ease; border-radius: 12px; }
+@keyframes cbm-flash { 0%, 40% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 22%, transparent); background: color-mix(in srgb, var(--accent) 7%, transparent); } }
+
+@media (prefers-reduced-motion: reduce) { .cfind, #messages > .msg.cbm-flash { animation: none; } }
+html[data-motion="off"] :is(.cfind, #messages > .msg.cbm-flash), html[data-motion="reduced"] :is(.cfind, #messages > .msg.cbm-flash) { animation: none; }
+@media (max-width: 620px) {
+  .cfind input { width: 120px; }
+  #messages > .msg.msg-bm::before { left: -10px; }
+  #messages > .msg.msg-user.msg-bm::before { right: -10px; }
+}

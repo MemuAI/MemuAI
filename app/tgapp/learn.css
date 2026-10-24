@@ -1,0 +1,58 @@
+/* MemuAI Mini App — MemuLearn «Тренажёр» (r40-learn). Mini App theme tokens (--bg, --card, --text, --hint, --accent). */
+.ln-root { padding: 4px 16px 24px; }
+.ln-skel { height: 180px; border-radius: 18px; background: var(--card); opacity: .6; }
+.ln-hero { position: relative; overflow: hidden; display: flex; flex-direction: column; gap: 10px; padding: 18px; border-radius: 20px;
+  background: radial-gradient(120% 120% at 0% 0%, color-mix(in srgb, #35d0a0 22%, transparent), transparent 60%),
+              radial-gradient(100% 120% at 100% 100%, color-mix(in srgb, #2f6fd8 22%, transparent), transparent 60%), var(--card); }
+.ln-eyebrow { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--hint); }
+.ln-big { display: flex; align-items: baseline; gap: 10px; }
+.ln-big b { font-size: 48px; line-height: 1; font-weight: 800; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+.ln-big span { display: flex; flex-direction: column; font-size: 16px; font-weight: 650; }
+.ln-big small { font-size: 13px; font-weight: 500; color: var(--hint); }
+.ln-split { display: flex; height: 6px; gap: 2px; border-radius: 3px; overflow: hidden; background: color-mix(in srgb, var(--text) 8%, transparent); }
+.ln-split .n { background: #4c8df6; } .ln-split .l { background: #e8a33d; } .ln-split .r { background: #3fb68b; }
+.ln-meta { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--hint); }
+.ln-meta span { display: inline-flex; align-items: center; gap: 4px; }
+.ln-meta svg { width: 15px; height: 15px; color: #f08c42; }
+.ln-start { margin-top: 4px; height: 46px; border-radius: 14px; font-size: 16px; font-weight: 700; background: linear-gradient(135deg, #35d0a0, #2f6fd8); color: #fff; }
+.ln-start:disabled { background: color-mix(in srgb, var(--text) 10%, transparent); color: var(--hint); }
+.ln-h { margin: 20px 2px 8px; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--hint); }
+.ln-courses { display: flex; flex-direction: column; border-radius: 16px; background: var(--card); overflow: hidden; }
+.ln-course { display: flex; align-items: center; gap: 12px; padding: 12px 14px; text-align: left; width: 100%; }
+.ln-course + .ln-course { border-top: .5px solid var(--sep); }
+.ln-dot { width: 10px; height: 10px; border-radius: 3px; flex: none; background: hsl(var(--h) 62% 56%); }
+.ln-course span { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.ln-course b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ln-course small { color: var(--hint); font-size: 12.5px; }
+.ln-course em { font-style: normal; font-weight: 750; color: var(--accent); font-variant-numeric: tabular-nums; }
+.ln-course em.ok { color: var(--hint); font-weight: 500; }
+.ln-empty, .ln-done { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 48px 20px; text-align: center; color: var(--hint); }
+.ln-empty svg, .ln-done svg { width: 40px; height: 40px; color: var(--accent); }
+.ln-empty b, .ln-done b { color: var(--text); font-size: 17px; }
+.ln-done .btn { margin-top: 10px; min-width: 160px; }
+.ln-session { display: flex; flex-direction: column; gap: 14px; min-height: calc(100vh - var(--tabbar-h, 64px) - 120px); }
+.ln-bar { display: flex; align-items: center; gap: 10px; }
+.ln-bar .icon-btn:disabled { opacity: .35; }
+.ln-progress { flex: 1; height: 6px; border-radius: 3px; background: var(--card); overflow: hidden; }
+.ln-progress i { display: block; height: 100%; border-radius: 3px; background: linear-gradient(90deg, #35d0a0, #2f6fd8); transition: width .3s var(--ease, ease); }
+.ln-card { position: relative; flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 6px; min-height: 260px; padding: 34px 20px 26px;
+  border-radius: 22px; background: var(--card); text-align: center; font-size: 18px; line-height: 1.5; overflow-wrap: anywhere;
+  box-shadow: 0 18px 40px -28px rgba(0, 0, 0, .5); animation: ln-in .25s var(--ease, ease); }
+.ln-card hr { width: 50%; margin: 16px auto; border: 0; border-top: 1px dashed var(--sep); }
+.ln-card pre { text-align: left; font-size: 13px; }
+.ln-tag { position: absolute; top: 12px; left: 16px; font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--hint); }
+.ln-tap { margin-top: 18px; font-size: 13px; color: var(--hint); }
+.ln-a { color: var(--text); }
+.ln-grades { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.ln-grade { --g: #3fb68b; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 4px; border-radius: 14px;
+  background: color-mix(in srgb, var(--g) 14%, var(--card)); border: 1px solid color-mix(in srgb, var(--g) 30%, transparent); }
+.ln-grade small { font-size: 12px; font-weight: 700; color: var(--g); font-variant-numeric: tabular-nums; }
+.ln-grade b { font-size: 14px; font-weight: 650; color: var(--text); }
+.ln-grade:active { transform: scale(.97); }
+.ln-grade.again { --g: #e5484d; } .ln-grade.hard { --g: #e8a33d; } .ln-grade.good { --g: #3fb68b; } .ln-grade.easy { --g: #4c8df6; }
+@keyframes ln-in { from { opacity: 0; transform: translateY(8px); } }
+@media (prefers-reduced-motion: reduce) { .ln-card, .ln-progress i { animation: none; transition: none; } }
+.ln-course em.ok { white-space: nowrap; font-size: 13px; }
+/* r40-learn-3: with the Trainer tab the bar has eight tabs — a slightly tighter label keeps the words whole on phones */
+@media (max-width: 430px) { html[data-layout="stack"] #tabbar:has(.tab:nth-child(8)) .tab span { font-size: 9px; letter-spacing: -.03em; padding: 0; } }
+@media (max-width: 370px) { html[data-layout="stack"] #tabbar:has(.tab:nth-child(8)) .tab span { font-size: 8.5px; letter-spacing: -.04em; } }

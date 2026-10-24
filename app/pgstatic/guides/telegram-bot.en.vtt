@@ -1,0 +1,37 @@
+WEBVTT
+
+1
+00:00:00.000 --> 00:00:03.626 line:88%
+Open @BotFather in Telegram and press «Start».
+
+2
+00:00:03.676 --> 00:00:05.656 line:88%
+Send the /newbot command.
+
+3
+00:00:05.706 --> 00:00:08.862 line:88%
+Pick the bot's name — it is shown in the chat.
+
+4
+00:00:08.912 --> 00:00:12.715 line:88%
+Then its username: Latin letters, it must end with «bot».
+
+5
+00:00:12.765 --> 00:00:17.274 line:88%
+BotFather replies with a token like 123456789:AAH… — copy all of it.
+
+6
+00:00:17.324 --> 00:00:21.538 line:88%
+In MemuAI: Settings → Telegram. Step 1 is the «Bot token» field.
+
+7
+00:00:21.588 --> 00:00:28.413 line:88%
+Paste the token (Ctrl+V). It is stored only on this computer.
+
+8
+00:00:28.463 --> 00:00:33.149 line:88%
+Step 2 — «Connect Telegram»: a QR code and a link, the bot pairs itself.
+
+9
+00:00:33.199 --> 00:00:40.310 line:88%
+The bot runs while MemuAI Proxy is running.

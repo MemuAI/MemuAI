@@ -1,0 +1,55 @@
+/* Round 27: a pinned answer («стикер»). Colours only from /themes.css tokens; the optional tint mixes a hue
+   into the panel colour, so both themes and every accent stay readable. */
+:root { --st-tint: transparent; --st-bg: color-mix(in srgb, var(--st-tint) 16%, var(--panel)); color-scheme: dark;
+  --st-line: color-mix(in srgb, var(--border) 80%, transparent); --st-hover: color-mix(in srgb, var(--text) 7%, transparent); }
+:root[data-theme="light"] { --st-bg: color-mix(in srgb, var(--st-tint) 22%, var(--panel)); color-scheme: light; }
+:root[data-color="yellow"] { --st-tint: #e8b931; }
+:root[data-color="green"] { --st-tint: #4fae6a; }
+:root[data-color="blue"] { --st-tint: #4a8fe0; }
+:root[data-color="pink"] { --st-tint: #e0628f; }
+:root[data-color="violet"] { --st-tint: #9a6be0; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: var(--st-bg); color: var(--text);
+  font: 13.5px/1.5 "Segoe UI Variable Text", "Segoe UI", Inter, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+:root[data-native="0"] body { background: var(--bg); padding: 24px; }
+[hidden] { display: none !important; }
+button { font: inherit; color: inherit; }
+.st-card { position: relative; height: 100%; display: flex; flex-direction: column; background: var(--st-bg); }
+:root[data-native="0"] .st-card { width: 340px; height: 250px; border-radius: 10px; box-shadow: 0 0 0 1px var(--st-line), 0 18px 40px rgba(0,0,0,.28); overflow: hidden; }
+:root[data-native="1"] .st-card { box-shadow: inset 0 0 0 1px var(--st-line); }
+.st-head { display: flex; align-items: center; gap: 2px; height: 32px; padding: 0 4px 0 10px; flex: none; cursor: grab;
+  border-bottom: 1px solid var(--st-line); }
+.st-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; margin-right: 6px;
+  background: color-mix(in srgb, var(--st-tint) 80%, var(--accent)); }
+:root:not([data-color]) .st-dot, :root[data-color=""] .st-dot { background: var(--accent); }
+.st-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; font-size: 12.5px; color: var(--muted); }
+.st-btn { width: 26px; height: 26px; display: inline-grid; place-items: center; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; flex: none; }
+.st-btn:hover, .st-btn[aria-expanded="true"] { background: var(--st-hover); color: var(--text); }
+.st-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.st-btn svg { width: 15px; height: 15px; }
+.st-colors { position: absolute; top: 34px; right: 6px; z-index: 3; display: flex; gap: 6px; padding: 7px; border-radius: 9px;
+  background: var(--panel-2, var(--panel)); box-shadow: 0 0 0 1px var(--st-line), 0 10px 24px rgba(0,0,0,.28); }
+.st-colors button { width: 20px; height: 20px; border-radius: 50%; border: 0; cursor: pointer; box-shadow: inset 0 0 0 1px rgba(127,127,127,.35); }
+.st-colors button[aria-pressed="true"] { outline: 2px solid var(--text); outline-offset: 2px; }
+.st-body { flex: 1; min-height: 0; overflow: auto; padding: 10px 14px 14px; outline: none; overflow-wrap: anywhere; }
+.st-body > :first-child { margin-top: 0; } .st-body > :last-child { margin-bottom: 0; }
+.st-body p, .st-body ul, .st-body ol { margin: 0 0 .6em; } .st-body ul, .st-body ol { padding-left: 1.3em; }
+.st-body h1, .st-body h2, .st-body h3 { font-size: 1.05em; margin: .5em 0 .35em; }
+.st-body a { color: var(--accent); }
+.st-body code { font-family: "Cascadia Code", Consolas, monospace; font-size: .92em; padding: 1px 4px; border-radius: 4px; background: var(--st-hover); }
+.st-body pre { margin: 0 0 .6em; padding: 8px 10px; border-radius: 7px; overflow: auto; background: color-mix(in srgb, var(--text) 6%, transparent); }
+.st-body pre code { padding: 0; background: none; }
+.st-body .code-header { display: none; }
+.st-body table { border-collapse: collapse; font-size: .95em; } .st-body td, .st-body th { border: 1px solid var(--st-line); padding: 3px 7px; }
+.st-body blockquote { margin: 0 0 .6em; padding-left: 10px; border-left: 3px solid var(--st-line); color: var(--muted); }
+.st-edit { flex: 1; min-height: 0; margin: 0; padding: 10px 14px; border: 0; resize: none; outline: none; background: transparent; color: var(--text);
+  font: 13px/1.5 "Cascadia Code", Consolas, monospace; box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent); }
+.st-grip { position: absolute; right: 0; bottom: 0; width: 16px; height: 16px; cursor: nwse-resize; z-index: 2;
+  background: linear-gradient(135deg, transparent 55%, color-mix(in srgb, var(--muted) 55%, transparent) 55% 62%, transparent 62% 72%, color-mix(in srgb, var(--muted) 55%, transparent) 72% 79%, transparent 79%); }
+:root[data-native="0"] .st-grip { display: none; }
+.st-toast { position: absolute; left: 50%; bottom: 10px; transform: translate(-50%, 8px); opacity: 0; pointer-events: none; padding: 5px 10px; border-radius: 7px;
+  background: var(--text); color: var(--bg); font-size: 12px; transition: opacity .15s ease, transform .15s ease; }
+.st-toast.on { opacity: 1; transform: translate(-50%, 0); }
+.st-empty { color: var(--muted); }
+@media (prefers-reduced-motion: reduce) { .st-toast { transition: none; } }
+:root[data-motion="off"] .st-toast { transition: none; }

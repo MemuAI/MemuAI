@@ -1,0 +1,17 @@
+/* MemuAI 3.5 · Round 33 (r33d-media) · «Image expired · Regenerate» card (media-cache.js). Tokens only: every design,
+   dark / light and «Стекло» (glass) use their own panel, border and accent colours. */
+.mc-expired { display: flex; align-items: center; gap: 12px; width: min(540px, 100%); box-sizing: border-box; padding: 12px 14px;
+  border: 1px dashed color-mix(in srgb, var(--muted) 45%, var(--border)); border-radius: 14px; background: var(--panel); }
+.mc-expired-ico { flex: none; width: 52px; height: 52px; border-radius: 12px; display: grid; place-items: center; color: var(--muted);
+  background: var(--panel-2); position: relative; }
+.mc-expired-ico .ui-icon svg { width: 24px; height: 24px; opacity: .8; }
+.mc-expired-ico::after { content: ""; position: absolute; left: 12px; right: 12px; top: 50%; height: 2px; border-radius: 2px;
+  background: currentColor; transform: rotate(-35deg); opacity: .7; }
+.mc-expired-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+.mc-expired-text b { font-weight: 600; font-size: 13.5px; color: var(--text); }
+.mc-expired-text small { color: var(--muted); font-size: 12px; line-height: 1.35; }
+.mc-expired .mc-regen { flex: none; }
+@media (max-width: 560px) {
+  .mc-expired { flex-wrap: wrap; }
+  .mc-expired .mc-regen { margin-left: 64px; }
+}

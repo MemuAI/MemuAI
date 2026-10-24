@@ -1,0 +1,13 @@
+{
+  "id": "quick-notes",
+  "title": "Заметки",
+  "title_en": "Notes",
+  "summary": "Быстрые заметки с поиском; сохраняются между запусками.",
+  "summary_en": "Quick notes with search; kept between launches.",
+  "version": "1.0",
+  "author": "MemuAI examples",
+  "icon": "text",
+  "window": { "default_width": 760, "default_height": 540, "min_width": 380, "min_height": 320 },
+  "persist": ["notes", "selected"],
+  "permissions": ["storage", "clipboard", "download"]
+}

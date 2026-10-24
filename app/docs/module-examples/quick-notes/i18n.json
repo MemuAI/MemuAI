@@ -1,0 +1,40 @@
+{
+  "ru": {
+    "search": "Найти в заметках",
+    "add": "Новая заметка",
+    "list": "Заметки",
+    "title": "Заголовок",
+    "text": "Текст заметки",
+    "copy": "Копировать",
+    "export": "Сохранить .md",
+    "remove": "Удалить",
+    "remove_sure": "Точно удалить?",
+    "untitled": "Без названия",
+    "empty": "Заметок пока нет — нажмите «Новая заметка».",
+    "nothing": "Ничего не найдено",
+    "saving": "Сохраняю…",
+    "saved": "Сохранено в {time}",
+    "copied": "Скопировано",
+    "exported": "Сохранено: {name}",
+    "count": { "one": "{count} заметка", "few": "{count} заметки", "many": "{count} заметок", "other": "{count} заметки" }
+  },
+  "en": {
+    "search": "Search notes",
+    "add": "New note",
+    "list": "Notes",
+    "title": "Title",
+    "text": "Note text",
+    "copy": "Copy",
+    "export": "Save .md",
+    "remove": "Delete",
+    "remove_sure": "Really delete?",
+    "untitled": "Untitled",
+    "empty": "No notes yet — press “New note”.",
+    "nothing": "Nothing found",
+    "saving": "Saving…",
+    "saved": "Saved at {time}",
+    "copied": "Copied",
+    "exported": "Saved: {name}",
+    "count": { "one": "{count} note", "other": "{count} notes" }
+  }
+}

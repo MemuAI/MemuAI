@@ -1,0 +1,98 @@
+/* Round 27 — Quick Ask «new features» plugin (features.js). Built on the window's own classes (.qa-row,
+   .qa-view-head, .qa-search, .qa-btn, .qa-act) and tokens, so every design, accent and theme applies. */
+
+/* a full view replaces the idle list / the answer (like the core Chats view); the ;snippet list hides the answer */
+:root[data-qx-view] #qa-suggest, :root[data-qx-view] #qa-answer, :root[data-qx-view] #qa-actions,
+:root[data-qx-view] #qa-chats, :root[data-qx-view] #qa-menu, :root[data-qx-view] #qa-picker,
+:root[data-qx-inline] #qa-answer, :root[data-qx-inline] #qa-actions { display: none !important; }
+
+.qa-plugin.qx { display: flex; flex-direction: column; min-height: 0; flex: 1 1 auto; }
+.qa-plugin.qx[data-mode="view"] { padding: 0 8px 8px; animation: qa-view-in .2s var(--qa-ease-out) both; max-height: calc(var(--qa-max-h) - 110px); }
+.qa-plugin.qx[data-mode="inline"] { padding: 2px 8px 8px; flex: none; }
+.qa-plugin.qx[data-mode="strip"] { flex: none; }
+
+.qx-head .qx-title { flex: 1; min-width: 0; font-weight: 640; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qx-btn { flex: none; color: var(--muted); }
+.qx-btn.on { color: var(--accent); background: var(--qa-active); }
+
+.qx-list { overflow: auto; min-height: 0; padding: 2px 0; scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--muted) 30%, transparent) transparent; }
+.qx-row { min-height: 46px; position: relative; }
+.qx-row .qx-main { flex: 1; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 1px; }
+.qx-row .qx-main .tx { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qx-row .qx-main small { display: block; min-width: 0; color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qx-row.pinned .ic { color: var(--accent); }
+.qx-btns { flex: none; display: inline-flex; gap: 2px; opacity: 0; transition: opacity .12s ease; }
+.qx-row:hover .qx-btns, .qx-row.active .qx-btns, .qx-btns:focus-within { opacity: 1; }
+.qx-btns .qa-icon { width: 26px; height: 26px; }
+.qx-btns .qa-icon svg { width: 14px; height: 14px; }
+.qx-btns [data-qx="delete"]:hover, .qx-btns [data-qx="delete-sticker"]:hover { color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, transparent); }
+.qx-row[class*="tint-"] .ic { color: var(--qx-tint); }
+.qx-row.tint-yellow { --qx-tint: #d4a21a; } .qx-row.tint-green { --qx-tint: #3f9d5a; } .qx-row.tint-blue { --qx-tint: #3f82d4; }
+.qx-row.tint-pink { --qx-tint: #d4517f; } .qx-row.tint-violet { --qx-tint: #8a5bd4; }
+
+.qx-kw { font: 600 12px/1 var(--mono); color: var(--muted); background: var(--qa-chip); padding: 2px 5px; border-radius: 5px; }
+.qa-row.active .qx-kw { color: var(--accent); }
+.qx-tag { font-style: normal; font-size: 10.5px; font-weight: 650; padding: 1px 6px; border-radius: 999px; color: var(--accent-2); background: color-mix(in srgb, var(--accent-2) 13%, transparent); }
+.qx-tag.on { color: var(--accent); background: var(--qa-active); }
+
+.qx-empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 7px; padding: 22px 26px 18px; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.qx-empty > svg { width: 26px; height: 26px; opacity: .6; }
+.qx-empty b { color: var(--text); font-weight: 620; font-size: 14px; }
+.qx-empty span { max-width: 460px; }
+.qx-empty .qa-btn { margin-top: 6px; }
+
+.qx-banner { display: flex; align-items: center; gap: 10px; margin: 4px 2px 6px; padding: 8px 10px; border-radius: 9px; font-size: 12.5px;
+  color: var(--muted); background: var(--qa-chip); }
+.qx-banner svg { width: 15px; height: 15px; flex: none; color: var(--accent); }
+.qx-banner span { flex: 1; min-width: 0; }
+
+.qx-foot { display: flex; align-items: center; gap: 10px; padding: 8px 6px 0; margin-top: 4px; border-top: 1px solid var(--qa-line); }
+.qx-keys { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--qa-faint); font-size: 11.5px; }
+.qx-keys kbd { margin-right: 2px; }
+.qx-link { flex: none; border: 0; background: none; padding: 3px 6px; border-radius: 6px; cursor: pointer; color: var(--muted); font-size: 12px; }
+.qx-link:hover { color: var(--text); background: var(--qa-hover); }
+.qx-link.danger { color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent); }
+
+/* snippet editor */
+.qx-form { display: flex; flex-direction: column; gap: 10px; padding: 4px 4px 2px; }
+.qx-grid { display: grid; grid-template-columns: 1fr 180px; gap: 10px; }
+.qx-form label > span:first-child { display: block; margin-bottom: 4px; font-size: 11.5px; font-weight: 600; color: var(--qa-faint); }
+.qx-form input:not([type="radio"]), .qx-form textarea { width: 100%; border: 1px solid var(--qa-chip-line); outline: 0; border-radius: 8px; background: var(--qa-chip);
+  color: var(--text); font: 13.5px var(--sans); padding: 7px 10px; }
+.qx-form textarea { resize: vertical; min-height: 96px; max-height: 260px; font: 13px/1.5 var(--mono); }
+.qx-form input:focus, .qx-form textarea:focus { border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.qx-kwin { display: flex; align-items: center; border: 1px solid var(--qa-chip-line); border-radius: 8px; background: var(--qa-chip); }
+.qx-kwin:focus-within { border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.qx-kwin i { font: 600 13px var(--mono); color: var(--accent); padding-left: 10px; font-style: normal; }
+.qx-form .qx-kwin input { border: 0; background: transparent; padding-left: 3px; font-family: var(--mono); }
+.qx-seg { display: inline-flex; align-self: flex-start; gap: 2px; padding: 2px; border-radius: 9px; background: var(--qa-chip); }
+.qx-seg label { cursor: pointer; }
+.qx-seg input { position: absolute; opacity: 0; pointer-events: none; }
+.qx-seg span { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 11px; border-radius: 7px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
+.qx-seg span svg { width: 13px; height: 13px; }
+.qx-seg input:checked + span { color: var(--text); background: var(--panel-2); box-shadow: 0 1px 2px rgba(0, 0, 0, .18), inset 0 0 0 1px var(--qa-chip-line); }
+:root[data-theme="light"] .qx-seg input:checked + span { background: var(--panel); }
+.qx-seg input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 1px; }
+.qx-vars { display: flex; flex-wrap: wrap; gap: 5px; }
+.qx-var { border: 1px solid var(--qa-chip-line); background: transparent; color: var(--muted); border-radius: 6px; padding: 2px 7px; cursor: pointer; font: 12px var(--mono); }
+.qx-var:hover { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+.qx-form-foot { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
+.qx-form-foot .qx-err { flex: 1; min-width: 0; color: var(--danger); font-size: 12.5px; }
+.qx-form-foot kbd { margin-left: 4px; color: inherit; background: color-mix(in srgb, var(--on-accent, #fff) 18%, transparent); border-color: transparent; }
+
+/* ;snippet list under the input */
+.qx-inline .qa-row .sub { max-width: 34%; }
+
+/* region action strip */
+.qx-strip { position: relative; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; padding: 6px 40px 6px var(--qa-pad); animation: qa-view-in .2s var(--qa-ease-out) both; }
+.qx-strip-title { display: inline-flex; align-items: center; gap: 6px; margin-right: 4px; font-size: 12px; font-weight: 560; color: var(--muted); }
+.qx-strip-title svg { width: 15px; height: 15px; color: var(--accent); }
+.qx-chip span { display: inline; }                 /* .qa-act hides its label; the strip shows it */
+.qx-chip { height: 26px; border: 1px solid var(--qa-chip-line); background: var(--qa-chip); color: var(--text); padding: 0 8px; gap: 5px; font-size: 12px; }
+.qx-chip:hover { border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+.qx-strip .qx-btn { position: absolute; right: 8px; top: 7px; width: 26px; height: 26px; }
+.qx-strip .qx-btn svg { width: 13px; height: 13px; }
+
+@media (max-width: 560px) { .qx-grid { grid-template-columns: 1fr; } .qx-chip span { display: none; } }
+@media (prefers-reduced-motion: reduce) { .qa-plugin.qx[data-mode="view"], .qx-strip { animation: none; } .qx-btns { transition: none; } }
+:root[data-motion="off"] .qa-plugin.qx[data-mode="view"], :root[data-motion="off"] .qx-strip { animation: none; }

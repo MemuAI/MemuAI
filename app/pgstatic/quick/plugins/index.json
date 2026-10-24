@@ -1,0 +1,144 @@
+{
+  "version": 1,
+  "plugins": [
+    {
+      "id": "companion",
+      "src": "companion.js",
+      "css": "companion.css",
+      "v": "1.4-r34",
+      "settings": "companion-settings.js"
+    },
+    {
+      "id": "bigdocs",
+      "src": "bigdocs.js",
+      "css": "bigdocs.css",
+      "v": "1.0-r35"
+    },
+    {
+      "id": "mentions",
+      "src": "mentions.js",
+      "css": "mentions.css",
+      "v": "1.0-r35"
+    },
+    {
+      "id": "features",
+      "src": "features.js",
+      "css": "features.css",
+      "settings": "features-settings.js",
+      "settings_css": "features-settings.css",
+      "backend": "app.quick_features",
+      "v": "1.2-r35",
+      "title": {
+        "ru": "Буфер, сниппеты и стикеры",
+        "en": "Clipboard, snippets and stickers"
+      },
+      "order": 30
+    },
+    {
+      "id": "modules",
+      "src": "modules.js",
+      "css": "modules.css",
+      "backend": "app.module_integration_quick",
+      "v": "1.2-r40",
+      "order": 35
+    },
+    {
+      "id": "commands",
+      "src": "commands.js",
+      "css": "commands.css",
+      "settings": "commands-settings.js",
+      "settings_css": "commands-settings.css",
+      "v": "2.2-r34",
+      "title": {
+        "ru": "Команды, свои сценарии и голос",
+        "en": "Commands, routines and voice"
+      },
+      "order": 10
+    },
+    {
+      "id": "focus",
+      "src": "focus.js",
+      "css": "focus.css",
+      "v": "1.0-r27",
+      "order": 20
+    },
+    {
+      "id": "wake",
+      "src": "wake.js",
+      "css": "wake.css",
+      "settings": "wake-settings.js",
+      "settings_css": "wake-settings.css",
+      "backend": "app.wake_word_api",
+      "v": "1.0-r27",
+      "order": 30
+    },
+    {
+      "id": "canvas",
+      "src": "canvas.js",
+      "css": "canvas.css",
+      "settings": "canvas-settings.js",
+      "settings_css": "canvas-settings.css",
+      "backend": "app.quick_canvas",
+      "v": "1.8-r34",
+      "title": {
+        "ru": "Панели и быстрые действия",
+        "en": "Panels and quick actions"
+      },
+      "order": 15
+    },
+    {
+      "id": "canvas-embed",
+      "src": "canvas-embed.js",
+      "css": "canvas-embed.css",
+      "settings": "canvas-look-settings.js",
+      "settings_css": "canvas-look-settings.css",
+      "v": "1.2-r32",
+      "title": {
+        "ru": "Вид панелей и встраивание",
+        "en": "Panel look and embedding"
+      },
+      "order": 16
+    },
+    {
+      "id": "explorer",
+      "src": "explorer.js",
+      "css": "explorer.css",
+      "settings": "explorer-settings.js",
+      "settings_css": "explorer-settings.css",
+      "backend": "app.quick_explorer",
+      "v": "1.2-r30",
+      "title": {
+        "ru": "Проводник, программы и инструменты",
+        "en": "Explorer, programs and tools"
+      },
+      "order": 32
+    },
+    {
+      "id": "fsearch",
+      "src": "fsearch.js",
+      "css": "fsearch.css",
+      "settings": "fsearch-settings.js",
+      "settings_css": "fsearch-settings.css",
+      "backend": "app.fsindex_api",
+      "v": "1.1-r36",
+      "title": {
+        "ru": "Поиск файлов на ПК",
+        "en": "PC file search"
+      },
+      "order": 31
+    },
+    {
+      "id": "extras",
+      "src": "extras.js",
+      "css": "extras.css",
+      "v": "1.4-r34",
+      "order": 33
+    },
+    {
+      "id": "integrations",
+      "backend": "app.quick_integrations",
+      "v": "1.0-r30",
+      "order": 34
+    }
+  ]
+}

@@ -1,0 +1,355 @@
+<div class="st" id="app" data-side="">
+  <header class="st-bar">
+    <span class="st-mark" aria-hidden="true">
+      <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="1.8"/><path d="m4 18 5-5 4 4 3-3 4 4"/></svg>
+    </span>
+    <div class="st-brand"><b>MemuAI Studio</b><span class="st-status" id="studio-status" role="status" aria-live="polite"></span></div>
+    <nav class="st-tabs" role="tablist" data-i18n-aria-label="tabs.aria">
+      <button type="button" class="st-tab" data-tab="image" role="tab" aria-selected="true" aria-controls="panel-image">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="9.5" r="1.6"/><path d="m4 18 5-5 4 4 3-3 4 4"/></svg><span data-i18n="tab.image"></span>
+      </button>
+      <button type="button" class="st-tab" data-tab="video" role="tab" aria-selected="false" aria-controls="panel-video">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="13" height="14" rx="2"/><path d="m16 10 5-3v10l-5-3z"/></svg><span data-i18n="tab.video"></span>
+      </button>
+      <button type="button" class="st-tab" data-tab="audio" role="tab" aria-selected="false" aria-controls="panel-audio">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 10v4h4l5 4V6L9 10zM18 9a4 4 0 0 1 0 6"/></svg><span data-i18n="tab.audio"></span>
+      </button>
+      <button type="button" class="st-tab" data-tab="transcribe" role="tab" aria-selected="false" aria-controls="panel-transcribe">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg><span data-i18n="tab.transcribe"></span>
+      </button>
+      <button type="button" class="st-tab" data-tab="music" role="tab" aria-selected="false" aria-controls="panel-music">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l12-2v13M9 9l12-2"/><ellipse cx="6" cy="18" rx="3" ry="3"/><ellipse cx="18" cy="16" rx="3" ry="3"/></svg><span data-music-label="tab"></span>
+      </button>
+    </nav>
+  </header>
+
+  <!-- ================================ Изображения ================================ -->
+  <section class="st-panel" data-panel="image" id="panel-image" role="tabpanel">
+    <aside class="st-side" data-i18n-aria-label="image.side">
+      <div class="st-side-head"><b data-i18n="params"></b><button type="button" class="st-icon-btn" data-close-side data-i18n-aria-label="params.hide"><svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div>
+      <label class="st-field">
+        <span class="st-label" data-i18n="model"></span>
+        <select class="mu-select" id="image-model"><option value="" data-i18n="model.loading"></option></select>
+      </label>
+      <div class="st-field">
+        <span class="st-label" data-i18n="aspect"></span>
+        <div class="st-aspects" role="radiogroup" data-i18n-aria-label="aspect" id="aspect-group">
+          <label class="st-aspect"><input type="radio" name="aspect" value="auto" checked><span><i class="auto"></i><span data-i18n="aspect.auto"></span></span></label>
+          <label class="st-aspect"><input type="radio" name="aspect" value="1:1"><span><i style="--w:14px;--h:14px"></i>1:1</span></label>
+          <label class="st-aspect"><input type="radio" name="aspect" value="16:9"><span><i style="--w:18px;--h:10px"></i>16:9</span></label>
+          <label class="st-aspect"><input type="radio" name="aspect" value="9:16"><span><i style="--w:10px;--h:18px"></i>9:16</span></label>
+          <label class="st-aspect"><input type="radio" name="aspect" value="4:3"><span><i style="--w:16px;--h:12px"></i>4:3</span></label>
+          <label class="st-aspect"><input type="radio" name="aspect" value="3:2"><span><i style="--w:18px;--h:12px"></i>3:2</span></label>
+        </div>
+      </div>
+      <div class="st-field">
+        <span class="st-label" id="count-label" data-i18n="count"></span>
+        <div class="st-seg" role="radiogroup" aria-labelledby="count-label" id="count-group">
+          <label><input type="radio" name="image-count" value="1" checked><span>1</span></label>
+          <label><input type="radio" name="image-count" value="2"><span>2</span></label>
+          <label><input type="radio" name="image-count" value="3"><span>3</span></label>
+          <label><input type="radio" name="image-count" value="4"><span>4</span></label>
+        </div>
+      </div>
+      <label class="st-field">
+        <span class="st-label" data-i18n="style"></span>
+        <select class="mu-select" id="style">
+          <option value="" data-i18n="unset"></option>
+          <option value="photorealistic, natural lighting, 50mm lens" data-i18n="style.photo"></option>
+          <option value="flat vector illustration, clean shapes, limited palette" data-i18n="style.vector"></option>
+          <option value="oil painting, visible brush strokes, rich texture" data-i18n="style.painting"></option>
+          <option value="3d render, soft studio lighting, subsurface scattering" data-i18n="style.render"></option>
+          <option value="minimal line art, single weight strokes, white background" data-i18n="style.line"></option>
+          <option value="anime key visual, cel shading, expressive eyes" data-i18n="style.anime"></option>
+          <option value="isometric pixel art, 32-bit palette" data-i18n="style.pixel"></option>
+          <option value="low poly, geometric facets, ambient occlusion" data-i18n="style.lowpoly"></option>
+          <option value="watercolor on textured paper, soft bleeding edges" data-i18n="style.watercolor"></option>
+          <option value="cyberpunk neon, rain, reflective surfaces" data-i18n="style.cyberpunk"></option>
+        </select>
+      </label>
+      <label class="st-field">
+        <span class="st-label" data-i18n="mood"></span>
+        <select class="mu-select" id="mood">
+          <option value="" data-i18n="unset"></option>
+          <option value="warm, cozy, inviting" data-i18n="mood.warm"></option>
+          <option value="dramatic, high contrast, moody" data-i18n="mood.dramatic"></option>
+          <option value="calm, airy, soft" data-i18n="mood.calm"></option>
+          <option value="energetic, vibrant, saturated" data-i18n="mood.energetic"></option>
+          <option value="melancholic, desaturated, overcast" data-i18n="mood.melancholic"></option>
+          <option value="clean, corporate, precise" data-i18n="mood.corporate"></option>
+        </select>
+      </label>
+      <label class="st-field">
+        <span class="st-label" data-i18n="negative"></span>
+        <input class="mu-input" id="negative" data-i18n-placeholder="negative.placeholder" spellcheck="false">
+      </label>
+      <label class="st-field">
+        <span class="st-label" data-i18n="prefix"></span>
+        <textarea class="mu-textarea" id="prefix" rows="2" data-i18n-placeholder="prefix.placeholder" spellcheck="false"></textarea>
+      </label>
+      <div class="st-field">
+        <span class="st-label" data-i18n="refs"></span>
+        <div class="st-refs" id="image-refs"></div>
+        <div class="st-row">
+          <button type="button" class="mu-btn ghost small" id="image-ref">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span data-i18n="refs.add"></span>
+          </button>
+          <button type="button" class="mu-btn ghost small" id="image-ref-clear" hidden data-i18n="refs.clear"></button>
+        </div>
+        <span class="st-hint" id="image-ref-name"></span>
+      </div>
+    </aside>
+
+    <div class="st-main">
+      <div class="st-stage" id="image-stage"></div>
+      <div class="st-drop-overlay" id="image-drop" hidden aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+        <b data-i18n="refs.drop"></b>
+        <span data-i18n="drop.cancel"></span>
+      </div>
+      <div class="st-history" id="image-history" hidden>
+        <div class="st-history-head"><b data-i18n="history.title"></b><span class="st-hint" id="image-history-count"></span>
+          <span class="st-grow"></span><button type="button" class="st-link" id="image-history-clear" data-i18n="history.clear"></button></div>
+        <div class="st-history-row" id="image-history-row" role="list"></div>
+      </div>
+      <div class="st-results-bar" id="image-bar" hidden>
+        <span class="st-meta" id="image-meta"></span>
+        <span class="st-grow"></span>
+        <button type="button" class="mu-btn ghost small" id="image-copy-prompt" data-i18n="image.copy_prompt"></button>
+        <button type="button" class="mu-btn ghost small" id="image-to-chat" data-i18n="image.to_chat"></button>
+        <button type="button" class="mu-btn ghost small" id="image-vary" data-i18n="image.vary"></button>
+        <button type="button" class="mu-btn small" id="image-save" data-i18n="image.save_all"></button>
+      </div>
+      <div class="st-composer">
+        <button type="button" class="st-icon-btn st-side-toggle" data-open-side data-i18n-aria-label="params" data-i18n-title="params">
+          <svg viewBox="0 0 24 24"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>
+        </button>
+        <textarea class="st-prompt" id="image-prompt" rows="2" data-i18n-placeholder="image.placeholder"></textarea>
+        <button type="button" class="st-enhance" id="image-enhance" data-enhance="image" data-i18n-title="enhance.hint">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 19 9-9M14 6l1-3 1 3 3 1-3 1-1 3-1-3-3-1zM19 13l.6-1.6L21 11l-1.4-.5L19 9l-.6 1.5L17 11l1.4.4z"/></svg><span data-i18n="enhance"></span>
+        </button>
+        <button type="button" class="mu-btn primary st-go" id="image-go" title="Ctrl + Enter">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.7 5.3L19 10l-5.3 1.7L12 17l-1.7-5.3L5 10l5.3-1.7z"/></svg><span data-i18n="create"></span>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- =================================== Видео =================================== -->
+  <section class="st-panel" data-panel="video" id="panel-video" role="tabpanel" hidden>
+    <aside class="st-side" data-i18n-aria-label="video.side">
+      <div class="st-side-head"><b data-i18n="params"></b><button type="button" class="st-icon-btn" data-close-side data-i18n-aria-label="params.hide"><svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div>
+      <label class="st-field">
+        <span class="st-label" data-i18n="video.model"></span>
+        <select class="mu-select" id="video-model"><option value="auto" data-i18n="auto"></option></select>
+      </label>
+      <div class="st-field">
+        <span class="st-label" data-i18n="video.aspect"></span>
+        <div class="st-aspects" role="radiogroup" data-i18n-aria-label="video.aspect">
+          <label class="st-aspect"><input type="radio" name="video-aspect" value="16:9" checked><span><i style="--w:18px;--h:10px"></i>16:9</span></label>
+          <label class="st-aspect"><input type="radio" name="video-aspect" value="9:16"><span><i style="--w:10px;--h:18px"></i>9:16</span></label>
+          <label class="st-aspect"><input type="radio" name="video-aspect" value="1:1"><span><i style="--w:14px;--h:14px"></i>1:1</span></label>
+        </div>
+      </div>
+      <label class="st-field">
+        <span class="st-label" data-i18n="video.motion"></span>
+        <select class="mu-select" id="video-motion">
+          <option value="" data-i18n="unset"></option>
+          <option value="slow dolly in, cinematic" data-i18n="motion.dolly"></option>
+          <option value="static camera, locked tripod shot" data-i18n="motion.static"></option>
+          <option value="orbit around the subject" data-i18n="motion.orbit"></option>
+          <option value="drone flyover, sweeping aerial" data-i18n="motion.drone"></option>
+          <option value="handheld, subtle shake" data-i18n="motion.handheld"></option>
+          <option value="timelapse, accelerated motion" data-i18n="motion.timelapse"></option>
+        </select>
+      </label>
+      <label class="st-field">
+        <span class="st-label" data-i18n="video.length"></span>
+        <select class="mu-select" id="video-length">
+          <option value="" data-i18n="unset"></option>
+          <option value="about 4 seconds" data-i18n="length.4"></option>
+          <option value="about 8 seconds" data-i18n="length.8"></option>
+          <option value="a single continuous shot" data-i18n="length.single"></option>
+        </select>
+      </label>
+      <p class="st-note" data-i18n="video.note"></p>
+    </aside>
+    <div class="st-main">
+      <div class="st-stage" id="video-stage"></div>
+      <div class="st-results-bar" id="video-bar" hidden>
+        <span class="st-meta" id="video-meta"></span>
+        <span class="st-grow"></span>
+        <button type="button" class="mu-btn small" id="video-save" data-i18n="download"></button>
+      </div>
+      <div class="st-composer">
+        <button type="button" class="st-icon-btn st-side-toggle" data-open-side data-i18n-aria-label="params" data-i18n-title="params">
+          <svg viewBox="0 0 24 24"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>
+        </button>
+        <textarea class="st-prompt" id="video-prompt" rows="2" data-i18n-placeholder="video.placeholder"></textarea>
+        <button type="button" class="st-enhance" id="video-enhance" data-enhance="video" data-i18n-title="enhance.hint">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 19 9-9M14 6l1-3 1 3 3 1-3 1-1 3-1-3-3-1zM19 13l.6-1.6L21 11l-1.4-.5L19 9l-.6 1.5L17 11l1.4.4z"/></svg><span data-i18n="enhance"></span>
+        </button>
+        <button type="button" class="mu-btn primary st-go" id="video-go" title="Ctrl + Enter">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7z"/></svg><span data-i18n="create"></span>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- =================================== Озвучка ================================== -->
+  <section class="st-panel" data-panel="audio" id="panel-audio" role="tabpanel" hidden>
+    <aside class="st-side" data-i18n-aria-label="audio.side">
+      <div class="st-side-head"><b data-i18n="params"></b><button type="button" class="st-icon-btn" data-close-side data-i18n-aria-label="params.hide"><svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div>
+      <div class="st-field">
+        <span class="st-label" id="rate-label" data-i18n="audio.rate"></span>
+        <div class="st-seg" role="radiogroup" aria-labelledby="rate-label">
+          <label><input type="radio" name="audio-rate" value="slow"><span>0.85×</span></label>
+          <label><input type="radio" name="audio-rate" value="normal" checked><span>1×</span></label>
+          <label><input type="radio" name="audio-rate" value="fast"><span>1.25×</span></label>
+        </div>
+      </div>
+      <label class="st-field">
+        <span class="st-label" data-i18n="audio.chunk"></span>
+        <select class="mu-select" id="audio-chunk">
+          <option value="0" data-i18n="chunk.none"></option>
+          <option value="400" data-i18n="chunk.400"></option>
+          <option value="800" data-i18n="chunk.800"></option>
+          <option value="1500" data-i18n="chunk.1500"></option>
+        </select>
+      </label>
+      <p class="st-note" data-i18n="audio.note"></p>
+    </aside>
+    <div class="st-main">
+      <div class="st-doc">
+        <textarea class="st-doc-area" id="speech" data-i18n-placeholder="audio.placeholder"></textarea>
+        <div class="st-doc-bar">
+          <span class="st-meta" id="audio-meta"></span>
+          <span class="st-grow"></span>
+          <button type="button" class="mu-btn ghost small" id="audio-paste" data-i18n="audio.paste"></button>
+          <button type="button" class="mu-btn ghost small" id="audio-clear" data-i18n="clear"></button>
+        </div>
+      </div>
+      <div class="st-parts" id="audio-out" hidden></div>
+      <div class="st-actions">
+        <button type="button" class="st-icon-btn st-side-toggle" data-open-side data-i18n-aria-label="params" data-i18n-title="params">
+          <svg viewBox="0 0 24 24"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>
+        </button>
+        <button type="button" class="mu-btn ghost small" id="audio-play-all" hidden data-i18n="audio.play_all"></button>
+        <button type="button" class="mu-btn ghost small" id="audio-download" hidden data-i18n="audio.download_all"></button>
+        <span class="st-grow"></span>
+        <button type="button" class="mu-btn primary st-go" id="speak-go" title="Ctrl + Enter">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 10v4h4l5 4V6L9 10zM18 9a4 4 0 0 1 0 6"/></svg><span data-i18n="speak"></span>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================= Расшифровка ================================ -->
+  <section class="st-panel" data-panel="transcribe" id="panel-transcribe" role="tabpanel" hidden>
+    <aside class="st-side" data-i18n-aria-label="source">
+      <div class="st-side-head"><b data-i18n="source"></b><button type="button" class="st-icon-btn" data-close-side data-i18n-aria-label="params.hide"><svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div>
+      <label class="st-drop" id="drop-zone">
+        <input id="audio-file" type="file" accept="audio/*,video/webm,.wav,.mp3,.m4a,.ogg,.flac,.opus">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+        <b data-i18n="drop.title"></b>
+        <span data-i18n="drop.text"></span>
+      </label>
+      <div class="st-or"><span data-i18n="or"></span></div>
+      <button type="button" class="mu-btn st-record" id="transcribe-upload" aria-pressed="false">
+        <i class="st-rec-dot" aria-hidden="true"></i><span id="record-label" data-i18n="record"></span>
+      </button>
+      <div class="st-source" id="transcribe-source" hidden>
+        <span id="transcribe-file-name"></span>
+        <button type="button" class="st-icon-btn" id="transcribe-forget" data-i18n-aria-label="source.remove" data-i18n-title="remove"><svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+      </div>
+    </aside>
+    <div class="st-main">
+      <div class="st-drop-overlay" id="audio-drop" hidden aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+        <b data-i18n="drop.release"></b>
+        <span data-i18n="drop.cancel"></span>
+      </div>
+      <div class="st-doc">
+        <textarea class="st-doc-area" id="transcript" data-i18n-placeholder="transcript.placeholder" spellcheck="false"></textarea>
+        <div class="st-doc-bar">
+          <span class="st-meta" id="transcribe-meta"></span>
+          <span class="st-grow"></span>
+          <button type="button" class="mu-btn ghost small" id="transcribe-copy" hidden data-i18n="copy"></button>
+          <button type="button" class="mu-btn ghost small" id="transcribe-save" hidden data-i18n="transcript.save"></button>
+          <button type="button" class="mu-btn ghost small" id="transcribe-send" hidden data-i18n="transcript.send"></button>
+        </div>
+      </div>
+      <div class="st-actions">
+        <button type="button" class="st-icon-btn st-side-toggle" data-open-side data-i18n-aria-label="source" data-i18n-title="source">
+          <svg viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+        </button>
+        <span class="st-grow"></span>
+        <button type="button" class="mu-btn primary st-go" id="transcribe-go" title="Ctrl + Enter">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h7"/></svg><span data-i18n="transcribe"></span>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <section class="st-panel" data-panel="music" id="panel-music" role="tabpanel" hidden>
+    <aside class="st-side">
+      <div class="st-side-head"><b data-music-label="params"></b><button type="button" class="st-icon-btn" data-close-side data-i18n-aria-label="params.hide"><svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div>
+      <div class="st-music-proxy"><span class="st-music-proxy-dot"></span><b>MemuAI Proxy</b><button type="button" class="st-icon-btn" id="music-refresh" data-music-title="refresh"><svg viewBox="0 0 24 24"><path d="M20 7v5h-5M4 17v-5h5M6 7a7 7 0 0 1 12-1l2 2M4 16l2 2a7 7 0 0 0 12-1"/></svg></button></div>
+      <label class="st-field"><span class="st-label" data-music-label="model"></span><select class="mu-select" id="music-model"></select></label>
+      <p class="st-hint" id="music-model-note" role="status"></p>
+      <label class="st-field"><span class="st-label" data-music-label="preset"></span><select class="mu-select" id="music-preset"></select></label>
+      <label class="st-field"><span class="st-label" data-music-label="style"></span><textarea class="mu-textarea" id="music-style" rows="3" maxlength="2000" data-music-placeholder="style_hint"></textarea></label>
+      <button type="button" class="mu-btn ghost small" id="music-auto-style"><svg viewBox="0 0 24 24"><path d="m12 3 1.7 5.3L19 10l-5.3 1.7L12 17l-1.7-5.3L5 10l5.3-1.7z"/></svg><span data-music-label="auto_style"></span></button>
+      <div class="st-music-row">
+        <label class="st-field"><span class="st-label" data-music-label="tempo"></span><input class="mu-input" id="music-tempo" type="number" min="40" max="240" value="100"></label>
+        <label class="st-field"><span class="st-label" data-music-label="duration"></span><input class="mu-input" id="music-duration" type="number" min="5" max="600" value="60"></label>
+      </div>
+      <label class="st-row"><input id="music-instrumental" type="checkbox" checked><span data-music-label="instrumental"></span></label>
+      <label class="st-field"><span class="st-label" data-music-label="lyrics"></span><textarea class="mu-textarea" id="music-lyrics" rows="6" maxlength="12000" data-music-placeholder="lyrics_hint"></textarea></label>
+      <p class="st-note" data-music-label="proxy_hint"></p>
+    </aside>
+    <div class="st-main">
+      <div class="st-music-workspace">
+        <div class="st-music-desk">
+          <section class="st-music-brief">
+            <header><span class="st-music-emblem"><svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13M9 9l12-2"/><ellipse cx="6" cy="18" rx="3" ry="3"/><ellipse cx="18" cy="16" rx="3" ry="3"/></svg></span><div><small>MEMUAI STUDIO</small><h2 data-music-label="workshop"></h2></div></header>
+            <label class="st-field"><span class="st-label" data-music-label="brief"></span><textarea class="st-prompt" id="music-prompt" rows="4" maxlength="12000" data-music-placeholder="prompt_hint"></textarea></label>
+            <div class="st-music-suggestions" id="music-suggestions"></div>
+            <div class="st-row st-music-actions"><button type="button" class="mu-btn ghost small" data-open-side data-music-label="params"></button><span class="st-grow"></span><button type="button" class="mu-btn primary st-go" id="music-go" title="Ctrl + Enter"><svg viewBox="0 0 24 24"><path d="m9 5 11 7-11 7z"/></svg><span data-music-label="create"></span></button></div>
+            <div class="st-music-progress" id="music-progress" hidden><span></span><p id="music-progress-text" role="status" aria-live="polite"></p></div>
+          </section>
+          <header class="st-music-library-head"><h3 data-music-label="library"></h3><span class="st-hint" id="music-library-count"></span></header>
+          <section class="st-music-results" id="music-results"></section>
+        </div>
+        <section class="st-music-producer">
+          <header class="st-row"><b data-music-label="producer"></b><span class="st-grow"></span><button type="button" class="mu-btn ghost small" id="music-producer-clear" data-music-label="clear_chat"></button></header>
+          <label class="st-field"><span class="st-label" data-music-label="producer_model"></span><select class="mu-select" id="music-producer-model"></select></label>
+          <div class="st-music-chat" id="music-producer-chat" role="log" aria-live="polite"></div>
+          <form class="st-music-producer-form" id="music-producer-form">
+            <textarea class="mu-textarea" id="music-producer-input" rows="2" maxlength="12000" data-music-placeholder="producer_hint"></textarea>
+            <div class="st-row"><button type="button" class="mu-btn ghost small" id="music-producer-apply" hidden data-music-label="apply_draft"></button><span class="st-grow"></span><button type="submit" class="mu-btn small" id="music-producer-send" data-music-label="send"></button></div>
+          </form>
+        </section>
+      </div>
+    </div>
+  </section>
+
+  <div class="st-backdrop" data-close-side></div>
+
+  <div class="st-lightbox" id="lightbox" hidden role="dialog" aria-modal="true" data-i18n-aria-label="lightbox.aria">
+    <img id="lightbox-img" alt="">
+    <div class="st-lightbox-caption" id="lightbox-caption"></div>
+    <div class="st-lightbox-bar">
+      <button type="button" class="st-icon-btn" id="lightbox-prev" data-i18n-aria-label="lightbox.prev"><svg viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg></button>
+      <span id="lightbox-count"></span>
+      <button type="button" class="st-icon-btn" id="lightbox-next" data-i18n-aria-label="lightbox.next"><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></button>
+      <span class="st-grow"></span>
+      <button type="button" class="mu-btn ghost small" id="lightbox-reuse" data-i18n="history.reuse"></button>
+      <button type="button" class="mu-btn ghost small" id="lightbox-ref" data-i18n="image.as_ref"></button>
+      <button type="button" class="mu-btn small" id="lightbox-save" data-i18n="download"></button>
+      <button type="button" class="st-icon-btn" id="lightbox-close" data-i18n-aria-label="close"><svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+    </div>
+  </div>
+
+  <input id="image-file" type="file" accept="image/*" multiple hidden>
+</div>

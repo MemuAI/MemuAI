@@ -1,0 +1,196 @@
+/* Quick Ask plugin «Команды» — result cards, timer strip, ringing banner, voice buttons.
+   Colours only from theme tokens (--panel, --accent, --text, --muted, --border, --danger, --ok). */
+
+.mqc-strip-host, .mqc-cards-host { padding: 0 var(--qa-pad, 16px); }
+.mqc-strip-host { padding-top: 2px; }
+.mqc-cards-host { padding-top: 6px; padding-bottom: 4px; max-height: min(380px, calc(var(--qa-max-h, 760px) - 300px)); overflow-y: auto;
+  overscroll-behavior: contain; scrollbar-width: thin; }
+
+/* ------------------------------------------------------------------ cards */
+.mqc-cards { display: flex; flex-direction: column; gap: 8px; }
+.mqc-card {
+  position: relative; border-radius: 12px; padding: 10px 12px 10px 12px;
+  background: color-mix(in srgb, var(--panel-2, var(--panel)) 72%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  animation: mqc-in .26s var(--qa-ease-out, ease-out) both;
+}
+.mqc-card + .mqc-card { opacity: .82; }
+.mqc-card-head { display: flex; align-items: center; gap: 8px; min-height: 22px; }
+.mqc-ic { width: 22px; height: 22px; flex: 0 0 22px; border-radius: 7px; display: grid; place-items: center;
+  background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
+.mqc-ic svg { width: 14px; height: 14px; }
+.mqc-ic-error, .mqc-ic-unsupported, .mqc-ic-disabled, .mqc-ic-cancelled {
+  background: color-mix(in srgb, var(--danger, #e5484d) 16%, transparent); color: var(--danger, #e5484d); }
+.mqc-ic-confirm { background: color-mix(in srgb, #f5a524 20%, transparent); color: #f5a524; }
+.mqc-ic-running svg { animation: mqc-pulse 1s ease-in-out infinite; }
+.mqc-title { font-weight: 600; font-size: .96em; flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mqc-tier, .mqc-src { font-size: .72em; padding: 2px 7px; border-radius: 999px; letter-spacing: .02em; white-space: nowrap;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent); color: var(--muted); }
+.mqc-tier-dangerous { color: var(--danger, #e5484d); border-color: color-mix(in srgb, var(--danger, #e5484d) 45%, transparent);
+  background: color-mix(in srgb, var(--danger, #e5484d) 10%, transparent); }
+.mqc-tier-confirm { color: #c98a10; border-color: color-mix(in srgb, #f5a524 45%, transparent); }
+.mqc-x { border: 0; background: transparent; color: var(--muted); width: 22px; height: 22px; border-radius: 6px; cursor: pointer;
+  display: grid; place-items: center; opacity: .55; }
+.mqc-x:hover, .mqc-x:focus-visible { opacity: 1; background: color-mix(in srgb, var(--text) 8%, transparent); }
+.mqc-x svg { width: 12px; height: 12px; }
+.mqc-msg { margin: 6px 0 0 30px; line-height: 1.45; color: var(--text); overflow-wrap: anywhere; }
+.mqc-pre { white-space: pre-wrap; font-family: var(--mono); font-size: .9em; max-height: 220px; overflow: auto; }
+.mqc-confirm { border-color: color-mix(in srgb, #f5a524 55%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, #f5a524 10%, transparent); }
+.mqc-confirm.mqc-cat-power { border-color: color-mix(in srgb, var(--danger, #e5484d) 60%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger, #e5484d) 10%, transparent); }
+.mqc-error .mqc-msg, .mqc-unsupported .mqc-msg { color: color-mix(in srgb, var(--text) 85%, var(--danger, #e5484d)); }
+.mqc-level { margin: 8px 0 2px 30px; height: 6px; border-radius: 99px; background: color-mix(in srgb, var(--text) 10%, transparent); overflow: hidden; }
+.mqc-level i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--accent), var(--accent-2, var(--accent)));
+  transition: width .35s var(--qa-ease-out, ease-out); }
+.mqc-details { display: grid; grid-template-columns: max-content 1fr; gap: 3px 12px; margin: 8px 0 0 30px; font-size: .9em; }
+.mqc-details dt { color: var(--muted); }
+.mqc-details dd { margin: 0; overflow-wrap: anywhere; }
+.mqc-list { margin: 6px 0 0 30px; padding: 0 0 0 16px; font-size: .9em; max-height: 200px; overflow: auto; }
+.mqc-list li { margin: 2px 0; }
+.mqc-steps { list-style: none; margin: 8px 0 0 30px; padding: 0; font-size: .9em; display: grid; gap: 3px; }
+.mqc-steps li { display: flex; gap: 6px; align-items: baseline; }
+.mqc-steps li > span { width: 14px; flex: 0 0 14px; color: var(--accent); }
+.mqc-steps li > span svg { width: 12px; height: 12px; }
+.mqc-steps .mqc-step-error > span { color: var(--danger, #e5484d); }
+.mqc-steps .mqc-step-skipped { color: var(--muted); }
+.mqc-images { margin: 8px 0 0 30px; display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.mqc-images img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 10px; cursor: zoom-in;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent); background: color-mix(in srgb, var(--text) 6%, transparent); }
+.mqc-answer { margin: 8px 0 0 30px; white-space: pre-wrap; line-height: 1.5; }
+.mqc-help { margin: 8px 0 0 30px; display: grid; gap: 8px; }
+.mqc-help-group { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+.mqc-help-group b { width: 100%; font-size: .82em; color: var(--muted); font-weight: 600; display: flex; align-items: center; gap: 6px; }
+.mqc-cat svg { width: 13px; height: 13px; display: block; }
+.mqc-chip { border: 1px solid color-mix(in srgb, var(--border) 85%, transparent); background: color-mix(in srgb, var(--panel) 60%, transparent);
+  border-radius: 999px; padding: 3px 10px; font-size: .86em; cursor: pointer; color: var(--text); }
+.mqc-chip:hover, .mqc-chip:focus-visible { border-color: var(--accent); color: var(--accent); }
+.mqc-actions { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 0 30px; align-items: center; }
+.mqc-btn { display: inline-flex; align-items: center; gap: 6px; border-radius: 9px; padding: 5px 12px; font-size: .88em; cursor: pointer;
+  border: 1px solid color-mix(in srgb, var(--border) 85%, transparent); background: color-mix(in srgb, var(--panel) 70%, transparent); color: var(--text); }
+.mqc-btn:hover, .mqc-btn:focus-visible { border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
+.mqc-btn:disabled { opacity: .5; cursor: default; }
+.mqc-btn svg { width: 13px; height: 13px; }
+.mqc-btn-primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent, #fff); font-weight: 600; }
+.mqc-btn-danger { background: var(--danger, #e5484d); border-color: var(--danger, #e5484d); color: #fff; font-weight: 600; }
+.mqc-btn-ghost { background: transparent; }
+.mqc-btn-ghost span { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mqc-btn-cancel { border-color: var(--danger, #e5484d); color: var(--danger, #e5484d); font-weight: 600; }
+.mqc-btn-sm { padding: 2px 9px; font-size: .82em; }
+.mqc-countdown { font-size: .92em; color: var(--danger, #e5484d); }
+.mqc-countdown b { font-size: 1.25em; font-variant-numeric: tabular-nums; }
+
+/* ------------------------------------------------------------------ timers */
+.mqc-strip { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 0 2px; }
+.mqc-chip-timer { --p: 0; position: relative; display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px 4px 8px; border-radius: 10px;
+  font-size: .88em; overflow: hidden; isolation: isolate;
+  background: color-mix(in srgb, var(--panel-2, var(--panel)) 75%, transparent); border: 1px solid color-mix(in srgb, var(--border) 70%, transparent); }
+.mqc-chip-timer::before { content: ""; position: absolute; inset: 0; z-index: -1; transform-origin: left; transform: scaleX(var(--p));
+  background: color-mix(in srgb, var(--accent) 14%, transparent); transition: transform .5s linear; }
+.mqc-chip-timer.paused { opacity: .7; }
+.mqc-pomo.phase-short_break::before, .mqc-pomo.phase-long_break::before { background: color-mix(in srgb, var(--ok, #2fb67c) 18%, transparent); }
+.mqc-tic { color: var(--accent); display: grid; }
+.mqc-tic svg { width: 14px; height: 14px; }
+.mqc-tlabel { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+.mqc-time, .mqc-time-abs { font-variant-numeric: tabular-nums; font-weight: 650; letter-spacing: .01em; }
+.mqc-laps { font-size: .85em; color: var(--muted); }
+.mqc-mini { border: 0; background: transparent; color: var(--muted); width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center; cursor: pointer; }
+.mqc-mini:hover, .mqc-mini:focus-visible { color: var(--text); background: color-mix(in srgb, var(--text) 9%, transparent); }
+.mqc-mini svg { width: 12px; height: 12px; }
+
+.mqc-ring { display: flex; align-items: center; gap: 10px; margin: 4px 0; padding: 9px 10px; border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 16%, var(--panel)); border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent); }
+.mqc-ring.mqc-anim { animation: mqc-ring 1.6s ease-in-out infinite; }
+.mqc-ring-ic { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; background: var(--accent); color: var(--on-accent, #fff); flex: 0 0 30px; }
+.mqc-ring.mqc-anim .mqc-ring-ic svg { animation: mqc-wiggle 1.6s ease-in-out infinite; }
+.mqc-ring-ic svg { width: 17px; height: 17px; }
+.mqc-ring-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.mqc-ring-text span { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mqc-ring-text small { color: var(--muted); }
+
+/* ------------------------------------------------------------------ voice buttons */
+.qa-plugin-btn[data-plugin="voice"] { position: relative; }
+.qa-plugin-btn[data-plugin="voice"][aria-pressed="true"] { color: var(--on-accent, #fff); background: var(--danger, #e5484d);
+  box-shadow: 0 0 0 calc(2px + var(--mic, 0) * 8px) color-mix(in srgb, var(--danger, #e5484d) 28%, transparent); transition: box-shadow .08s linear; }
+:root[data-mqc-transcribing] .qa-plugin-btn[data-plugin="voice"] svg { animation: mqc-pulse .9s ease-in-out infinite; }
+:root[data-mqc-speaking] .qa-plugin-btn[data-plugin="speak"] { color: var(--accent); }
+:root[data-mqc-speaking="1"] .qa-plugin-btn[data-plugin="speak"] svg { animation: mqc-pulse 1.1s ease-in-out infinite; }
+
+@keyframes mqc-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@keyframes mqc-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+@keyframes mqc-ring { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 0%, transparent); }
+  50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 22%, transparent); } }
+@keyframes mqc-wiggle { 0%, 60%, 100% { transform: rotate(0); } 10%, 30%, 50% { transform: rotate(-14deg); } 20%, 40% { transform: rotate(14deg); } }
+
+:root[data-motion="off"] .mqc-card, :root[data-motion="reduced"] .mqc-card { animation: none; }
+:root[data-motion="off"] .mqc-chip-timer::before { transition: none; }
+@media (prefers-reduced-motion: reduce) {
+  .mqc-card, .mqc-ring, .mqc-ring .mqc-ring-ic svg, .mqc-ic-running svg { animation: none !important; }
+  .mqc-chip-timer::before, .mqc-level i { transition: none; }
+}
+
+/* Round 22 finish: with result cards on screen the idle «Недавние / ideas» list is hidden, so the
+   footer (model, plugin buttons, chats, pin) always stays inside the window. */
+:root[data-mqc-cards="1"] .qa-suggest { display: none !important; }
+/* Contrast: in dark themes --danger is a light pink (#ff9d9d…), white text on it is ~2:1 — use a deep
+   red-black instead (≥ 7:1); light themes keep white on their dark red. */
+:root[data-theme="dark"] .mqc-btn-danger,
+:root[data-theme="dark"] .qa-plugin-btn[data-plugin="voice"][aria-pressed="true"] { color: #2a0a0d; }
+
+/* ------------------------------------------------------------------ Round 23: one visual language with the new window
+   Cards sit on the same 18 px left line as the input, use the window's chip/hover tokens and its button shapes;
+   one quiet surface instead of borders everywhere. */
+.mqc-strip-host, .mqc-cards-host { padding-left: var(--qa-pad, 18px); padding-right: 14px; }
+.mqc-cards-host { padding-top: 10px; padding-bottom: 8px; }
+.mqc-card { border-radius: 10px; padding: 10px 10px 11px 12px; background: var(--qa-chip, color-mix(in srgb, var(--text) 5%, transparent));
+  border: 1px solid var(--qa-chip-line, color-mix(in srgb, var(--border) 60%, transparent)); }
+.mqc-ic { border-radius: 6px; width: 20px; height: 20px; flex-basis: 20px; }
+.mqc-ic svg { width: 13px; height: 13px; }
+.mqc-msg, .mqc-layout, .mqc-level, .mqc-details, .mqc-list, .mqc-steps, .mqc-images, .mqc-answer, .mqc-help, .mqc-actions { margin-left: 28px; }
+/* Round 34: «Понял как: …» under the title of a command typed in the wrong keyboard layout */
+.mqc-layout { margin: 2px 0 0 28px; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.mqc-level { height: 5px; }
+.mqc-tier, .mqc-src { border: 0; background: var(--qa-chip, transparent); font-weight: 600; }
+.mqc-btn { height: 28px; padding: 0 11px; border-radius: 7px; border: 0; font-size: 12.5px; font-weight: 600;
+  background: var(--qa-chip, color-mix(in srgb, var(--text) 6%, transparent)); }
+.mqc-btn:hover, .mqc-btn:focus-visible { background: var(--qa-hover, color-mix(in srgb, var(--text) 9%, transparent)); border-color: transparent; }
+.mqc-btn-ghost { background: transparent; color: var(--muted); }
+.mqc-btn-ghost:hover { color: var(--text); }
+.mqc-btn-primary { background: var(--accent); color: var(--on-accent, #fff); }
+.mqc-btn-primary:hover { background: var(--accent); filter: brightness(1.06); }
+.mqc-btn-danger { background: var(--danger, #e5484d); }
+.mqc-btn-danger:hover { background: var(--danger, #e5484d); filter: brightness(1.05); }
+.mqc-btn-cancel { background: color-mix(in srgb, var(--danger, #e5484d) 12%, transparent); }
+.mqc-chip { border: 0; background: var(--qa-chip, transparent); }
+.mqc-chip:hover { background: var(--qa-hover, transparent); color: var(--text); }
+.mqc-chip-timer { border-radius: 8px; border: 0; background: var(--qa-chip, transparent); }
+.mqc-strip { padding: 10px 0 0; }
+.mqc-confirm { box-shadow: none; }
+.mqc-confirm.mqc-cat-power { box-shadow: none; }
+:root[data-design="grid"] .mqc-card, :root[data-design="grid"] .mqc-btn, :root[data-design="grid"] .mqc-chip-timer, :root[data-design="grid"] .mqc-ic { border-radius: 3px; }
+
+/* Round 24: таймкоды YouTube и задачи DFY */
+.mqc-ts { display: inline; border: 0; padding: 0 3px; margin: 0 1px; border-radius: 5px; font: inherit; font-variant-numeric: tabular-nums;
+  color: var(--accent, #6b8afd); background: color-mix(in srgb, var(--accent, #6b8afd) 12%, transparent); cursor: pointer; }
+.mqc-ts:hover { text-decoration: underline; }
+.mqc-dfy-host { display: grid; gap: 8px; }
+.mqc-dfy-task:empty { display: none; }
+/* Round 25: tool cards — a colour swatch; Base64/hash/JSON output (already .mqc-pre) wraps inside long tokens */
+.mqc-swatch { display: inline-block; width: 1.05em; height: 1.05em; margin-right: 8px; vertical-align: -0.16em; border-radius: 4px; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 22%, transparent); }
+.mqc-code { word-break: break-all; }
+/* Round 29 (Planning 2.0): the «запланируй…» preview card — summary (message), what to do (details), next runs, warnings */
+.mqc-cat-schedule .mqc-msg { font-weight: 600; }
+.mqc-plan-label { margin: 9px 0 0 28px; font-size: .78em; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.mqc-cat-schedule .mqc-list { list-style: none; padding: 0; margin-top: 3px; }
+.mqc-cat-schedule .mqc-list li { position: relative; padding-left: 14px; font-variant-numeric: tabular-nums; }
+.mqc-cat-schedule .mqc-list li::before { content: ""; position: absolute; left: 1px; top: .55em; width: 6px; height: 6px; border-radius: 50%;
+  background: color-mix(in srgb, var(--accent, #8b5cf6) 55%, transparent); }
+.mqc-cat-schedule .mqc-list li:first-child::before { background: var(--accent, #8b5cf6); }
+.mqc-plan-warn { list-style: none; margin: 8px 0 0 28px; padding: 7px 10px; border-radius: 9px; font-size: .88em; line-height: 1.4;
+  background: color-mix(in srgb, var(--warn, #d9a43b) 14%, transparent); }
+.mqc-plan-warn li { display: flex; gap: 7px; align-items: flex-start; }
+.mqc-plan-warn li + li { margin-top: 4px; }
+.mqc-plan-warn svg { width: 14px; height: 14px; flex: none; margin-top: 2px; color: var(--warn, #d9a43b); }
+
+/* Round 33 (r33-quick): a command understood by the AI router («ИИ» badge, model + time in the tooltip) */
+.mqc-src.mqc-src-ai { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); cursor: help; }

@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MemuAI Proxy</title>
+  <link rel="stylesheet" href="/style.css?v=3.8-r48">
+  <link rel="stylesheet" href="/model_caps.css">
+  <link rel="stylesheet" href="/settings.css">
+  <link rel="stylesheet" href="/public.css">
+  <link rel="stylesheet" href="/proxy-r31.css">
+  <link rel="stylesheet" href="/proxy-r33.css?v=3.5-r33">
+  <link rel="stylesheet" href="/guide-video.css?v=3.5-r33">
+  <link rel="stylesheet" href="/local-wizard.css?v=3.5-r33">
+  <link rel="stylesheet" href="/proxy-model-names.css?v=3.5-r34"><!-- Round 33 (r33c-models-lists) -->
+  <link rel="stylesheet" href="/proxy-r34.css?v=3.5-r34"><!-- Round 34 (r34-proxy) -->
+  <link rel="stylesheet" href="/proxy-r40.css?v=3.6-r40"><!-- Round 40 (r40-proxy) -->
+  <link rel="stylesheet" href="/quota-planner.css?v=3.8-r44">
+  <link rel="stylesheet" href="/model-refresh.css?v=3.8-r45">
+  <link rel="stylesheet" href="/composite.css?v=3.6-r40"><!-- Round 35 (composite) -->
+  <link rel="stylesheet" href="/detector-compare.css?v=3.5-r36"><!-- Round 35 (detector) -->
+  <link rel="stylesheet" href="/geminiweb.css?v=3.7-r41"><!-- Round 37 (r37-gemini) -->
+  <script src="/memu-keys.js?v=3.5-r33"></script>
+  <script src="/theme.js"></script>
+  <link rel="icon" href="/icon.png">
+</head>
+<body>
+
+<div id="login-overlay" hidden>
+  <form class="login-box" id="login-form" aria-labelledby="login-title">
+    <div class="logo"><div class="mark round" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M8.6 6.6 4.2 12l4.4 5.4M15.4 6.6l4.4 5.4-4.4 5.4"/><path d="M12 7.9Q13 11 16.1 12 13 13 12 16.1 11 13 7.9 12 11 11 12 7.9Z" fill="currentColor" stroke="none"/></svg></div><span>Memu<b>AI</b> Proxy</span></div>
+    <h1 id="login-title" data-i18n="login.title">Панель управления</h1>
+    <p data-i18n="login.hint">Введите пароль администратора</p>
+    <div class="field">
+      <label for="login-password" data-i18n="set.password">Пароль панели</label>
+      <input type="password" id="login-password" autocomplete="current-password" required>
+    </div>
+    <div class="login-error" id="login-error" role="alert" aria-live="polite"></div>
+    <button class="btn primary" id="login-submit" type="submit" data-i18n="login.btn">Войти</button>
+  </form>
+</div>
+
+<div id="app">
+  <nav class="sidebar" id="sidebar" data-i18n-aria="nav.aria" aria-label="Основная навигация">
+    <div class="side-brand logo"><div class="mark round" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M8.6 6.6 4.2 12l4.4 5.4M15.4 6.6l4.4 5.4-4.4 5.4"/><path d="M12 7.9Q13 11 16.1 12 13 13 12 16.1 11 13 7.9 12 11 11 12 7.9Z" fill="currentColor" stroke="none"/></svg></div><span>Memu<b>AI</b> <em>Proxy</em></span></div>
+    <div class="nav-scroll">
+      <div class="nav-group" data-i18n="nav.group.overview">Обзор</div>
+      <button class="nav-item active" data-tab="home"><span class="ico" aria-hidden="true"><svg class="i" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="7" height="8" rx="1.8"/><rect x="13.5" y="3.5" width="7" height="5" rx="1.8"/><rect x="13.5" y="11.5" width="7" height="9" rx="1.8"/><rect x="3.5" y="14.5" width="7" height="6" rx="1.8"/></svg></span><span class="txt" data-i18n="nav.home">Главная</span></button>
+      <div class="nav-group" data-i18n="nav.group.connect">Подключения</div>
+      <button class="nav-item" data-tab="accounts"><span class="ico" aria-hidden="true"><svg class="i" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.2A6.5 6.5 0 0 1 21.5 20"/></svg></span><span class="txt" data-i18n="nav.accounts">Аккаунты</span></button>
+      <button class="nav-item" data-tab="quota"><span class="ico" aria-hidden="true"><svg class="i" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 16.5a8.5 8.5 0 1 1 17 0"/><path d="m12 16.5 4-5.5"/><circle cx="12" cy="16.5" r="1.3"/><path d="M3.5 20.5h17"/></svg></span><span class="txt" data-i18n="nav.quota">Планировщик квот</span></button><!-- Round 35 (quota) -->
+      <button class="nav-item" data-tab="models"><span class="ico" aria-hidden="true"><svg class="i" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3.5 8.5 4.5-8.5 4.5L3.5 8z"/><path d="m3.5 12 8.5 4.5 8.5-4.5"/><path d="m3.5 16 8.5 4.5 8.5-4.5"/></svg></span><span class="txt" data-i18n="nav.models">Каталог моделей</span></button>
+      <button class="nav-item" data-tab="composite"><span class="ico" aria-hidden="true"><svg class="i" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="9.5" width="6" height="5" rx="1.4"/><rect x="14.5" y="3.5" width="6" height="5" rx="1.4"/><rect x="14.5" y="15.5" width="6" height="5" rx="1.4"/><path d="M9.5 12h2.5M12 6v12M12 6h2.5M12 18h2.5"/></svg></span><span class="txt" data-i18n="nav.composite">Составные модели</span></button><!-- Round 35 (composite) -->
+      <button class="nav-item" data-tab="local"><span class="ico" aria-hidden="true"><svg class="i" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="14" height="14" rx="2.5"/><rect x="9" y="9" width="6" height="6" rx="1"/><path d="M9.5 2v3M14.5 2v3M9.5 19v3M14.5 19v3M2 9.5h3M2 14.5h3M19 9.5h3M19 14.5h3"/></svg></span><span class="txt" data-i18n="nav.local">Локальные модели</span></button>
+      <button class="nav-item" data-tab="public"><span class="ico" aria-hidden="true"><svg class="i" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.4 2.5 3.5 5.3 3.5 8.5s-1.1 6-3.5 8.5c-2.4-2.5-3.5-5.3-3.5-8.5s1.1-6 3.5-8.5z"/></svg></span><span class="txt" data-i18n="nav.public">Публичный доступ</span></button>
+      <div class="nav-group" data-i18n="nav.group.tools">Инструменты</div>
+      <button class="nav-item" data-tab="chat"><span class="ico" aria-hidden="true"><svg class="i" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 14.5a2 2 0 0 1-2 2H8l-4.5 4v-14a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 12.5h5"/></svg></span><span class="txt" data-i18n="nav.chat">Чат</span></button>
+      <button class="nav-item" data-tab="detector"><span class="ico" aria-hidden="true"><svg class="i" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8V6A2.5 2.5 0 0 1 6 3.5h2M16 3.5h2A2.5 2.5 0 0 1 20.5 6v2M20.5 16v2a2.5 2.5 0 0 1-2.5 2.5h-2M8 20.5H6A2.5 2.5 0 0 1 3.5 18v-2"/><circle cx="11.5" cy="11.5" r="3.5"/><path d="m14 14 2.5 2.5"/></svg></span><span class="txt" data-i18n="nav.detector">Детектор моделей</span></button>
+      <div class="nav-group" data-i18n="nav.group.system">Система</div>
+      <button class="nav-item" data-tab="settings"><span class="ico" aria-hidden="true"><svg class="i" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2.2"/><circle cx="10" cy="17" r="2.2"/></svg></span><span class="txt" data-i18n="nav.settings">Настройки</span></button>
+      <button class="nav-item" data-tab="logs"><span class="ico" aria-hidden="true"><svg class="i" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 3.5H7A2.5 2.5 0 0 0 4.5 6v12A2.5 2.5 0 0 0 7 20.5h10a2.5 2.5 0 0 0 2.5-2.5V8.5z"/><path d="M14.5 3.5v5h5M8.5 12.5h7M8.5 16h5"/></svg></span><span class="txt" data-i18n="nav.logs">Логи</span></button>
+    </div>
+    <div class="fill"></div>
+    <button class="nav-item companion-nav" id="companion-open" type="button"><span class="ico" aria-hidden="true"><svg class="i" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5l1.7 4.8 4.8 1.7-4.8 1.7L12 16.5l-1.7-4.8L5.5 10l4.8-1.7z"/><path d="M18.5 15l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/></svg></span><span class="txt" data-i18n="nav.companion">ИИ-помощник</span></button>
+  </nav>
+  <button class="nav-backdrop" id="nav-backdrop" type="button" data-i18n-aria="nav.close" aria-label="Закрыть меню" hidden></button>
+
+  <div class="main-col">
+  <header class="topbar">
+    <button class="icon-btn burger" id="burger" type="button" data-i18n-aria="nav.open" aria-label="Открыть меню" aria-expanded="false" aria-controls="sidebar">☰</button>
+    <div class="logo topbar-logo"><div class="mark round" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M8.6 6.6 4.2 12l4.4 5.4M15.4 6.6l4.4 5.4-4.4 5.4"/><path d="M12 7.9Q13 11 16.1 12 13 13 12 16.1 11 13 7.9 12 11 11 12 7.9Z" fill="currentColor" stroke="none"/></svg></div><span>Memu<b>AI</b> Proxy</span></div>
+    <div class="crumb" aria-hidden="true"><span class="crumb-root">MemuAI Proxy</span><span class="crumb-sep">/</span><span class="crumb-page" id="crumb-page" data-i18n="nav.home">Главная</span></div>
+    <div class="spacer"></div>
+    <div class="hint endpoint-pill" id="endpoint-hint"></div>
+    <label class="sr-only" for="lang-select" data-i18n="set.lang">Язык интерфейса</label>
+    <select id="lang-select" class="lang-select" data-i18n-aria="set.lang" aria-label="Язык интерфейса">
+      <option value="ru">RU</option><option value="en">EN</option>
+    </select>
+    <!-- Round 34: in a narrow window the floating ✦ button covered toggles at the right edge — it moves here. -->
+    <button class="icon-btn companion-top" id="companion-top" type="button" data-i18n-aria="nav.companion" aria-label="ИИ-помощник" data-i18n-title="nav.companion" title="ИИ-помощник">✦</button>
+    <button class="btn small" id="logout-btn" type="button" hidden data-i18n="top.logout">Выйти</button>
+  </header>
+
+  <div class="layout">
+    <main class="content" id="content">
+
+      <!-- ============ ГЛАВНАЯ ============ -->
+      <section class="tab active" id="tab-home">
+        <div class="hero">
+          <div class="hero-eyebrow" data-i18n="home.eyebrow">Локальный шлюз</div>
+          <div class="row-line">
+            <span class="status-dot" id="hero-dot"></span>
+            <h2 id="hero-title" data-i18n="home.title">Прокси работает</h2>
+            <span class="badge violet" id="hero-version">v…</span>
+          </div>
+          <div class="sub" data-i18n="home.sub">Единый OpenAI-совместимый API для всех подключённых аккаунтов</div>
+          <div class="hero-actions">
+            <button class="btn" id="open-memuai" data-i18n="home.openchat">✦ Открыть MemuAI</button>
+            <button class="btn" id="proxy-restart" data-i18n="home.restart">⟲ Перезапустить</button>
+            <button class="btn" id="proxy-toggle"></button>
+          </div>
+          <div class="hero-fields">
+            <div class="copy-line"><span class="lbl" data-i18n="home.endpoint">Endpoint</span><span class="val" id="hero-endpoint">…</span>
+              <button class="btn small" data-copy="#hero-endpoint" data-i18n="home.copy">Копировать</button></div>
+            <div class="copy-line"><span class="lbl" data-i18n="home.key">Ключ API</span><span class="val" id="hero-key">…</span>
+              <button class="btn small" data-copy="#hero-key" data-i18n="home.copy">Копировать</button></div>
+          </div>
+        </div>
+        <!-- Round 31: first-run guidance — shown only while there are no accounts (app.js loadHome) -->
+        <div class="card start-card" id="start-card" hidden>
+          <div class="start-head">
+            <div><h3 data-i18n="home.start.title">С чего начать</h3>
+              <p class="sub" data-i18n="home.start.sub">Proxy работает, но аккаунтов пока нет.</p></div>
+            <button class="btn primary" id="start-add" data-i18n="home.start.cta">Добавить аккаунт</button>
+          </div>
+          <ol class="start-steps">
+            <li><b data-i18n="home.start.s1">Добавьте аккаунт</b><span data-i18n="home.start.s1.b"></span></li>
+            <li><b data-i18n="home.start.s2">Проверьте его</b><span data-i18n="home.start.s2.b"></span></li>
+            <li><b data-i18n="home.start.s3">Пользуйтесь</b><span data-i18n="home.start.s3.b"></span></li>
+          </ol>
+        </div>
+        <div class="warn-strip" id="default-password-strip" hidden>
+          <span class="warn-ico" aria-hidden="true"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 4.2 2.6 17.5A2 2 0 0 0 4.3 20.5h15.4a2 2 0 0 0 1.7-3L13.7 4.2a2 2 0 0 0-3.4 0z"/><path d="M12 9.5v4M12 17h.01"/></svg></span><div data-i18n="warn.password">Пароль панели — «admin» по умолчанию. Смените его в Настройках.</div>
+        </div>
+
+
+        <div class="card" id="metrics-card">
+          <div class="row" style="margin-bottom:10px">
+            <h3 style="margin:0" data-i18n="home.metrics">Статистика работы</h3>
+            <div class="grow"></div>
+            <button class="btn small" id="metrics-refresh" data-i18n="logs.refresh">⟳ Обновить</button>
+            <button class="btn small" id="metrics-reset" data-i18n="home.metrics.reset">Сбросить</button>
+          </div>
+          <div class="empty" id="metrics-off" hidden data-i18n="metrics.disabled">Сбор статистики выключен: Настройки → Дополнительно → «Логи и статистика».</div>
+          <div id="metrics-body">
+          <div class="segmented" id="metrics-period" role="group" data-i18n-aria="metrics.period" aria-label="Период">
+            <button class="seg" data-period="today" data-i18n="metrics.period.today">Сегодня</button>
+            <button class="seg active" data-period="day" data-i18n="metrics.period.day">24 часа</button>
+            <button class="seg" data-period="week" data-i18n="metrics.period.week">7 дней</button>
+            <button class="seg" data-period="month" data-i18n="metrics.period.month">30 дней</button>
+            <button class="seg" data-period="all" data-i18n="metrics.period.all">Всё время</button>
+          </div>
+          <div class="stat-grid metrics-kpis" id="metrics-grid"></div>
+          <div class="metrics-cache" id="metrics-cache" hidden></div><!-- Round 40 (r40-proxy) -->
+          <div class="metrics-panel">
+            <div class="row metrics-chart-head">
+              <h4 class="mini-title"><span data-i18n="metrics.chart">Запросы по периодам</span> <span class="dim" id="metrics-chart-note"></span></h4>
+              <div class="grow"></div>
+              <div class="segmented small" id="metrics-chart-kind" role="group" data-i18n-aria="metrics.chart.kind" aria-label="Показатель">
+                <button class="seg active" data-kind="requests" data-i18n="metrics.kind.requests">Запросы</button>
+                <button class="seg" data-kind="tokens" data-i18n="metrics.kind.tokens">Токены</button>
+                <button class="seg" data-kind="latency" data-i18n="metrics.kind.latency">Время ответа</button>
+                <button class="seg" data-kind="cost" data-i18n="metrics.kind.cost">Стоимость</button>
+              </div>
+            </div>
+            <div class="metrics-chart-wrap"><div class="metrics-axis" id="metrics-axis"></div><div class="spark" id="metrics-chart"></div></div>
+            <div class="metrics-xlabels" id="metrics-xlabels"></div>
+            <div class="metrics-legend" id="metrics-legend"></div>
+          </div>
+          <div class="metrics-panel">
+            <h4 class="mini-title" data-i18n="metrics.models">Модели</h4>
+            <div class="metrics-table-wrap"><table class="metrics-table" id="metrics-models"></table></div>
+          </div>
+          <div class="grid-2 metrics-split">
+            <div class="metrics-panel"><h4 class="mini-title" data-i18n="home.metrics.providers">По провайдерам</h4><div id="metrics-providers"></div>
+              <h4 class="mini-title" data-i18n="home.metrics.errors">Частые ошибки</h4><div id="metrics-errors"></div></div>
+            <div class="metrics-panel"><h4 class="mini-title" data-i18n="metrics.latency.dist">Распределение времени ответа</h4><div id="metrics-latency"></div></div>
+          </div>
+          <div class="metrics-foot dim" id="metrics-foot"></div>
+          </div>
+        </div>
+
+        <h3 class="section-title" data-i18n="home.providers">Провайдеры</h3>
+        <div class="provider-grid" id="providers-grid"></div>
+
+        <div class="card connect-card">
+          <h3 data-i18n="home.connect">Подключить клиент</h3>
+          <p class="sub" id="connect-hint"></p>
+          <div class="code-block" id="connect-sample">…</div>
+        </div>
+      </section>
+
+      <!-- ============ АККАУНТЫ ============ -->
+      <section class="tab" id="tab-accounts">
+        <h2 class="tab-title" data-i18n="acc.title">Аккаунты</h2>
+        <p class="tab-sub" data-i18n="acc.sub">Сердце хаба</p>
+        <div class="row" style="margin-bottom:10px">
+          <button class="btn primary" id="acc-add-btn" data-i18n="acc.add">＋ Добавить аккаунт</button>
+          <button class="btn" id="acc-check-all" data-i18n="acc.checkall">✓ Проверить все</button>
+          <button class="btn" id="acc-export" data-i18n="acc.export">↧ Экспорт</button>
+          <div class="grow"></div>
+          <div class="chip-row" id="provider-filter"></div>
+        </div>
+        <div class="row" style="margin-bottom:10px; gap:8px; flex-wrap:wrap">
+          <div style="flex:1 1 220px; min-width:180px">
+            <input type="search" id="acc-search" data-i18n-ph="acc.search" placeholder="Поиск по метке, статусу, тегу…">
+          </div>
+          <label class="inline-field"><span data-i18n="acc.sort">Сортировка</span>
+            <select id="acc-sort">
+              <option value="order" data-i18n="acc.sort.order">приоритет (перетаскивание)</option>
+              <option value="status" data-i18n="acc.sort.status">статус</option>
+              <option value="label" data-i18n="acc.sort.label">метка</option>
+              <option value="used" data-i18n="acc.sort.used">последнее использование</option>
+              <option value="requests" data-i18n="acc.sort.requests">число запросов</option>
+            </select></label>
+          <button class="btn" type="button" id="acc-select-mode" aria-pressed="false"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="3.5"/><path d="m8 12.2 2.8 2.8L16.5 9"/></svg><span data-i18n="acc.selectmode.btn">Выбрать несколько</span></button>
+        </div>
+        <div class="hint-strip" data-i18n="acc.dnd.hint">Порядок карточек = приоритет: аккаунт выше используется первым. Переставлять можно любые карточки, в том числе между провайдерами.</div>
+        <div class="hint-strip" data-i18n="acc.pick.hintmouse">Клик — выделить, Ctrl+клик — несколько, Shift+клик — диапазон, правая кнопка — меню.</div>
+        <div class="bulk-bar" id="acc-bulk-bar" hidden>
+          <button class="btn small acc-select-cancel" type="button" id="acc-select-cancel" data-i18n-title="acc.sel.cancel.tip" title="Снять выделение и выйти из режима выбора (Esc)"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg><span data-i18n="acc.sel.cancel">Отменить</span><kbd>Esc</kbd></button>
+          <span id="acc-bulk-count">0</span>
+          <button class="btn small" data-bulk="enable" data-i18n="bulk.enable">Включить</button>
+          <button class="btn small" data-bulk="disable" data-i18n="bulk.disable">Выключить</button>
+          <button class="btn small" data-bulk="check" data-i18n="bulk.check">Проверить</button>
+          <button class="btn small" data-bulk="priority_reserve" data-i18n="bulk.reserve">В резерв</button>
+          <button class="btn small" data-bulk="priority_normal" data-i18n="acc.sel.normal">Обычный</button>
+          <div class="grow"></div>
+          <button class="btn small" id="acc-select-all" data-i18n="bulk.all">Выбрать все</button>
+          <button class="btn small danger" data-bulk="delete" data-i18n="bulk.delete">Удалить</button>
+        </div>
+        <div class="provider-grid" id="accounts-grid"></div>
+      </section>
+
+      <!-- ============ КАТАЛОГ МОДЕЛЕЙ (r33: из настроек в левую панель) ============ -->
+      <section class="tab" id="tab-models">
+        <h2 class="tab-title"><span data-i18n="sg.sec.models">Каталог моделей</span> <span class="chip" id="models-count">0</span></h2>
+        <p class="tab-sub" data-i18n="sg.sec.models.d">Модели, которые клиенты видят в /v1/models. Выключенные клиентам не показываются.</p>
+          <div class="card models-card" id="models-card">
+            <div class="models-toolbar">
+              <div class="models-search"><input type="search" id="models-filter" data-i18n-ph="set.models.filter" placeholder="Фильтр…"></div>
+              <label class="inline-field"><span data-i18n="set.models.provider">Провайдер</span>
+                <select id="models-provider-filter"><option value="">—</option></select></label>
+              <label class="inline-field"><span data-i18n="set.models.state">Состояние</span>
+                <select id="models-state-filter">
+                  <option value="" data-i18n="set.models.state.all">все</option>
+                  <option value="on" data-i18n="set.models.state.on">включённые</option>
+                  <option value="off" data-i18n="set.models.state.off">выключенные</option>
+                </select></label>
+              <div class="grow"></div>
+              <button class="btn small primary" id="models-refresh" data-i18n="set.models.refresh">⟳ Обновить с серверов</button>
+            </div>
+            <details class="sg-more models-more" id="models-more">
+              <summary><span class="sg-more-t" data-i18n="sg.more">Дополнительно</span><span class="sg-more-hint" data-i18n="sg.more.models">своя модель, правило по словам, группировка, экспорт</span></summary>
+              <div class="models-more-body">
+                <div class="models-more-row">
+                  <span class="models-more-label" data-i18n="sg.models.add">Добавить вручную</span>
+                  <input type="text" id="model-new-prefix" data-i18n-ph="set.models.prefix" placeholder="prefix" style="width:140px">
+                  <input type="text" id="model-new-model" data-i18n-ph="set.models.model" placeholder="model" style="width:220px">
+                  <button class="btn small primary" id="model-add" type="button" data-i18n-aria="set.models.add" aria-label="Добавить модель">＋</button>
+                </div>
+                <div class="models-more-row">
+                  <span class="models-more-label" data-i18n="sg.models.rule">Выключать по словам</span>
+                  <input type="text" id="models-keywords" data-i18n-ph="set.models.keywords" placeholder="ключевые слова: preview, audio, tts" style="flex:1 1 220px">
+                  <button class="btn small" id="models-kw-disable" data-i18n="set.models.kwdisable">Выключить по словам</button>
+                  <button class="btn small" id="models-kw-save" data-i18n="set.models.kwsave">Сохранить правило</button>
+                </div>
+                <div class="models-more-row">
+                  <label class="inline-field"><span data-i18n="set.models.group">Группировать</span>
+                    <select id="models-group">
+                      <option value="none" data-i18n="set.models.group.none">нет</option>
+                      <option value="provider" data-i18n="set.models.group.provider">по провайдеру</option>
+                    </select></label>
+                  <div class="grow"></div>
+                  <button class="btn small" id="models-gs-config" data-i18n="models.gs.config" data-i18n-title="models.gs.config.tip">✦ Обновить каталог Genspark</button>
+                  <button class="btn small" id="models-gs-discover" data-i18n="models.gs.discover" data-i18n-title="models.gs.discover.tip">✦ Найти новые модели Genspark</button>
+                  <button class="btn small" id="models-export" data-i18n="set.models.export">↧ Экспорт</button>
+                  <button class="btn small" id="models-import" data-i18n="set.models.import">↥ Импорт</button>
+                </div>
+                <div class="models-more-row wm-row" id="wm-list"></div><!-- Round 40 (r40-proxy): web models, web-models.js -->
+              </div>
+            </details>
+            <div class="bulk-bar idle" id="models-bulk-bar">
+              <span id="models-bulk-count" data-i18n="bulk.models.hint">Щёлкните строку или потяните рамку, чтобы выделить модели</span>
+              <button class="btn small" data-mbulk="enable" data-i18n="bulk.enable" disabled>Включить</button>
+              <button class="btn small" data-mbulk="disable" data-i18n="bulk.disable" disabled>Выключить</button>
+              <div class="grow"></div>
+              <button class="btn small danger" data-mbulk="delete" data-i18n="bulk.delete" disabled>Удалить</button>
+            </div>
+            <div class="table-wrap" id="models-table"></div>
+          </div>
+      </section>
+
+      <!-- ============ СОСТАВНЫЕ МОДЕЛИ (Round 35, composite.js) ============ -->
+      <section class="tab" id="tab-composite">
+        <h2 class="tab-title" data-i18n="cmp.title">Составные модели</h2>
+        <p class="tab-sub" data-i18n="cmp.sub">Своя модель (например, memu/smart), которая по правилам выбирает настоящую: по содержимому запроса, времени, скорости, цене — и переключается при сбое</p>
+        <div id="composite-root"><div class="card"><div class="empty">…</div></div></div>
+      </section>
+
+      <!-- ============ ЛОКАЛЬНЫЕ МОДЕЛИ ============ -->
+      <section class="tab" id="tab-local">
+        <h2 class="tab-title" data-i18n="local.title">Локальные модели</h2>
+        <p class="tab-sub" data-i18n="local.sub">Модели GGUF на этом компьютере: без интернета и без аккаунтов</p>
+        <div id="local-root"><div class="card"><div class="empty">…</div></div></div>
+      </section>
+
+      <!-- ============ ЧАТ ============ -->
+      <section class="tab" id="tab-chat">
+        <h2 class="tab-title" data-i18n="chat.title">Чат</h2>
+        <p class="tab-sub" data-i18n="chat.sub">Разговор с любой моделью Proxy — без скрытых системных промптов, для проверки</p>
+        <div id="chat-root"><div class="card"><div class="empty">…</div></div></div>
+      </section>
+
+      <!-- ============ ПЛАНИРОВЩИК КВОТ (Round 35, quota-planner.js) ============ -->
+      <section class="tab" id="tab-quota">
+        <h2 class="tab-title" data-i18n="qp.title">Планировщик квот</h2>
+        <p class="tab-sub" data-i18n="qp.sub">Квоты подписок, баланс API-аккаунтов и ваши тарифы моделей. Расход и прогноз на основе запросов через Proxy.</p>
+        <div id="quota-root"><div class="card"><div class="empty">…</div></div></div>
+      </section>
+
+      <!-- ============ ДЕТЕКТОР ============ -->
+      <section class="tab" id="tab-detector">
+        <h2 class="tab-title" data-i18n="det.title">Детектор моделей</h2>
+        <p class="tab-sub" data-i18n="det.sub">Проверка: та ли модель отвечает, что заявлена</p>
+        <div id="detector-root"><div class="card"><div class="empty">…</div></div></div>
+      </section>
+
+      <!-- ============ ПУБЛИЧНЫЙ ДОСТУП ============ -->
+      <section class="tab" id="tab-public">
+        <h2 class="tab-title" data-i18n="pub.title">Публичный доступ</h2>
+        <p class="tab-sub" data-i18n="pub.sub">Отдельный адрес для других людей и устройств: только API моделей, свои ключи и лимиты</p>
+        <div id="public-root"><div class="card"><div class="empty">…</div></div></div>
+      </section>
+
+      <!-- ============ НАСТРОЙКИ ============ -->
+      <section class="tab" id="tab-settings">
+        <!-- Раунд 23: настройки разложены по разделам (слева), у каждого раздела — главное сверху
+             и «Дополнительно» снизу; поиск находит любую настройку и открывает свёрнутое. -->
+        <div class="sg-head">
+          <div class="sg-head-text">
+            <h2 class="tab-title" data-i18n="set.title">Настройки</h2>
+            <p class="tab-sub" data-i18n="sg.sub">Всё сохраняется само. Обычно хватает раздела «Общие» — остальное нужно редко.</p>
+          </div>
+          <div class="sg-head-tools">
+            <div class="sg-status" id="settings-status" role="status" aria-live="polite" data-state="idle"><i aria-hidden="true"></i><span id="sg-status-text">Сохраняется автоматически</span></div>
+          </div>
+        </div>
+        <div class="sg-shell" id="sg-shell">
+        <div class="sg-side">
+          <div class="sg-search" role="search"><input type="search" id="sg-search" autocomplete="off" spellcheck="false" data-i18n-ph="sg.search.ph" placeholder="Найти настройку…" data-i18n-aria="sg.search.ph" aria-label="Найти настройку"><kbd aria-hidden="true">/</kbd></div>
+        <nav class="sg-nav" id="sg-nav" aria-label="Разделы настроек" data-i18n-aria="sg.nav.aria">
+          <div class="sg-nav-group" data-i18n="sg.navgroup.basics">Основное</div>
+          <button type="button" class="sg-nav-item" data-sg-nav="general" aria-controls="sg-sec-general"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2.2"/><circle cx="10" cy="17" r="2.2"/></svg><span data-i18n="sg.sec.general">Общие</span></button>
+          <button type="button" class="sg-nav-item" data-sg-nav="routing" aria-controls="sg-sec-routing"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5.5" cy="12" r="2"/><path d="M7.5 12h3c2 0 2.5-5.5 5-5.5h3M10.5 12c2 0 2.5 5.5 5 5.5h3"/><path d="m16.5 4.5 2 2-2 2M16.5 15.5l2 2-2 2"/></svg><span data-i18n="sg.sec.routing">Маршрутизация</span></button>
+          <button type="button" class="sg-nav-item" data-sg-nav="providers" aria-controls="sg-sec-providers"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3.5v4.5M15 3.5v4.5"/><path d="M6.5 8h11v3.5a5.5 5.5 0 0 1-11 0z"/><path d="M12 17v3.5"/></svg><span data-i18n="sg.sec.providers">Провайдеры</span></button>
+          <button type="button" class="sg-nav-item" data-sg-nav="search" aria-controls="sg-sec-search"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></svg><span data-i18n="sg.sec.search">Веб-поиск</span></button>
+          <div class="sg-nav-group" data-i18n="sg.navgroup.connect">Подключение</div>
+          <button type="button" class="sg-nav-item" data-sg-nav="access" aria-controls="sg-sec-access"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5 19.5 6v5.5c0 4.5-3.2 7.8-7.5 9-4.3-1.2-7.5-4.5-7.5-9V6z"/><path d="m9 12 2 2 4-4"/></svg><span data-i18n="sg.sec.access">Доступ и безопасность</span></button>
+          <button type="button" class="sg-nav-item" data-sg-nav="network" aria-controls="sg-sec-network"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4" width="17" height="6.5" rx="1.8"/><rect x="3.5" y="13.5" width="17" height="6.5" rx="1.8"/><path d="M7 7.25h.01M7 16.75h.01"/></svg><span data-i18n="sg.sec.network">Сеть</span></button>
+          <button type="button" class="sg-nav-item" data-sg-nav="cli" aria-controls="sg-sec-cli"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="m7.5 9.5 3 2.5-3 2.5M12.5 15h4"/></svg><span data-i18n="sg.sec.cli">Интеграции</span></button>
+          <div class="sg-nav-group" data-i18n="sg.navgroup.care">Обслуживание</div>
+          <button type="button" class="sg-nav-item" data-sg-nav="reliability" aria-controls="sg-sec-reliability"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 12h4l2.5-6.5 4 13 2.5-6.5h4"/></svg><span data-i18n="sg.sec.reliability">Надёжность</span></button>
+          <button type="button" class="sg-nav-item" data-sg-nav="logs" aria-controls="sg-sec-logs"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 3.5H7A2.5 2.5 0 0 0 4.5 6v12A2.5 2.5 0 0 0 7 20.5h10a2.5 2.5 0 0 0 2.5-2.5V8.5z"/><path d="M14.5 3.5v5h5M8.5 12.5h7M8.5 16h5"/></svg><span data-i18n="sg.sec.logs">Логи и статистика</span></button>
+          <button type="button" class="sg-nav-item" data-sg-nav="system" aria-controls="sg-sec-system"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v8.5"/><path d="M17.7 6.8a8 8 0 1 1-11.4 0"/></svg><span data-i18n="sg.sec.system">Система</span></button>
+        </nav>
+        </div>
+        <div class="sg-body" id="sg-body">
+        <section class="sg-sec" id="sg-sec-general" data-sec="general" aria-labelledby="sg-h-general">
+          <header class="sg-sec-head"><div class="sg-sec-ico" aria-hidden="true"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2.2"/><circle cx="10" cy="17" r="2.2"/></svg></div><div><h3 id="sg-h-general" data-i18n="sg.sec.general">Общие</h3><p data-i18n="sg.sec.general.d">Язык, оформление и поведение окна.</p></div></header>
+          <div class="sg-group ">
+          <h4 class="sg-gtitle" data-i18n="sg.g.look">Внешний вид</h4>
+          <div class="sg-card">
+            <div class="sg-row" data-k="язык language english русский ru en interface интерфейс">
+              <div class="sg-text"><div class="sg-label" data-i18n="sg.lang">Язык интерфейса</div></div>
+              <div class="sg-ctl"><div class="sg-seg" role="radiogroup" data-for="lang-select-2"><button type="button" class="sg-seg-btn" role="radio" data-v="ru" data-i18n="sg.lang.ru">Русский</button><button type="button" class="sg-seg-btn" role="radio" data-v="en" data-i18n="sg.lang.en">English</button></div><select id="lang-select-2" hidden aria-hidden="true" tabindex="-1"><option value="ru">Русский</option><option value="en">English</option></select></div>
+            </div>
+            <div class="sg-row" data-k="тема оформление тёмная светлая theme dark light appearance цвет">
+              <div class="sg-text"><div class="sg-label" data-i18n="sg.theme">Тема</div><div class="sg-desc" data-i18n="sg.theme.d">Только для этой панели.</div></div>
+              <div class="sg-ctl"><div class="sg-seg" role="radiogroup" data-for="sg-theme"><button type="button" class="sg-seg-btn" role="radio" data-v="system" data-i18n="sg.theme.system">Как в системе</button><button type="button" class="sg-seg-btn" role="radio" data-v="dark" data-i18n="sg.theme.dark">Тёмная</button><button type="button" class="sg-seg-btn" role="radio" data-v="light" data-i18n="sg.theme.light">Светлая</button></div><select id="sg-theme" hidden aria-hidden="true" tabindex="-1"><option value="system">system</option><option value="dark">dark</option><option value="light">light</option></select></div>
+            </div>
+          </div>
+          </div>
+          <div class="sg-group ">
+          <h4 class="sg-gtitle" data-i18n="sg.g.window">Запуск и окно</h4>
+          <div class="sg-card">
+            <div class="sg-row" data-k="открывать окно старт запуск start open window launch автозапуск">
+              <div class="sg-text"><label class="sg-label" for="set-open-ui" data-i18n="sg.open">Открывать панель при запуске</label><div class="sg-desc" data-i18n="sg.open.d">Иначе Proxy запускается тихо — только значок в трее.</div></div>
+              <div class="sg-ctl"><label class="switch"><input type="checkbox" id="set-open-ui" data-setting="open_ui_on_start" role="switch"><span class="slider"></span></label></div>
+            </div>
+            <div class="sg-row" data-k="закрытие окна трей tray close quit выход выключение">
+              <div class="sg-text"><div class="sg-label" data-i18n="sg.close">Кнопка «Закрыть»</div><div class="sg-desc" data-i18n="sg.close.d">Значок Proxy в трее (у часов) открывает панель снова, там же — выключение.</div></div>
+              <div class="sg-ctl"><div class="sg-seg" role="radiogroup" data-for="set-close"><button type="button" class="sg-seg-btn" role="radio" data-v="true" data-i18n="sg.close.tray">Сворачивает в трей</button><button type="button" class="sg-seg-btn" role="radio" data-v="false" data-i18n="sg.close.exit">Выключает Proxy</button></div><select id="set-close" data-setting="close_to_tray" hidden aria-hidden="true" tabindex="-1"><option value="true">tray</option><option value="false">exit</option></select></div>
+            </div>
+          </div>
+          </div>
+        </section>
+        <section class="sg-sec" id="sg-sec-routing" data-sec="routing" aria-labelledby="sg-h-routing">
+          <header class="sg-sec-head"><div class="sg-sec-ico" aria-hidden="true"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5.5" cy="12" r="2"/><path d="M7.5 12h3c2 0 2.5-5.5 5-5.5h3M10.5 12c2 0 2.5 5.5 5 5.5h3"/><path d="m16.5 4.5 2 2-2 2M16.5 15.5l2 2-2 2"/></svg></div><div><h3 id="sg-h-routing" data-i18n="sg.sec.routing">Маршрутизация</h3><p data-i18n="sg.sec.routing.d">Какой аккаунт отвечает на запрос и как называются модели.</p></div></header>
+          <div class="sg-group ">
+          <h4 class="sg-gtitle" data-i18n="sg.g.pick">Выбор аккаунта</h4>
+          <div class="sg-card">
+            <div class="sg-row" data-k="балансировка балансировщик round-robin по очереди приоритет balancing load order least used">
+              <div class="sg-text"><label class="sg-label" for="set-balancing" data-i18n="sg.bal">Как выбирать аккаунт</label><div class="sg-desc" id="sg-bal-desc"></div></div>
+              <div class="sg-ctl"><select id="set-balancing" data-setting="balancing"><option value="round-robin" data-i18n="sg.bal.rr">По очереди</option><option value="order" data-i18n="sg.bal.order">Строго по порядку</option><option value="first-available" data-i18n="sg.bal.fa">Сначала проверенные</option><option value="least-used" data-i18n="sg.bal.lu">Давно не использованный</option></select></div>
+            </div>
+            <div class="sg-row" data-k="порядок приоритет резерв перетаскивание order priority reserve drag">
+              <div class="sg-text"><div class="sg-label" data-i18n="sg.order">Порядок аккаунтов</div><div class="sg-desc" data-i18n="sg.order.d">Кто выше в списке, того берут первым. Аккаунты «в резерве» — только после остальных.</div></div>
+              <div class="sg-ctl"><button type="button" class="btn small" data-sg-jump="accounts"><span data-i18n="sg.order.btn">Аккаунты</span><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button></div>
+            </div>
+            <div class="sg-row" data-k="провайдер по умолчанию default provider префикс prefix неоднозначный">
+              <div class="sg-text"><label class="sg-label" for="default-provider-select" data-i18n="sg.defprov">Провайдер по умолчанию</label><div class="sg-desc" data-i18n="sg.defprov.d">Для модели без префикса, если такое имя есть у нескольких провайдеров.</div></div>
+              <div class="sg-ctl"><select id="default-provider-select"><option value="">—</option></select></div>
+            </div>
+            <div class="sg-row" data-k="проверка аккаунтов куки фоновая интервал cookie check interval background минут">
+              <div class="sg-text"><label class="sg-label" for="set-checkint" data-i18n="sg.check">Проверять аккаунты</label><div class="sg-desc" data-i18n="sg.check.d">Как часто Proxy сам проверяет, что аккаунты живы. 0 — не проверять.</div></div>
+              <div class="sg-ctl"><span class="sg-num"><input type="number" id="set-checkint" min="0" max="10080" data-setting="cookie_check_interval"><span class="sg-unit" data-i18n="sg.unit.min">мин</span></span></div>
+            </div>
+          </div>
+          </div>
+          <details class="sg-more sg-group">
+            <summary><span class="sg-more-t" data-i18n="sg.more">Дополнительно</span><span class="sg-more-hint" data-i18n="sg.more.routing">префиксы и строгий каталог</span></summary>
+          <div class="sg-card">
+            <div class="sg-row" data-k="префиксы моделей prefix model id имена названия">
+              <div class="sg-text"><label class="sg-label" for="set-prefixes" data-i18n="sg.prefix">Префикс провайдера в ID моделей</label><div class="sg-desc" data-i18n-html="sg.prefix.d">Например, <code>genspark-claude-opus-5</code> вместо <code>claude-opus-5</code>. Помогает, когда одна модель есть у нескольких провайдеров.</div></div>
+              <div class="sg-ctl"><label class="switch"><input type="checkbox" id="set-prefixes" data-setting="use_prefixes" role="switch"><span class="slider"></span></label></div>
+            </div>
+            <div class="sg-row" data-k="строгий каталог strict 404 неизвестные модели unknown">
+              <div class="sg-text"><label class="sg-label" for="set-strict" data-i18n="sg.strict">Строгий каталог</label><div class="sg-desc" data-i18n="sg.strict.d">Неизвестная модель получает ошибку 404, а не уходит провайдеру как есть.</div></div>
+              <div class="sg-ctl"><label class="switch"><input type="checkbox" id="set-strict" data-setting="strict_models" role="switch"><span class="slider"></span></label></div>
+            </div>
+          </div>
+          </details>
+        </section>
+        <section class="sg-sec" id="sg-sec-providers" data-sec="providers" aria-labelledby="sg-h-providers">
+          <header class="sg-sec-head"><div class="sg-sec-ico" aria-hidden="true"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3.5v4.5M15 3.5v4.5"/><path d="M6.5 8h11v3.5a5.5 5.5 0 0 1-11 0z"/><path d="M12 17v3.5"/></svg></div><div><h3 id="sg-h-providers" data-i18n="sg.sec.providers">Провайдеры</h3><p data-i18n="sg.sec.providers.d">Особые параметры каждого сервиса. Значения по умолчанию подходят почти всем.</p></div></header>
+          <div id="provider-settings"></div>
+        </section>
+        <section class="sg-sec" id="sg-sec-search" data-sec="search" aria-labelledby="sg-h-search">
+          <header class="sg-sec-head"><div class="sg-sec-ico" aria-hidden="true"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></svg></div><div><h3 id="sg-h-search" data-i18n="sg.sec.search">Веб-поиск</h3><p data-i18n="sg.sec.search.d">Proxy сам ищет в интернете и добавляет найденное в запрос — для провайдеров без своего поиска. Работает и для сторонних клиентов на /v1.</p></div></header>
+          <div class="sg-group ">
+          <div class="sg-card">
+            <div class="sg-row" data-k="поиск источник search engine bing duckduckgo google tavily brave searxng serper kagi exa">
+              <div class="sg-text"><label class="sg-label" for="search-engine" data-i18n="sg.search.engine">Источник</label><div class="sg-desc" id="search-note"></div></div>
+              <div class="sg-ctl"><select id="search-engine"></select></div>
+            </div>
+            <div class="sg-row" id="search-key-field" hidden data-k="ключ api key поиск search">
+              <div class="sg-text"><label class="sg-label" id="search-key-label" for="search-key" data-i18n="set.search.key">API-ключ</label></div>
+              <div class="sg-ctl"><input type="password" id="search-key" autocomplete="off"></div>
+            </div>
+            <div class="sg-row" id="search-url-field" hidden data-k="адрес сервера url searxng cx">
+              <div class="sg-text"><label class="sg-label" id="search-url-label" for="search-url" data-i18n="set.search.url">Адрес сервера</label></div>
+              <div class="sg-ctl"><input type="text" id="search-url"></div>
+            </div>
+            <div class="sg-row" data-k="проверить поиск test search">
+              <div class="sg-text"><div class="sg-label" data-i18n="sg.search.try">Проверка</div><div class="sg-desc" data-i18n="sg.search.try.d">Один тестовый запрос к выбранному источнику.</div></div>
+              <div class="sg-ctl"><span class="sg-inline"><span class="dim" id="search-test-result"></span><button class="btn small" id="search-test" type="button" data-i18n="set.search.test">Проверить</button></span></div>
+            </div>
+          </div>
+          </div>
+          <details class="sg-more sg-group">
+            <summary><span class="sg-more-t" data-i18n="sg.more">Дополнительно</span><span class="sg-more-hint" data-i18n="sg.more.search">сколько результатов добавлять</span></summary>
+          <div class="sg-card">
+            <div class="sg-row" data-k="результатов количество results count поиск">
+              <div class="sg-text"><label class="sg-label" for="set-search-count" data-i18n="sg.search.count">Результатов в запросе</label><div class="sg-desc" data-i18n="sg.search.count.d">Сколько найденных страниц добавлять к запросу (1–10).</div></div>
+              <div class="sg-ctl"><span class="sg-num"><input type="number" id="set-search-count" min="1" max="10" data-setting="search_results"><span class="sg-unit"></span></span></div>
+            </div>
+          </div>
+          </details>
+        </section>
+        <section class="sg-sec" id="sg-sec-access" data-sec="access" aria-labelledby="sg-h-access">
+          <header class="sg-sec-head"><div class="sg-sec-ico" aria-hidden="true"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5 19.5 6v5.5c0 4.5-3.2 7.8-7.5 9-4.3-1.2-7.5-4.5-7.5-9V6z"/><path d="m9 12 2 2 4-4"/></svg></div><div><h3 id="sg-h-access" data-i18n="sg.sec.access">Доступ и безопасность</h3><p data-i18n="sg.sec.access.d">Кто может пользоваться API и открывать эту панель.</p></div></header>
+          <div class="sg-group ">
+          <h4 class="sg-gtitle" data-i18n="sg.g.keys">API-ключи клиентов</h4>
+          <div class="sg-card">
+            <div class="sg-row" data-k="api ключи клиентов keys bearer authorization токен token доступ">
+              <div class="sg-text"><div class="sg-label" data-i18n="sg.keys">Ключи для программ</div><div class="sg-desc" data-i18n-html="sg.keys.d">Программа передаёт ключ в заголовке <code>Authorization: Bearer &lt;ключ&gt;</code>. Пока ключей нет, API открыт всем, кто может до него достучаться.</div></div>
+              <div class="sg-ctl"><button class="btn small primary" id="key-generate" data-i18n="set.key.new">+ Создать ключ</button></div>
+            </div>
+            <div class="sg-row sg-row-block" data-k="api ключи список keys list">
+              <div class="table-wrap" id="keys-table"></div>
+            </div>
+          </div>
+          </div>
+          <div class="sg-group ">
+          <h4 class="sg-gtitle" data-i18n="sg.g.panel">Панель</h4>
+          <div class="sg-card">
+            <div class="sg-row" data-k="пароль панели password admin вход login безопасность">
+              <div class="sg-text"><div class="sg-label" data-i18n="sg.pwd">Пароль панели</div><div class="sg-desc" data-i18n="sg.pwd.d">Нужен, когда панель открывают по сети. После смены сетевые сеансы завершатся.</div></div>
+              <div class="sg-ctl"><span class="sg-inline"><span class="chip warn" id="sg-pwd-default" hidden data-i18n="sg.pwd.default">стандартный</span><button class="btn small" id="sg-pwd-toggle" type="button" aria-expanded="false" aria-controls="password-form" data-i18n="sg.pwd.btn">Сменить…</button></span></div>
+            </div>
+            <div class="sg-row sg-row-block" id="sg-pwd-row" hidden data-k="пароль password">
+              <form class="sg-pwd-form" id="password-form">
+                <div class="field"><label for="pwd-old" data-i18n="set.pwd.old">Текущий пароль</label><input type="password" id="pwd-old" autocomplete="current-password" required></div>
+                <div class="field"><label for="pwd-new" data-i18n="set.pwd.new">Новый пароль</label><input type="password" id="pwd-new" minlength="8" maxlength="256" autocomplete="new-password" required></div>
+                <div class="field field-action"><button class="btn primary" id="pwd-change" type="submit" data-i18n="set.pwd.btn">Сменить пароль</button></div>
+              </form>
+            </div>
+            <div class="sg-row" data-k="публичный доступ интернет туннель public tunnel ngrok cloudflare внешний">
+              <div class="sg-text"><div class="sg-label" data-i18n="sg.public">Публичный доступ</div><div class="sg-desc" data-i18n="sg.public.d">Отдельный адрес для других людей и устройств: только API моделей, свои ключи и лимиты.</div></div>
+              <div class="sg-ctl"><button type="button" class="btn small" data-sg-jump="public"><span data-i18n="sg.open.btn">Открыть</span><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button></div>
+            </div>
+          </div>
+          </div>
+          <details class="sg-more sg-group">
+            <summary><span class="sg-more-t" data-i18n="sg.more">Дополнительно</span><span class="sg-more-hint" data-i18n="sg.more.access">CORS для браузерных приложений</span></summary>
+          <div class="sg-card">
+            <div class="sg-row" data-k="cors браузер browser origin">
+              <div class="sg-text"><label class="sg-label" for="set-cors" data-i18n="sg.cors">Запросы из браузера (CORS)</label><div class="sg-desc" data-i18n="sg.cors.d">Разрешает веб-приложениям на других сайтах обращаться к /v1 прямо из браузера.</div></div>
+              <div class="sg-ctl"><label class="switch"><input type="checkbox" id="set-cors" data-setting="cors_enabled" role="switch"><span class="slider"></span></label></div>
+            </div>
+          </div>
+          </details>
+        </section>
+        <section class="sg-sec" id="sg-sec-network" data-sec="network" aria-labelledby="sg-h-network">
+          <header class="sg-sec-head"><div class="sg-sec-ico" aria-hidden="true"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4" width="17" height="6.5" rx="1.8"/><rect x="3.5" y="13.5" width="17" height="6.5" rx="1.8"/><path d="M7 7.25h.01M7 16.75h.01"/></svg></div><div><h3 id="sg-h-network" data-i18n="sg.sec.network">Сеть</h3><p data-i18n="sg.sec.network.d">Где Proxy принимает запросы и как сам выходит в интернет.</p></div></header>
+          <div class="sg-group ">
+          <h4 class="sg-gtitle" data-i18n="sg.g.listen">Адрес API</h4>
+          <div class="sg-card">
+            <div class="sg-row" data-k="хост host адрес 127.0.0.1 0.0.0.0 локальная сеть lan listen слушать">
+              <div class="sg-text"><div class="sg-label" data-i18n="sg.host">Кто может подключаться</div><div class="sg-desc" id="sg-host-desc" data-i18n="sg.host.d">Применяется после перезапуска приложения.</div></div>
+              <div class="sg-ctl"><div class="sg-seg" role="radiogroup" data-for="set-host-mode"><button type="button" class="sg-seg-btn" role="radio" data-v="127.0.0.1" data-i18n="sg.host.local">Этот компьютер</button><button type="button" class="sg-seg-btn" role="radio" data-v="0.0.0.0" data-i18n="sg.host.lan">Локальная сеть</button><button type="button" class="sg-seg-btn" role="radio" data-v="custom" data-i18n="sg.host.custom">Другой</button></div><select id="set-host-mode" hidden aria-hidden="true" tabindex="-1"><option value="127.0.0.1">local</option><option value="0.0.0.0">lan</option><option value="custom">custom</option></select></div>
+            </div>
+            <div class="sg-row" id="sg-host-custom" hidden data-k="хост host адрес ip">
+              <div class="sg-text"><label class="sg-label" for="set-host" data-i18n="sg.host.addr">Адрес для прослушивания</label><div class="sg-desc" data-i18n="sg.host.addr.d">IP-адрес сетевой карты этого компьютера.</div></div>
+              <div class="sg-ctl"><input type="text" id="set-host" data-setting="host" spellcheck="false"></div>
+            </div>
+            <div class="sg-row" data-k="порт port 8317">
+              <div class="sg-text"><label class="sg-label" for="set-port" data-i18n="sg.port">Порт</label><div class="sg-desc" data-i18n="sg.port.d">Применяется после перезапуска. Если порт занят, Proxy возьмёт следующий свободный.</div></div>
+              <div class="sg-ctl"><span class="sg-num"><input type="number" id="set-port" min="1" max="65535" data-setting="port"><span class="sg-unit"></span></span></div>
+            </div>
+          </div>
+          </div>
+          <details class="sg-more sg-group">
+            <summary><span class="sg-more-t" data-i18n="sg.more">Дополнительно</span><span class="sg-more-hint" data-i18n="sg.more.network">общий прокси, проверка SSL</span></summary>
+          <div class="sg-card">
+            <div class="sg-row" data-k="прокси proxy socks5 http vpn глобальный исходящие">
+              <div class="sg-text"><label class="sg-label" for="set-proxy" data-i18n="sg.gproxy">Общий прокси</label><div class="sg-desc" data-i18n-html="sg.gproxy.d"><code>http://…</code> или <code>socks5://…</code> — для аккаунтов без своего прокси.</div></div>
+              <div class="sg-ctl"><input type="text" id="set-proxy" data-setting="default_proxy" placeholder="socks5://127.0.0.1:1080" spellcheck="false"></div>
+            </div>
+            <div class="sg-row" data-k="ssl tls сертификат certificate verify проверка">
+              <div class="sg-text"><label class="sg-label" for="set-ssl" data-i18n="sg.ssl">Проверять сертификаты SSL</label><div class="sg-desc" data-i18n="sg.ssl.d">Выключайте, только если сертификат подменяет корпоративный прокси или антивирус.</div></div>
+              <div class="sg-ctl"><label class="switch"><input type="checkbox" id="set-ssl" data-setting="verify_ssl" role="switch"><span class="slider"></span></label></div>
+            </div>
+          </div>
+          </details>
+        </section>
+        <section class="sg-sec" id="sg-sec-cli" data-sec="cli" aria-labelledby="sg-h-cli">
+          <header class="sg-sec-head"><div class="sg-sec-ico" aria-hidden="true"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="m7.5 9.5 3 2.5-3 2.5M12.5 15h4"/></svg></div><div><h3 id="sg-h-cli" data-i18n="sg.sec.cli">Интеграции</h3><p data-i18n="sg.sec.cli.d">Модели Proxy в Claude Code и Codex CLI — без ручной правки файлов.</p></div></header>
+          <div id="cli-tools-root"><div class="empty">…</div></div>
+        </section>
+        <section class="sg-sec" id="sg-sec-reliability" data-sec="reliability" aria-labelledby="sg-h-reliability">
+          <header class="sg-sec-head"><div class="sg-sec-ico" aria-hidden="true"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 12h4l2.5-6.5 4 13 2.5-6.5h4"/></svg></div><div><h3 id="sg-h-reliability" data-i18n="sg.sec.reliability">Надёжность</h3><p data-i18n="sg.sec.reliability.d">Как быстро Proxy переходит на другой аккаунт, если первый не отвечает.</p></div></header>
+          <div class="sg-group ">
+          <div class="sg-card">
+            <div class="sg-row" data-k="первый байт таймаут ожидание first byte timeout">
+              <div class="sg-text"><label class="sg-label" for="set-firstbyte" data-i18n="sg.firstbyte">Ждать начала ответа</label><div class="sg-desc" data-i18n="sg.firstbyte.d">Если провайдер молчит дольше, запрос уходит следующему аккаунту.</div></div>
+              <div class="sg-ctl"><span class="sg-num"><input type="number" id="set-firstbyte" min="5" max="600" data-setting="first_byte_timeout"><span class="sg-unit" data-i18n="sg.unit.s">с</span></span></div>
+            </div>
+            <div class="sg-row" data-k="повторы попытки проходы retry passes">
+              <div class="sg-text"><label class="sg-label" for="set-passes" data-i18n="sg.passes">Повторных проходов</label><div class="sg-desc" data-i18n="sg.passes.d">Сколько раз перебрать все аккаунты при временных ошибках.</div></div>
+              <div class="sg-ctl"><span class="sg-num"><input type="number" id="set-passes" min="1" max="5" data-setting="max_retry_passes"><span class="sg-unit"></span></span></div>
+            </div>
+          </div>
+          </div>
+          <details class="sg-more sg-group">
+            <summary><span class="sg-more-t" data-i18n="sg.more">Дополнительно</span><span class="sg-more-hint" data-i18n="sg.more.reliability">таймауты, паузы, keep-alive</span></summary>
+          <div class="sg-card">
+            <div class="sg-row" data-k="таймаут запроса request timeout">
+              <div class="sg-text"><label class="sg-label" for="set-reqtimeout" data-i18n="sg.reqtimeout">Предел на весь запрос</label><div class="sg-desc" data-i18n="sg.reqtimeout.d">Запрос считается неудачным, если не завершился за это время.</div></div>
+              <div class="sg-ctl"><span class="sg-num"><input type="number" id="set-reqtimeout" min="10" max="3600" data-setting="request_timeout"><span class="sg-unit" data-i18n="sg.unit.s">с</span></span></div>
+            </div>
+            <div class="sg-row" data-k="таймаут тишины стрима stream idle timeout поток">
+              <div class="sg-text"><label class="sg-label" for="set-idle" data-i18n="sg.idle">Тишина в потоке</label><div class="sg-desc" data-i18n="sg.idle.d">Потоковый ответ обрывается, если поток молчит дольше.</div></div>
+              <div class="sg-ctl"><span class="sg-num"><input type="number" id="set-idle" min="5" max="3600" data-setting="stream_idle_timeout"><span class="sg-unit" data-i18n="sg.unit.s">с</span></span></div>
+            </div>
+            <div class="sg-row" data-k="пауза задержка retry delay ms">
+              <div class="sg-text"><label class="sg-label" for="set-delay" data-i18n="sg.delay">Пауза между попытками</label></div>
+              <div class="sg-ctl"><span class="sg-num"><input type="number" id="set-delay" min="0" max="30000" data-setting="retry_delay_ms"><span class="sg-unit" data-i18n="sg.unit.ms">мс</span></span></div>
+            </div>
+            <div class="sg-row" data-k="sse keep-alive keepalive соединение">
+              <div class="sg-text"><label class="sg-label" for="set-keepalive" data-i18n="sg.keepalive">Поддерживать соединение</label><div class="sg-desc" data-i18n="sg.keepalive.d">Пустые сигналы SSE, чтобы клиент не разорвал долгий ответ.</div></div>
+              <div class="sg-ctl"><label class="switch"><input type="checkbox" id="set-keepalive" data-setting="sse_keepalive" role="switch"><span class="slider"></span></label></div>
+            </div>
+            <div class="sg-row" data-k="интервал keep-alive interval sse">
+              <div class="sg-text"><label class="sg-label" for="set-keepaliveint" data-i18n="sg.keepaliveint">Интервал сигналов</label></div>
+              <div class="sg-ctl"><span class="sg-num"><input type="number" id="set-keepaliveint" min="3" max="120" data-setting="sse_keepalive_interval"><span class="sg-unit" data-i18n="sg.unit.s">с</span></span></div>
+            </div>
+          </div>
+          </details>
+        </section>
+        <section class="sg-sec" id="sg-sec-logs" data-sec="logs" aria-labelledby="sg-h-logs">
+          <header class="sg-sec-head"><div class="sg-sec-ico" aria-hidden="true"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 3.5H7A2.5 2.5 0 0 0 4.5 6v12A2.5 2.5 0 0 0 7 20.5h10a2.5 2.5 0 0 0 2.5-2.5V8.5z"/><path d="M14.5 3.5v5h5M8.5 12.5h7M8.5 16h5"/></svg></div><div><h3 id="sg-h-logs" data-i18n="sg.sec.logs">Логи и статистика</h3><p data-i18n="sg.sec.logs.d">Что Proxy записывает о запросах. Всё хранится только на этом компьютере.</p></div></header>
+          <div class="sg-group ">
+          <div class="sg-card">
+            <div class="sg-row" data-k="логи журнал запросов log requests">
+              <div class="sg-text"><label class="sg-label" for="set-logreq" data-i18n="sg.logreq">Журнал запросов</label><div class="sg-desc" data-i18n="sg.logreq.d">Список запросов с ошибками и временем на вкладке «Логи».</div></div>
+              <div class="sg-ctl"><label class="switch"><input type="checkbox" id="set-logreq" data-setting="log_requests" role="switch"><span class="slider"></span></label></div>
+            </div>
+            <div class="sg-row" data-k="статистика метрики metrics графики charts">
+              <div class="sg-text"><label class="sg-label" for="set-metrics" data-i18n="sg.metrics">Статистика</label><div class="sg-desc" data-i18n="sg.metrics.d">Графики запросов, токенов и ошибок на главной.</div></div>
+              <div class="sg-ctl"><label class="switch"><input type="checkbox" id="set-metrics" data-setting="metrics_enabled" role="switch"><span class="slider"></span></label></div>
+            </div>
+            <div class="sg-row" data-k="логи журнал logs open">
+              <div class="sg-text"><div class="sg-label" data-i18n="sg.openlogs">Журнал</div></div>
+              <div class="sg-ctl"><button type="button" class="btn small" data-sg-jump="logs"><span data-i18n="sg.openlogs.btn">Открыть логи</span><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button></div>
+            </div>
+          </div>
+          </div>
+          <details class="sg-more sg-group">
+            <summary><span class="sg-more-t" data-i18n="sg.more">Дополнительно</span><span class="sg-more-hint" data-i18n="sg.more.logs">хранение между запусками, содержимое стадий</span></summary>
+          <div class="sg-card">
+            <div class="sg-row" data-k="хранить логи диск persist">
+              <div class="sg-text"><label class="sg-label" for="set-logpersist" data-i18n="sg.logpersist">Хранить журнал между запусками</label><div class="sg-desc" data-i18n="sg.logpersist.d">Иначе журнал очищается при выходе из Proxy.</div></div>
+              <div class="sg-ctl"><label class="switch"><input type="checkbox" id="set-logpersist" data-setting="log_persist" role="switch"><span class="slider"></span></label></div>
+            </div>
+            <div class="sg-row" data-k="payload стадии содержимое отладка debug">
+              <div class="sg-text"><label class="sg-label" for="set-logpayloads" data-i18n="sg.logpayloads">Сохранять содержимое стадий</label><div class="sg-desc" data-i18n="sg.logpayloads.d">Тексты запросов и ответов по шагам — для отладки. Занимает место на диске.</div></div>
+              <div class="sg-ctl"><label class="switch"><input type="checkbox" id="set-logpayloads" data-setting="log_payloads" role="switch"><span class="slider"></span></label></div>
+            </div>
+          </div>
+          </details>
+        </section>
+        <section class="sg-sec" id="sg-sec-system" data-sec="system" aria-labelledby="sg-h-system">
+          <header class="sg-sec-head"><div class="sg-sec-ico" aria-hidden="true"><svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v8.5"/><path d="M17.7 6.8a8 8 0 1 1-11.4 0"/></svg></div><div><h3 id="sg-h-system" data-i18n="sg.sec.system">Система</h3><p data-i18n="sg.sec.system.d">Перезапуск, сброс данных и выключение.</p></div></header>
+          <div class="sg-group ">
+          <div class="sg-card">
+            <div class="sg-row" data-k="перезапуск restart службы сессии">
+              <div class="sg-text"><div class="sg-label" data-i18n="sg.restart">Перезапустить службы</div><div class="sg-desc" data-i18n="sg.restart.d">Пересоздаёт соединения и провайдеров, снимает блокировки моделей. Окно не закроется, активные запросы могут прерваться.</div></div>
+              <div class="sg-ctl"><button class="btn small" type="button" data-sg-click="#proxy-restart" data-i18n="sg.restart.btn">Перезапустить</button></div>
+            </div>
+            <div class="sg-row" data-k="версия version">
+              <div class="sg-text"><div class="sg-label" data-i18n="sg.version">Версия</div></div>
+              <div class="sg-ctl"><span class="sg-value mono" id="sg-version">—</span></div>
+            </div>
+          </div>
+          </div>
+          <div class="sg-group sg-danger">
+          <h4 class="sg-gtitle" data-i18n="sg.g.danger">Опасная зона</h4>
+          <div class="sg-card">
+            <div class="sg-row" data-k="сбросить статистику reset metrics">
+              <div class="sg-text"><div class="sg-label" data-i18n="sg.resetmetrics">Сбросить статистику</div><div class="sg-desc" data-i18n="sg.resetmetrics.d">Вся история графиков будет удалена. Журнал запросов останется.</div></div>
+              <div class="sg-ctl"><button class="btn small danger" type="button" data-sg-click="#metrics-reset" data-i18n="sg.reset.btn">Сбросить</button></div>
+            </div>
+            <div class="sg-row" data-k="очистить логи журнал clear logs">
+              <div class="sg-text"><div class="sg-label" data-i18n="sg.clearlogs">Очистить журнал запросов</div><div class="sg-desc" data-i18n="sg.clearlogs.d">Удаляет журнал, в том числе файл на диске.</div></div>
+              <div class="sg-ctl"><button class="btn small danger" type="button" data-sg-click="#logs-clear" data-i18n="sg.clear.btn">Очистить</button></div>
+            </div>
+            <div class="sg-row" data-k="выключить выключение shutdown quit exit">
+              <div class="sg-text"><div class="sg-label" data-i18n="sg.shutdown">Выключить MemuAI Proxy</div><div class="sg-desc" data-i18n="sg.shutdown.d">Останавливает API и фоновые задачи и закрывает приложение.</div></div>
+              <div class="sg-ctl"><button class="btn small danger" id="app-shutdown" type="button" data-i18n="sg.shutdown.btn">⏻ Выключить</button></div>
+            </div>
+          </div>
+          </div>
+        </section>
+          <div class="sg-found" id="sg-found" hidden>
+            <div class="sg-found-title" data-i18n="sg.found.elsewhere">Также в других разделах</div>
+            <div class="sg-found-list" id="sg-found-list"></div>
+          </div>
+          <div class="sg-empty" id="sg-empty" hidden>
+            <b data-i18n="sg.empty">Ничего не нашлось</b>
+            <span data-i18n="sg.empty.d">Попробуйте другое слово — например, «порт», «ключ» или «таймаут».</span>
+          </div>
+        </div>
+        </div>
+      </section>
+
+      <!-- ============ ЛОГИ ============ -->
+      <section class="tab" id="tab-logs">
+        <h2 class="tab-title" data-i18n="logs.title">Логи</h2>
+        <p class="tab-sub" data-i18n="logs.sub">Статус + стадии с payload'ами</p>
+
+        <div class="segmented" id="logs-view-switch">
+          <button class="seg active" data-logview="requests" data-i18n="logs.view.requests">Запросы</button>
+          <button class="seg" data-logview="server" data-i18n="logs.view.server">Журнал сервера</button>
+        </div>
+
+        <div id="logs-view-requests">
+          <div class="card log-toolbar">
+            <div class="row" style="flex-wrap:wrap; gap:8px">
+              <div style="flex:1 1 220px"><input type="search" id="logs-search" data-i18n-ph="logs.search" placeholder="Поиск по модели, ошибке, payload…"></div>
+              <label class="inline-field"><span data-i18n="logs.filter.status">Статус</span>
+                <select id="logs-status">
+                  <option value="" data-i18n="logs.filter.all">все</option>
+                  <option value="ok" data-i18n="logs.filter.ok">успешные</option>
+                  <option value="error" data-i18n="logs.filter.err">с ошибкой</option>
+                  <option value="pending" data-i18n="logs.filter.pending">выполняются</option>
+                </select></label>
+              <label class="inline-field"><span data-i18n="logs.filter.provider">Провайдер</span>
+                <select id="logs-provider"><option value="" data-i18n="logs.filter.all">все</option></select></label>
+              <label class="inline-field"><span data-i18n="logs.filter.model">Модель</span>
+                <select id="logs-model"><option value="" data-i18n="logs.filter.all">все</option></select></label>
+              <label class="inline-field"><span data-i18n="logs.filter.period">Период</span>
+                <select id="logs-period">
+                  <option value="0" data-i18n="logs.filter.all">все</option>
+                  <option value="900">15 min</option>
+                  <option value="3600">1 h</option>
+                  <option value="86400">24 h</option>
+                  <option value="604800">7 d</option>
+                </select></label>
+            </div>
+            <div class="row" style="flex-wrap:wrap; gap:8px; margin-top:8px">
+              <label class="inline-field"><span class="switch"><input type="checkbox" id="logs-auto" checked><span class="slider"></span></span>
+                <span data-i18n="logs.auto">автообновление</span></label>
+              <label class="inline-field"><span class="switch"><input type="checkbox" id="logs-wrap" checked><span class="slider"></span></span>
+                <span data-i18n="logs.wrap">переносить строки</span></label>
+              <label class="inline-field"><span class="switch"><input type="checkbox" id="logs-expand-all"><span class="slider"></span></span>
+                <span data-i18n="logs.expandall">раскрыть стадии</span></label>
+              <label class="inline-field"><span data-i18n="logs.limit">На странице</span>
+                <select id="logs-limit"><option>50</option><option selected>100</option><option>200</option><option>500</option></select></label>
+              <div class="grow"></div>
+              <button class="btn small" id="logs-refresh" data-i18n="logs.refresh">⟳ Обновить</button>
+              <button class="btn small" id="logs-copy" data-i18n="logs.copyall">⧉ Копировать</button>
+              <button class="btn small" id="logs-export-json" data-i18n="logs.export.json">↧ JSON</button>
+              <button class="btn small" id="logs-export-txt" data-i18n="logs.export.txt">↧ TXT</button>
+              <button class="btn small danger" id="logs-clear" data-i18n="logs.clear">Очистить</button>
+            </div>
+            <div class="row" style="margin-top:8px">
+              <span class="dim" id="logs-summary"></span>
+            </div>
+          </div>
+          <div id="logs-list" class="selectable"></div>
+          <div class="row" style="margin-top:12px; justify-content:center">
+            <button class="btn" id="logs-prev" data-i18n="logs.prev">← Новее</button>
+            <span class="dim" id="logs-page">1</span>
+            <button class="btn" id="logs-next" data-i18n="logs.next">Старее →</button>
+          </div>
+        </div>
+
+        <div id="logs-view-server" hidden>
+          <div class="card log-toolbar">
+            <div class="row" style="flex-wrap:wrap; gap:8px">
+              <div style="flex:1 1 220px"><input type="search" id="applog-search" data-i18n-ph="logs.search" placeholder="Поиск…"></div>
+              <label class="inline-field"><span data-i18n="logs.filter.level">Уровень</span>
+                <select id="applog-level">
+                  <option value="" data-i18n="logs.filter.all">все</option>
+                  <option value="DEBUG">DEBUG</option>
+                  <option value="INFO">INFO</option>
+                  <option value="WARNING">WARNING</option>
+                  <option value="ERROR">ERROR</option>
+                </select></label>
+              <label class="inline-field"><span class="switch"><input type="checkbox" id="applog-auto" checked><span class="slider"></span></span>
+                <span data-i18n="logs.auto">автообновление</span></label>
+              <div class="grow"></div>
+              <button class="btn small" id="applog-refresh" data-i18n="logs.refresh">⟳ Обновить</button>
+              <button class="btn small" id="applog-copy" data-i18n="logs.copyall">⧉ Копировать</button>
+              <button class="btn small danger" id="applog-clear" data-i18n="logs.clear">Очистить</button>
+            </div>
+          </div>
+          <pre class="applog selectable" id="applog-body"></pre>
+        </div>
+      </section>
+
+    </main>
+  </div>
+  </div>
+</div>
+
+<aside class="companion" id="companion" data-i18n-aria="nav.companion" aria-label="ИИ-помощник" hidden>
+  <header class="companion-head">
+    <span class="companion-mark" aria-hidden="true">✦</span>
+    <div class="companion-title"><b data-i18n="nav.companion">ИИ-помощник</b><span id="companion-model-label"></span></div>
+    <button class="icon-btn" id="companion-new" type="button" data-i18n-aria="comp.new" aria-label="Новый диалог" title="">⟲</button>
+    <button class="icon-btn" id="companion-close" type="button" data-i18n-aria="comp.close" aria-label="Закрыть">✕</button>
+  </header>
+  <div class="companion-model"><label for="companion-model" data-i18n="comp.model">Модель помощника</label><select id="companion-model"></select></div>
+  <div class="companion-log selectable" id="companion-log" aria-live="polite"></div>
+  <form class="companion-form" id="companion-form">
+    <div class="companion-context" id="companion-context" hidden></div>
+    <textarea id="companion-input" rows="2" data-i18n-ph="comp.placeholder" placeholder="Опишите проблему или вставьте ошибку…"></textarea>
+    <button class="btn primary" id="companion-send" type="submit" data-i18n="comp.send">Спросить</button>
+  </form>
+</aside>
+<button class="companion-fab" id="companion-fab" type="button" hidden data-i18n-aria="nav.companion" aria-label="ИИ-помощник">✦</button>
+
+<div class="modal-back" id="modal-back" aria-hidden="true"><div class="modal" id="modal-box" role="dialog" aria-modal="true" tabindex="-1"></div></div>
+<div id="toasts" role="status" aria-live="polite" aria-atomic="true"></div>
+<script src="/icons.js"></script>
+<script src="/i18n.js"></script>
+<script src="/i18n-tools.js"></script>
+<script src="/settings-i18n.js"></script>
+<script src="/proxy-r33-i18n.js?v=3.5-r33"></script>
+<script src="/quota-planner-i18n.js?v=3.5-r35"></script><!-- Round 35 (quota) -->
+<script src="/composite-i18n.js?v=3.5-r35"></script><!-- Round 35 (composite) -->
+<script src="/model-names.js?v=3.5-r33"></script><!-- Round 33 (r33c-models-lists): readable model names (= app/model_names.py) -->
+<script src="/geminiweb.js?v=3.7-r41"></script><!-- Round 37 (r37-gemini) -->
+<script src="/opencode-setup.js?v=3.8-r48"></script>
+<script src="/app.js?v=3.8-r48"></script>
+<script src="/proxy-r33.js?v=3.5-r33"></script>
+<script src="/proxy-catalog-r33.js?v=3.5-r33"></script>
+<script src="/guide-video.js?v=3.5-r33"></script>
+<script src="/settings.js"></script>
+<script src="/model-refresh.js?v=3.8-r46"></script>
+<script src="/local.js"></script>
+<script src="/local-wizard.js?v=3.5-r33"></script>
+<script src="/detector.js"></script>
+<script src="/public.js"></script>
+<script src="/chat.js"></script>
+<script src="/companion.js"></script>
+<script src="/cli_tools.js"></script>
+<script src="/model_caps.js"></script>
+<script src="/web-models.js?v=3.6-r40"></script><!-- Round 40 (r40-proxy) -->
+<!-- Round 33 (r33-thinking): «Reasoning levels» section of the model card -->
+<script src="/reasoning_card.js?v=3.5-r33"></script>
+<script src="/quota-planner.js?v=3.8-r44"></script>
+<script src="/composite.js?v=3.6-r40"></script><!-- Round 35 (composite) -->
+</body>
+</html>

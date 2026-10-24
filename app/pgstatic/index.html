@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MemuAI</title>
+<!-- Round 33: shortcuts in any keyboard layout (event.code fallback) -->
+<script src="/memu-keys.js?v=3.5-r33"></script>
+<!-- Round 29: window.MEMU_SAFE_MODE before the first paint (app/safe_mode.py). -->
+<script src="/api/pg/safe-mode/boot.js"></script>
+<!-- Round 33: ?module_app=<id> = a module's own window (flag set before the first paint) -->
+<script src="/module-apps.js?v=3.6-r40"></script>
+<script>
+// First-paint cache only: preferences.json stays authoritative and app.js
+// re-applies everything once it loads. Values are shape-checked because an
+// unknown accent or surface simply has no CSS rule and falls back.
+try {
+  const root = document.documentElement;
+  const startupTheme = localStorage.getItem("memu_theme") === "light" ? "light" : "dark";
+  root.dataset.theme = startupTheme;
+  const accent = localStorage.getItem("memu_accent") || "";
+  root.dataset.accent = /^[a-z]{2,24}$/.test(accent) ? accent : "terracotta";
+  const design = localStorage.getItem("memu_design") || "";
+  root.dataset.design = /^(aurora|focus|grid|glass|soft|terminal|brutal)$/.test(design) ? design : "classic";
+  const surface = localStorage.getItem("memu_surface_" + startupTheme) || "";
+  if (/^[a-z0-9-]{1,48}$/.test(surface)) root.dataset.surface = surface;
+  const background = localStorage.getItem("memu_bg_" + startupTheme) || "";
+  root.style.background = /^#[0-9a-fA-F]{3,8}$/.test(background) ? background
+    : (startupTheme === "light" ? "#fcfcfb" : "#1a1a1c");
+} catch (_) {}
+</script>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden}
+  #startup-cover{position:fixed;inset:0;z-index:1000000}
+  body.booting>#app{visibility:hidden;opacity:0}
+</style>
+<link rel="stylesheet" href="/style.css?v=1.9-r41">
+<link rel="stylesheet" href="/themes.css">
+<link rel="stylesheet" href="/appearance.css?v=1.8-r36">
+<link rel="stylesheet" href="/memucode.css?v=2.4-r36">
+<link rel="stylesheet" href="/modules.css?v=3.4-r33">
+<link rel="stylesheet" href="/module-icons.css?v=3.6-r39">
+<link rel="stylesheet" href="/module-focus.css?v=3.6-r38">
+<link rel="stylesheet" href="/module-apps.css?v=3.8-r47">
+<link rel="stylesheet" href="/module-appbar.css?v=3.6-r38">
+<link rel="stylesheet" href="/docs.css?v=1.1-r29">
+<link rel="stylesheet" href="/docs-ai.css?v=1.0-r29">
+<!-- Design 3 ("Canvas"): the final visual layer of MemuAI. Colours still come
+     from /themes.css; this file owns layout, depth, typography and motion. -->
+<link rel="stylesheet" href="/design.css?v=3.4-r36">
+<!-- Alternative whole-interface designs, each scoped to :root[data-design="…"].
+     "classic" is design.css itself. Round 36: all seven stay in the cascade
+     order below (downloaded once, cached), but only the active one matches —
+     the others carry media="not all", so ~4 000 rules no longer take part in
+     every style recalc. The script right after them follows data-design
+     (settings, theme editor preview, safe mode) synchronously, before paint. -->
+<link rel="stylesheet" href="/designs/aurora.css?v=1.1-r36" data-design-css="aurora" media="not all">
+<link rel="stylesheet" href="/designs/focus.css?v=1.0" data-design-css="focus" media="not all">
+<link rel="stylesheet" href="/designs/grid.css?v=1.2-r36" data-design-css="grid" media="not all">
+<link rel="stylesheet" href="/designs/glass.css?v=3.8-r47" data-design-css="glass" media="not all">
+<link rel="stylesheet" href="/designs/soft.css?v=1.0-r24" data-design-css="soft" media="not all">
+<link rel="stylesheet" href="/designs/terminal.css?v=1.0-r24" data-design-css="terminal" media="not all">
+<link rel="stylesheet" href="/designs/brutal.css?v=1.0-r24" data-design-css="brutal" media="not all">
+<script>
+(function () {
+  const root = document.documentElement, links = document.querySelectorAll("link[data-design-css]");
+  let current = null;
+  // A loaded sheet is switched through its CSSOM media list: synchronous, no
+  // refetch (rewriting the media attribute makes Chromium reload the file
+  // and apply it a frame later — a flash of the old design).
+  const turn = (link, on) => {
+    const want = on ? "all" : "not all";
+    if (link.sheet) { if (link.sheet.media.mediaText !== want) link.sheet.media.mediaText = want; }
+    else if (link.media !== want) link.media = want;
+  };
+  const sync = () => {
+    const design = root.dataset.design || "classic";
+    if (design === current) return;
+    current = design;
+    for (const link of links) turn(link, link.dataset.designCss === design);
+  };
+  sync();
+  new MutationObserver(sync).observe(root, { attributes: true, attributeFilter: ["data-design"] });
+})();
+</script>
+<!-- Round20 motion layer: design-independent animations (after the designs). -->
+<link rel="stylesheet" href="/motion.css?v=1.0">
+<link rel="stylesheet" href="/appearance-plus.css?v=1.1-r30">
+<link rel="stylesheet" href="/voice-player.css?v=3.8-r46">
+<link rel="stylesheet" href="/products.css?v=1.0">
+<link rel="stylesheet" href="/tables.css?v=1.1-r30">
+<link rel="stylesheet" href="/diagrams.css?v=1.1-r30">
+<link rel="stylesheet" href="/cmd-highlight.css?v=1.0-r30">
+<link rel="stylesheet" href="/media-routing.css?v=1.0-r29">
+<link rel="stylesheet" href="/media-cache.css?v=1.0-r33"><!-- Round 33 (r33d-media): expired picture card -->
+<link rel="stylesheet" href="/model-picker.css?v=3.5-r33"><!-- Round 33 (r33-models): the unified model picker -->
+<link rel="stylesheet" href="/telegram-settings.css?v=1.0">
+<!-- Round 21: Settings → Quick Ask (the popup itself is /quick/). -->
+<link rel="stylesheet" href="/quick-settings.css?v=1.1-r23">
+<link rel="stylesheet" href="/quick-selection-settings.css?v=1.0-r27">
+<!-- Round20 custom title bar: window buttons, active only with html[data-titlebar="custom"]. -->
+<link rel="stylesheet" href="/titlebar.css?v=1.0">
+<!-- Round21 panels: home grid, sidebar stack, top-bar minis (panels.js). -->
+<link rel="stylesheet" href="/panels.css?v=3.8-r46">
+<link rel="stylesheet" href="/panels-layout.css?v=3.6-r36">
+<link rel="stylesheet" href="/hotkeys.css?v=1.1-r30">
+<link rel="stylesheet" href="/modules-aipack.css?v=1.1-r30">
+<link rel="stylesheet" href="/companion/companion.css?v=1.3-r34">
+<!-- Round 23: settings shell + component kit (settings-kit.js); after every design and section stylesheet. -->
+<link rel="stylesheet" href="/settings.css?v=1.4-r36">
+<link rel="stylesheet" href="/reflect.css?v=1.0-r27">
+<link rel="stylesheet" href="/memory.css?v=1.2-r40">
+<!-- Round 29: scheduled messages (schedsend.js) and the chat export dialog (export.js). -->
+<link rel="stylesheet" href="/schedsend.css?v=1.0-r29">
+<!-- Round 29: «Планирование» 2.0 — rule builder (plan.js). -->
+<link rel="stylesheet" href="/plan.css?v=1.4-r30">
+<link rel="stylesheet" href="/flows.css?v=3.5-r35"><!-- Round 35: step constructor (flows.js) -->
+<link rel="stylesheet" href="/plan-triggers.css?v=2-r35">
+<link rel="stylesheet" href="/plan-conds.css?v=2-r37"><!-- Round 37: more conditions (plan-conds.js) -->
+<link rel="stylesheet" href="/plan-templates.css?v=1-r37"><!-- Round 37 (plan-2): the scenario gallery -->
+<link rel="stylesheet" href="/inbox.css?v=3.5-r36"><!-- Round 35: «Входящие» (inbox.js) -->
+<link rel="stylesheet" href="/deeplinks.css?v=3.5-r35"><!-- Round 35: memuai:// links (deeplinks.js) -->
+<link rel="stylesheet" href="/export.css?v=1.0-r29">
+<!-- Round 29: global search palette (search.js); after the designs, re-tunes itself per design. -->
+<link rel="stylesheet" href="/search.css?v=1.2-r30">
+<link rel="stylesheet" href="/sync-settings.css?v=1.0-r29">
+<link rel="stylesheet" href="/gdrive-picker.css?v=1.1-r29">
+<!-- Round 30: Settings → Integrations → Google / Notion (integrations-ui.js) -->
+<link rel="stylesheet" href="/integrations-ui.css?v=3.8-r46">
+<link rel="stylesheet" href="/telegram-use.css?v=3.8-r46">
+<link rel="stylesheet" href="/browser-extension-settings.css?v=3.8-r45">
+<!-- Round 33: «Видео-инструкция» player (guide-video.js, clips in /guides/) -->
+<link rel="stylesheet" href="/guide-video.css?v=3.5-r33">
+<link rel="stylesheet" href="/app-settings-form.css?v=1.0-r38">
+<link rel="stylesheet" href="/memunote-settings.css?v=1.0-r29">
+<link rel="stylesheet" href="/memufiles-settings.css?v=1.0-r35">
+<link rel="stylesheet" href="/safe-mode.css?v=1.1-r29">
+<link rel="stylesheet" href="/stuck.css?v=1.1-r34">
+<link rel="stylesheet" href="/dfy-remote.css?v=1.0-r30">
+<link rel="stylesheet" href="/vendor/katex/katex.min.css?v=1.0-final">
+<!-- Round 31 (design-main): audit fixes + tour / tips / «?» help (tour.js). -->
+<link rel="stylesheet" href="/polish-r31.css?v=1.1-r31">
+<link rel="stylesheet" href="/tour.css?v=1.0-r31">
+<!-- Round 32: the skill library window (skills-ui.js) -->
+<link rel="stylesheet" href="/skills-ui.css?v=1.0-r36">
+<!-- Round 33: layout options of the theme editor (sidebar side, composer, bubbles…) and the editor UI itself. -->
+<link rel="stylesheet" href="/appearance-layout.css?v=3.5-r33">
+<link rel="stylesheet" href="/theme-editor.css?v=3.5-r33">
+<link rel="stylesheet" href="/tool-details.css?v=3.5-r33">
+<link rel="stylesheet" href="/askuser.css?v=3.5-r35">
+<link rel="stylesheet" href="/bigdocs.css?v=3.5-r35">
+<link rel="stylesheet" href="/memu-dragsort.css?v=3.5-r33">
+<!-- Round 33 (r33-thinking): per-model reasoning levels -->
+<link rel="stylesheet" href="/reasoning.css?v=3.5-r33">
+<link rel="stylesheet" href="/branches.css?v=3.5-r36">
+<link rel="stylesheet" href="/canvas.css?v=3.6-r40">
+<link rel="stylesheet" href="/mcp-hub.css?v=3.6-r40"><!-- r40-mcp -->
+<link rel="stylesheet" href="/mentions.css?v=3.5-r35"><!-- Round 35: @-mentions -->
+<link rel="stylesheet" href="/chat-find.css?v=3.5-r37"><!-- Round 37: Ctrl+F in the chat, bookmarks (chat-find.js) -->
+<link rel="stylesheet" href="/compare.css?v=3.5-r37"><!-- Round 37: compare answer versions side by side (compare.js) -->
+<link rel="stylesheet" href="/composer-snippets.css?v=3.5-r37"><!-- Round 37: ;snippets and {?field} templates in the composer -->
+<link rel="stylesheet" href="/settings-transfer.css?v=3.5-r37">
+<!-- A user theme is injected last so it can override any rule above. -->
+<style id="memu-user-theme"></style>
+<script>
+try {
+  const mode = document.documentElement.dataset.theme;
+  const css = localStorage.getItem("memu_user_theme_" + mode);
+  if (css) document.getElementById("memu-user-theme").textContent = css;
+} catch (_) {}
+</script>
+<link rel="icon" href="/icon.png">
+</head>
+<body class="native-frame booting">
+
+<div id="startup-cover" aria-live="polite">
+  <div class="startup-halo" aria-hidden="true"></div>
+  <div class="startup-mark">✦</div>
+  <div class="startup-name">MemuAI</div>
+  <div class="startup-progress"><i></i></div>
+</div>
+
+<div id="app">
+  <aside class="side">
+    <div class="side-top">
+      <div class="brand"><span class="brand-dot"></span>MemuAI</div>
+      <div class="create-row">
+        <button class="btn-new" id="btn-new">
+          <span class="ico"></span><span data-pg-i18n="new_chat">Новый чат</span>
+        </button>
+        <button class="btn-temp" id="btn-temp" title="Временный чат"></button>
+      </div>
+      <div class="mode-switch">
+        <button class="side-btn active-section" id="nav-chat"><span class="ico"></span><span data-pg-i18n="chat_mode">Чат</span></button>
+        <button class="side-btn" id="nav-work"><span class="ico"></span><span>Work</span></button>
+        <button class="side-btn" id="nav-code" aria-label="MemuCode"><span class="ico"></span><span>MemuCode</span></button>
+      </div>
+      <div class="side-scroll">
+        <div class="side-nav">
+          <button class="side-btn" id="nav-sched"><span class="ico"></span><span data-pg-i18n="schedule">Планирование</span></button>
+          <button class="side-btn" id="nav-skills"><span class="ico"></span><span data-pg-i18n="skills">Скиллы ИИ</span></button>
+          <div id="module-slot-sidebar"></div>
+        </div>
+        <div class="side-group" id="group-pinned" style="display:none">
+          <div class="side-label" data-pg-i18n="pinned">Закреплённые</div>
+          <div id="chats-pinned"></div>
+        </div>
+        <div class="side-group" id="group-folders" data-section="folders"><div class="chat-list-heading" data-section-handle="folders"><span class="side-label" data-pg-i18n="folders">Папки</span><button id="btn-folder-new" title="Новая папка" aria-label="Новая папка" data-en-label="New folder">＋</button></div><div id="chat-folders"></div></div>
+        <div class="side-group" id="group-memes" data-section="memes"><div class="chat-list-heading" data-section-handle="memes"><span class="side-label" data-pg-i18n="memes">Мемесы</span><button id="btn-meme-new" title="Новый мемес" aria-label="Новый мемес" data-en-label="New agent">＋</button></div><div id="memes-list"></div></div>
+        <div class="side-group" id="group-chats" data-section="chats">
+          <div class="side-label" data-section-handle="chats" data-pg-i18n="chats">Чаты</div>
+          <div id="module-slot-chats"></div>
+          <div id="chats-list"></div>
+        </div>
+      </div>
+    </div>
+    <div class="side-bottom">
+      <div class="hub-status-row">
+        <div class="hub-status" id="hub-status"><span class="dot"></span><span id="hub-status-text">проверяю…</span></div>
+        <button class="btn-launch-proxy" id="btn-launch-proxy" style="display:none" title="Запустить MemuAI Proxy">Запустить</button>
+        <button class="btn-update-apply" id="btn-update-apply" hidden title="Установить обновление">↓</button>
+      </div>
+      <div class="profile-card" id="profile-card" title="Профиль и настройки">
+        <div class="profile-avatar" id="side-avatar">M</div>
+        <div class="profile-info">
+          <span class="profile-name" id="side-profile-name">Профиль</span>
+          <span class="profile-sub" id="side-profile-sub">Настройки и профиль</span>
+        </div>
+        <span class="profile-dots">⋯</span>
+      </div>
+      
+    </div>
+  </aside>
+  <div class="sidebar-resizer" id="sidebar-resizer" title="Изменить ширину боковой панели"></div>
+
+  <main class="main">
+
+    <header class="topbar appbar" aria-label="Панель приложения" data-en-label="App bar">
+      <button class="iconbtn mobile-menu" id="mobile-menu" title="Menu">☰</button>
+      <div class="compact-toolbar">
+        <button class="bar-icon" id="bar-menu" aria-label="Меню MemuAI"></button>
+        <button class="bar-icon compact-desktop" id="bar-undo" aria-label="Назад" data-en-label="Back"></button>
+        <button class="bar-icon compact-desktop" id="bar-redo" aria-label="Вперёд" data-en-label="Forward"></button>
+        <button class="bar-icon compact-desktop" id="bar-sidebar" aria-label="Скрыть или показать панель" data-en-label="Show or hide the sidebar"></button>
+        <label class="chat-search compact-desktop"><span>⌕</span><input id="chat-search" placeholder="Поиск по чатам"></label>
+        <div class="app-menu-pop" id="app-menu-pop"></div>
+      </div>
+      <div class="dropdown" id="model-dd">
+        <button class="dd-btn" id="model-dd-btn">
+          <span id="model-current">MemuAI</span>
+          <span class="chev">▾</span>
+        </button>
+        <div class="dd-pop" id="model-dd-pop" style="display:none">
+          <div class="dd-search"><input id="model-search" placeholder="Поиск модели…"></div>
+          <div class="dd-list" id="model-list"></div>
+        </div>
+      </div>
+      <span id="context-meter" class="context-meter" title="Оценка использованного контекста"></span>
+      <div id="module-slot-topbar"></div>
+      <div class="grow"></div>
+      <button class="iconbtn" id="btn-focus" aria-label="Режим фокуса" data-en-label="Focus mode" aria-pressed="false"></button>
+      <button class="iconbtn" id="btn-theme" aria-label="Тема"></button>
+    </header>
+
+    <div class="codebar" id="codebar" hidden>
+      <div class="cb-main">
+        <span class="code-badge"><i data-cicon="terminal"></i><span>MemuCode</span></span>
+        <label class="cb-project" title="Проект" data-en-title="Project">
+          <i data-cicon="folder"></i>
+          <select id="code-project" aria-label="Проект MemuCode" data-en-label="MemuCode project"></select>
+        </label>
+        <button type="button" class="code-chip icon" id="code-add-project" aria-label="Добавить проект" data-en-label="Add a project" title="Добавить папку проекта" data-en-title="Add a project folder"><i data-cicon="plus"></i></button>
+        <span class="cb-divider" aria-hidden="true"></span>
+        <button type="button" class="code-chip mode" id="code-access" title="Кто подтверждает изменения файлов" data-en-title="Who approves file changes">Ask</button>
+        <button type="button" class="code-chip mode" id="code-plan" aria-pressed="false" title="Plan — сначала проверяемый план, потом правки" data-en-title="Plan — a reviewable plan first, then the edits">Plan</button>
+        <button type="button" class="code-chip" id="code-run" title="Запустить проверку проекта (/test)" data-en-title="Run the project checks (/test)"><i data-cicon="play"></i><span data-en-text="Tests">Тесты</span></button>
+        <button type="button" class="code-chip" id="code-stop" title="Остановить все процессы песочницы" data-en-title="Stop all sandbox processes"><i data-cicon="stop"></i><span data-en-text="Stop">Стоп</span></button>
+      </div>
+      <div class="cb-status">
+        <span class="code-sandbox" id="code-sandbox-state"></span>
+        <span class="code-savings" id="code-savings"></span>
+        <span class="code-path" id="code-path"></span>
+      </div>
+      <div class="cb-tools" role="toolbar" aria-label="Панели MemuCode" data-en-label="MemuCode panels">
+        <button type="button" class="code-chip icon" id="code-explorer-toggle" aria-pressed="true" aria-controls="code-explorer" title="Файлы проекта — Ctrl+Shift+E" data-en-title="Project files — Ctrl+Shift+E"><i data-cicon="sidebar"></i></button>
+        <button type="button" class="code-chip icon" id="code-dock-toggle" aria-pressed="true" aria-controls="code-dock" title="Правая панель — Ctrl+Shift+D" data-en-title="Right panel — Ctrl+Shift+D"><i data-cicon="dock"></i></button>
+        <button type="button" class="code-chip icon" id="code-palette-btn" aria-label="Палитра" data-en-label="Palette" title="Файлы, команды и скиллы — Ctrl+P" data-en-title="Files, commands and skills — Ctrl+P"><i data-cicon="search"></i></button>
+        <button type="button" class="code-chip icon" id="code-mcp-btn" aria-label="Серверы MCP" data-en-label="MCP servers" title="Серверы MCP — внешние инструменты" data-en-title="MCP servers — external tools"><i data-cicon="plug"></i></button>
+        <button type="button" class="code-chip icon" id="code-help" aria-label="О MemuCode" data-en-label="About MemuCode" title="О MemuCode и горячие клавиши" data-en-title="About MemuCode and shortcuts"><i data-cicon="help"></i></button>
+      </div>
+    </div>
+
+    <div class="workbar" id="workbar" hidden>
+      <span class="work-badge" id="work-badge">Work</span>
+      <span class="work-context" id="work-context">Проект:</span>
+      <select id="work-project-select" aria-label="Проект Work"></select>
+      <button class="work-action" id="work-add-project">＋ Проект</button>
+      <button class="work-action" id="work-files">Файлы</button>
+      <button class="work-action" id="work-browser">🌐 Браузер</button>
+      <button class="work-action code-only" id="code-changes" hidden>Изменения</button>
+      <button class="work-action code-only" id="code-mcp" hidden>MCP</button>
+      <span class="work-path" id="work-path"></span>
+      <div class="work-mode-controls">
+        <button class="work-mode-pill" id="work-access" title="С подтверждением — каждое изменение файла ждёт вашего разрешения">С подтверждением</button>
+        <button class="work-mode-pill" id="work-plan" aria-pressed="false" title="План — ИИ сначала создаёт проверяемый план и отмечает каждый выполненный шаг">План</button>
+        <button class="work-mode-pill" id="work-goal" aria-pressed="false" title="Цель — ИИ продолжает работу до критерия готовности или реальной блокировки">Цель</button>
+      </div>
+    </div>
+
+    <div class="tempbar" id="tempbar" hidden>
+      <span class="tempbar-icon">◌</span><span id="tempbar-text" data-en-html="&lt;b&gt;Temporary chat&lt;/b&gt; · deleted an hour after the last message"><b>Временный чат</b> · удалится через час после последнего сообщения</span>
+      <div class="grow"></div><button id="temp-make-permanent" data-en-text="Save chat">Сохранить чат</button>
+    </div>
+
+    <div class="main-content" id="main-content">
+      <aside class="code-explorer" id="code-explorer" hidden aria-label="Проект MemuCode" data-en-label="MemuCode project">
+        <div class="code-explorer-bar">
+          <button type="button" class="cx-title" id="code-tree-collapse" aria-expanded="true" aria-controls="code-explorer-body" title="Свернуть или развернуть — Ctrl+Shift+E" data-en-title="Collapse or expand — Ctrl+Shift+E">
+            <i data-cicon="chevron" class="cx-chevron"></i><span class="cx-label" data-en-text="Project">Проект</span><b id="code-explorer-name"></b>
+          </button>
+          <span class="cx-branch" id="code-branch" hidden></span>
+          <button type="button" class="cx-btn" id="code-tree-refresh" aria-label="Обновить дерево" data-en-label="Refresh tree" title="Обновить дерево" data-en-title="Refresh tree"><i data-cicon="refresh"></i></button>
+        </div>
+        <div class="code-explorer-body" id="code-explorer-body">
+          <div class="cx-tabs" role="tablist" aria-label="Что показать" data-en-label="What to show">
+            <button type="button" role="tab" data-explorer-tab="files" aria-selected="true" data-en-text="Files">Файлы</button>
+            <button type="button" role="tab" data-explorer-tab="sessions" aria-selected="false" data-en-text="Sessions">Сессии</button>
+          </div>
+          <label class="cx-search"><i data-cicon="search"></i><input id="code-filter" type="search" placeholder="Найти файл" data-en-placeholder="Find a file" aria-label="Поиск по файлам" data-en-label="Search files" spellcheck="false" autocomplete="off"></label>
+          <div id="code-tree" class="code-tree" role="tree" aria-label="Файлы проекта" data-en-label="Project files"></div>
+        </div>
+      </aside>
+      <div class="chat-view-wrap" id="chat-view-wrap">
+        <div class="chat" id="chat">
+          <div class="greeting" id="greeting">
+            <div class="greet-head"><div class="greet-mark"></div>
+            <h1 data-pg-i18n="greeting">Чем займёмся сегодня?</h1></div>
+            <p class="greeting-subtitle" id="greeting-subtitle">От первой идеи до готового результата.</p>
+            <div class="work-guide" id="work-guide" hidden><b>Work создаёт и изменяет файлы в выбранном проекте.</b><span>Выберите проект сверху, затем опишите результат — например: «создай index.html для кофейни».</span></div>
+            <div class="temp-guide" id="temp-guide" hidden><b>Приватный временный разговор</b><span>Он не использует память, не появится в истории и автоматически удалится через час после последнего сообщения. В любой момент чат можно сделать постоянным.</span></div>
+            <div class="code-welcome" id="code-welcome">
+              <div class="code-guide" id="code-guide" hidden><b>MemuCode работает с репозиторием.</b><span>Файлы проекта — слева над чатами, справа — файл, изменения, терминал и откат.</span></div>
+              <div class="chips" id="greet-chips"></div>
+              <div class="code-stats" id="code-stats" hidden></div>
+            </div>
+          </div>
+          <div class="messages" id="messages"></div>
+        </div>
+
+        <div class="composer-wrap">
+          <div class="composer">
+            <div class="slash-menu" id="slash-menu" hidden></div>
+            <div class="attach-row" id="attach-row"></div>
+            <div class="composer-main">
+              <textarea id="input" rows="1" placeholder="Напишите сообщение…"></textarea>
+            </div>
+            <div class="composer-bar">
+              <div class="composer-tools">
+                <button type="button" class="cbtn plus-btn" id="btn-plus" aria-haspopup="menu" aria-expanded="false"
+                        aria-label="Файлы и инструменты" data-en-label="Files and tools"
+                        title="Файлы, инструменты и режимы" data-en-title="Files, tools and modes"></button>
+                <input type="file" id="file-input" multiple hidden
+                       accept="image/png,image/jpeg,image/gif,image/webp,.txt,.md,.json,.jsonl,.csv,.tsv,.js,.jsx,.ts,.tsx,.py,.java,.c,.cpp,.h,.cs,.go,.rs,.rb,.php,.html,.css,.xml,.yaml,.yml,.toml,.ini,.log,.sql,.pdf,.docx,video/*,.mp4,.m4v,.webm,.mov,.mkv,.avi">
+                <div class="toggles" id="cap-toggles"></div>
+                <div class="tool-chips" id="tool-chips" hidden></div>
+              </div>
+              <div class="composer-actions">
+                <button class="cbtn voice-composer-btn" id="btn-mic" aria-label="Голосовой ввод" data-en-label="Voice input" title="Удерживайте или нажмите для диктовки" data-en-title="Hold or click to dictate"></button>
+                <button class="cbtn voice-composer-btn" id="btn-live" aria-label="MemuAI Live" title="Начать голосовой разговор" data-en-title="Start a voice conversation"></button>
+                <button class="send" id="btn-send" aria-label="Отправить">
+                  <span id="send-ico"></span>
+                </button>
+              </div>
+            </div>
+            <div id="module-slot-composer"></div>
+          </div>
+          <div class="composer-hint"><span data-pg-i18n="disclaimer">MemuAI может ошибаться — проверяйте важное.</span> <span id="latency"></span></div>
+        </div>
+      </div>
+
+      <div class="live-preview-resizer" id="live-preview-resizer" role="separator" tabindex="0" aria-label="Изменить ширину предпросмотра" data-en-label="Resize the preview" aria-orientation="vertical" aria-valuemin="420" aria-valuemax="960" aria-valuenow="620" style="display:none"></div>
+      <aside class="live-preview-pane" id="live-preview-pane" style="display:none">
+        <div class="preview-header">
+          <span class="preview-title" id="preview-title">Предпросмотр</span>
+          <div class="preview-devices" id="preview-devices">
+            <button class="prev-dev active" data-dev="desktop" title="Десктоп" data-en-title="Desktop">💻</button>
+            <button class="prev-dev" data-dev="tablet" title="Планшет" data-en-title="Tablet">📱</button>
+            <button class="prev-dev" data-dev="mobile" title="Телефон" data-en-title="Phone">📲</button>
+          </div>
+          <div class="grow"></div>
+          <button class="preview-btn" id="prev-refresh" title="Обновить" data-en-title="Reload">↻</button>
+          <button class="preview-btn" id="prev-external" title="Скачать HTML" data-en-title="Download HTML">↓</button>
+          <button class="preview-btn" id="prev-close" title="Закрыть" data-en-title="Close">✕</button>
+        </div>
+        <div class="preview-stage" id="preview-stage">
+          <iframe id="preview-iframe" title="Предпросмотр сайта" data-en-title="Site preview" sandbox="allow-scripts allow-modals"></iframe>
+          <div class="automation-stage" id="automation-stage" hidden>
+            <div class="automation-address" id="automation-address-row">
+              <button class="preview-btn" id="automation-back" title="Назад" data-en-title="Back">←</button>
+              <button class="preview-btn" id="automation-reload" title="Обновить" data-en-title="Reload">↻</button>
+              <input id="automation-address" type="url" placeholder="https://example.com" aria-label="Адрес сайта" data-en-label="Site address">
+              <button class="preview-btn" id="automation-go" title="Открыть адрес" data-en-title="Open address">→</button>
+              <button class="preview-btn" id="automation-type" title="Ввести текст в выбранное поле" data-en-title="Type text into the selected field">⌨</button>
+              <span class="automation-status" id="automation-status">Готов</span>
+            </div>
+            <div class="automation-screen-wrap"><img id="automation-screen" alt="Экран AI Browser" data-en-alt="AI Browser screen"></div>
+            <div class="automation-approval" id="automation-approval" hidden></div>
+            <div class="automation-log" id="automation-log"></div>
+          </div>
+        </div>
+      </aside>
+      <div class="code-dock-resizer" id="code-dock-resizer" role="separator" tabindex="0" aria-orientation="vertical" aria-label="Ширина правой панели" data-en-label="Right panel width" title="Потяните, чтобы изменить ширину; стрелки — с клавиатуры" data-en-title="Drag to resize; arrow keys work too" hidden></div>
+      <aside class="code-dock" id="code-dock" hidden aria-label="Панель MemuCode" data-en-label="MemuCode panel">
+        <div class="cd-head">
+          <div class="code-dock-tabs" id="code-dock-tabs" role="tablist" aria-label="Разделы панели" data-en-label="Panel sections"></div>
+          <button type="button" class="cd-close" id="code-dock-expand" aria-label="Развернуть панель" data-en-label="Expand the panel" aria-pressed="false" title="Развернуть панель на всю ширину" data-en-title="Expand the panel to full width"><i data-cicon="expand"></i></button>
+          <button type="button" class="cd-close" id="code-dock-close" aria-label="Скрыть панель" data-en-label="Hide the panel" title="Скрыть панель — Ctrl+Shift+D" data-en-title="Hide the panel — Ctrl+Shift+D"><i data-cicon="close"></i></button>
+        </div>
+        <div class="code-dock-body" id="code-dock-body" role="tabpanel"></div>
+      </aside>
+      <div class="code-dock-backdrop" id="code-dock-backdrop" hidden></div>
+    </div>
+  </main>
+</div>
+
+<!-- ===== панели-оверлеи ===== -->
+<div class="panel-back" id="panel-back" aria-hidden="true"><div class="panel" id="panel" role="dialog" aria-modal="true" tabindex="-1"></div></div>
+<div class="pin-lock-back" id="pin-lock-back" aria-hidden="true" style="display:none">
+  <div class="pin-lock-box" id="pin-lock-box" role="dialog" aria-modal="true" aria-labelledby="pin-profile-name" tabindex="-1">
+    <div class="pin-avatar" id="pin-avatar">M</div>
+    <h2 id="pin-profile-name" style="margin:8px 0 4px">Профиль</h2>
+    <p class="sub" id="pin-subtitle" style="margin-bottom:16px">Введите PIN-код для разблокировки</p>
+    <input type="password" class="pinput pin-input" id="pin-input" maxlength="12" placeholder="PIN-код">
+    <button class="pbtn" id="pin-submit" style="width:100%; margin-top:10px">Войти</button>
+    <button class="pbtn ghost" id="pin-cancel" style="width:100%; margin-top:7px">Отмена</button>
+  </div>
+</div>
+<div class="context-menu" id="context-menu" role="menu"></div>
+
+<section class="live-call" id="live-call" hidden aria-label="MemuAI Live" data-mode="classic">
+  <div class="live-call-head"><span class="live-call-dot"></span><b>MemuAI Live</b><span class="live-badge" id="live-badge" hidden></span><span class="grow"></span>
+    <button id="live-settings" aria-label="Настройки Live" data-en-label="Live settings" title="Личность и пресеты" data-en-title="Personality and presets">⚙</button><button id="live-minimize" aria-label="Свернуть" data-en-label="Minimize">—</button><button id="live-close" aria-label="Завершить" data-en-label="End call">×</button></div>
+  <div class="live-call-body">
+    <div class="live-orb"><canvas id="live-orb-canvas" width="360" height="360" aria-hidden="true"></canvas><i></i><i></i><i></i><span>✦</span></div>
+    <div class="live-wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+    <div class="live-status" id="live-status">Готов к разговору</div>
+    <div class="live-search" id="live-search" hidden></div>
+    <div class="live-preview" id="live-preview" hidden>
+      <video id="live-preview-video" muted playsinline></video><img id="live-preview-image" alt="">
+      <span id="live-preview-label"></span>
+    </div>
+    <div class="live-captions" id="live-captions" hidden>
+      <p class="live-caption user" id="live-caption-user"></p>
+      <p class="live-caption assistant" id="live-caption-assistant"></p>
+    </div>
+    <div class="live-transcript" id="live-transcript">Нажмите микрофон и говорите. Сообщения сохраняются в этом чате.</div>
+    <div class="live-controls">
+      <button class="live-ctl" id="live-mute" hidden aria-pressed="false" aria-label="Выключить микрофон" data-en-label="Mute microphone"></button>
+      <button class="live-ctl" id="live-camera" hidden aria-pressed="false" aria-label="Камера" data-en-label="Camera"></button>
+      <button class="live-talk" id="live-talk"><span id="live-talk-icon"></span><b>Говорить</b></button>
+      <button class="live-ctl" id="live-screen" hidden aria-pressed="false" aria-label="Показать экран" data-en-label="Share screen"></button>
+      <button class="live-ctl" id="live-keyboard" hidden aria-label="Написать текстом" data-en-label="Type a message"></button>
+    </div>
+    <form class="live-text" id="live-text-form" hidden autocomplete="off">
+      <input id="live-text-input" maxlength="4000" placeholder="Написать Live-модели…" data-en-placeholder="Type to the live model…" aria-label="Сообщение Live-модели" data-en-label="Message to the live model">
+      <button type="submit" class="live-ctl" id="live-text-send" aria-label="Отправить" data-en-label="Send"></button>
+    </form>
+  </div>
+</section>
+<button class="live-mini" id="live-mini" hidden><span class="live-call-dot"></span> MemuAI Live</button>
+
+<div class="image-viewer" id="image-viewer" aria-hidden="true">
+  <div class="image-viewer-toolbar">
+    <span id="image-viewer-name">Изображение</span>
+    <div class="grow"></div>
+    <button id="image-viewer-minus" aria-label="Уменьшить">−</button>
+    <span id="image-viewer-zoom">100%</span>
+    <button id="image-viewer-plus" aria-label="Увеличить">＋</button>
+    <button id="image-viewer-fit">Вписать</button>
+    <button id="image-viewer-open">↗ Открыть</button>
+    <button id="image-viewer-download">↓ Скачать</button>
+    <button id="image-viewer-close">×</button>
+  </div>
+  <div class="image-viewer-stage"><img id="image-viewer-img" alt="Предпросмотр" data-en-alt="Preview"></div>
+</div>
+
+<input type="file" id="work-import" webkitdirectory hidden>
+<div class="profile-menu-pop" id="profile-menu-pop" style="display:none"></div>
+
+<div class="module-layer" id="module-layer" hidden>
+  <div class="module-snap" id="module-snap" hidden></div>
+  <section class="module-window" id="module-window" data-win="window" role="dialog" aria-modal="false" aria-labelledby="module-window-title">
+    <header class="module-window-bar" id="module-window-bar" data-win="bar">
+      <span class="module-grip" aria-hidden="true"><i></i><i></i><i></i></span>
+      <span class="module-window-icon" data-win="icon" aria-hidden="true"></span>
+      <b id="module-window-title" data-win="title"></b>
+      <span id="module-window-subtitle" data-win="subtitle" class="module-window-subtitle" hidden></span>
+      <span id="module-window-status" data-win="status" class="module-window-status" hidden></span>
+      <span class="grow"></span>
+      <div class="module-window-actions mtb" id="module-window-actions" data-win="actions" role="toolbar" aria-label="Действия модуля" data-en-label="Module actions" hidden></div>
+      <div class="module-window-tools">
+        <button type="button" id="module-window-menu" data-win="menu" aria-label="Окно модуля: перезагрузка, раскладка, настройки" data-en-label="Module window: reload, layout, settings" title="Перезагрузить, расположение окон, настройки" data-en-title="Reload, window layout, settings"></button>
+        <button type="button" id="module-window-min" data-win="min" aria-label="Свернуть" data-en-label="Minimize" title="Свернуть" data-en-title="Minimize"></button>
+        <button type="button" id="module-window-full" data-win="full" aria-label="На весь MemuAI" data-en-label="Fill MemuAI" title="На весь MemuAI" data-en-title="Fill MemuAI" aria-pressed="false"></button>
+        <button type="button" id="module-window-close" data-win="close" aria-label="Закрыть" data-en-label="Close" title="Закрыть" data-en-title="Close"></button>
+      </div>
+    </header>
+    <div class="module-window-body" id="module-window-body" data-win="body">
+      <iframe id="module-frame" data-win="frame" title="Модуль" data-en-title="Module" sandbox="allow-scripts" allow="microphone; autoplay; clipboard-write" referrerpolicy="no-referrer"></iframe>
+      <div class="module-window-loading" id="module-window-loading" data-win="loading"><span class="mu-spinner"></span></div>
+    </div>
+    <div class="module-resize" data-resize="n" aria-hidden="true" hidden></div>
+    <div class="module-resize" data-resize="s" aria-hidden="true" hidden></div>
+    <div class="module-resize" data-resize="e" aria-hidden="true" hidden></div>
+    <div class="module-resize" data-resize="w" aria-hidden="true" hidden></div>
+    <div class="module-resize" data-resize="ne" aria-hidden="true" hidden></div>
+    <div class="module-resize" data-resize="nw" aria-hidden="true" hidden></div>
+    <div class="module-resize" data-resize="se" aria-hidden="true" hidden></div>
+    <div class="module-resize" data-resize="sw" aria-hidden="true" hidden></div>
+  </section>
+  <nav class="module-taskbar" id="module-taskbar" aria-label="Открытые модули" data-en-label="Open modules" hidden></nav>
+</div>
+<script src="/vendor/katex/katex.min.js?v=1.0-final"></script>
+<script src="/appearance.js?v=2.6-r33"></script>
+<script src="/appearance-plus.js?v=3.8-r46"></script>
+<!-- Round 33: theme & appearance editor + the layout/look layer it saves (window.MemuLook, window.MemuThemeEditor). -->
+<script src="/theme-editor.js?v=3.5-r33"></script>
+<!-- Round 23: settings kit (window.MemuSettingsKit) — before every script that renders a settings section. -->
+<script src="/memu-layers.js?v=1.1-r41"></script>
+<script src="/settings-kit.js?v=1.2-r34"></script>
+<script src="/titlebar.js?v=1.0"></script>
+<script src="/motion.js?v=1.0"></script>
+<script src="/tooltip.js?v=1.2-r36"></script>
+<script src="/syntax.js?v=1.0-syntax"></script>
+<script src="/skills.js?v=1.2-r32"></script>
+<script src="/modules-toolbar.js?v=1.0-r30"></script>
+<script src="/module-icons.js?v=3.6-r40"></script>
+<script src="/modules.js?v=3.7-r41"></script>
+<script src="/module-focus.js?v=3.6-r38"></script>
+<script src="/module-appbar.js?v=3.8-r47"></script>
+<script src="/visuals.js?v=1.2"></script>
+<!-- Round 29: rich tables and diagrams (charts + mermaid schemes, loaded lazily) — before app.js -->
+<script src="/tables.js?v=1.0-r29"></script>
+<script src="/diagram-zoom.js?v=1.1-r36"></script>
+<script src="/diagrams.js?v=1.2-r36"></script>
+<!-- Round 30: /image and /video in the message box — chip, argument hint (cmd-highlight.js). -->
+<script src="/cmd-highlight.js?v=1.0-r30"></script>
+<!-- Round 29: text / image / video routing in the chat (Decisions model, /image, /video, autoprompt) -->
+<script src="/memu-model-names.js?v=3.5-r33"></script><!-- Round 33 (r33-models): model names + the one picker -->
+<script src="/model-picker.js?v=3.5-r33"></script>
+<script src="/vision-gate.js?v=1.0-r33"></script><!-- Round 33 (r33c-models-vision): pictures + a model without vision -->
+<script src="/media-routing.js?v=1.2-r34"></script>
+<script src="/media-cache.js?v=1.0-r33"></script><!-- Round 33 (r33d-media): generated pictures kept as files -->
+<script src="/products.js?v=1.0-r26"></script>
+<script src="/tokens.js?v=1.0-r30"></script>
+<script src="/context.js?v=1.2-r30"></script>
+<script src="/voice-player.js?v=1.0"></script>
+<script src="/voice-settings.js?v=3.8-r46"></script>
+<script src="/vendor/qrcode/qrcode.js?v=1.0"></script>
+<script src="/telegram-settings.js?v=1.0-r26"></script>
+<script src="/quick-selection-settings.js?v=1.0-r27"></script>
+<script src="/quick-settings.js?v=1.2-r34"></script>
+<script src="/dfy-client.js?v=3.8-r46"></script>
+<script src="/askuser.js?v=3.5-r36"></script>
+<script src="/bigdocs.js?v=3.5-r36"></script><!-- Round 35: documents of any size -->
+<script src="/canvas.js?v=3.6-r40"></script>
+<!-- Round 30: DFY on machines — target picker, command output, Settings → Remote machines. -->
+<script src="/dfy-remote.js?v=1.1-r30"></script>
+<script src="/stuck.js?v=1.0-r29"></script>
+<script src="/dfy-settings.js?v=3.8-r46"></script>
+<script src="/tgapp-settings.js?v=1.0-r27"></script>
+<!-- Round21 panels: before app.js so its built-in skill is in the catalogue app.js reads. -->
+<script src="/memu-ctxmenu.js?v=1.1-r34"></script>
+<script src="/panels.js?v=3.8-r46"></script>
+<script src="/panels-layout.js?v=3.6-r36"></script>
+<script src="/panels-telegram.js?v=25-r30"></script>
+<script src="/reflect.js?v=1.1-r34"></script>
+<script src="/sync-settings.js?v=1.2-r30"></script>
+<script src="/gdrive-picker.js?v=1.2-r30"></script>
+<script src="/integrations-ui.js?v=3.8-r46"></script>
+<script src="/telegram-use.js?v=3.8-r46"></script>
+<script src="/browser-extension-settings.js?v=3.8-r45"></script>
+<script src="/mcp-hub.js?v=3.6-r40"></script><!-- Round 40 (r40-mcp): Settings → Integrations → MCP, chat MCP scope -->
+<script src="/guide-video.js?v=3.5-r33"></script>
+<script src="/app-settings-form.js?v=1.0-r38"></script>
+<script src="/memunote-settings.js?v=1.0-r38"></script>
+<script src="/memufiles-settings.js?v=1.0-r38"></script>
+<script src="/memufiles-default.js?v=1.0-r38"></script>
+<script src="/safe-mode.js?v=1.1-r29"></script>
+<script src="/hotkeys.js?v=1.3-r31"></script>
+<!-- Round 33 (r33-thinking): per-model reasoning levels for every picker — before app.js -->
+<script src="/reasoning.js?v=3.5-r33"></script>
+<!-- Round 33 (r33-chat): answers never show tool-call markup / template tokens — before app.js -->
+<script src="/answer-guard.js?v=3.5-r33"></script>
+<script src="/branches.js?v=3.5-r37"></script>
+<script src="/tool-details.js?v=3.5-r33"></script>
+<script src="/memu-live.js?v=1.0-r40"></script><!-- Round 40 (r40-lag): streams / long-polls over a WebSocket (off the 6-connection pool) -->
+<script src="/app.js?v=3.8-r46"></script>
+<script src="/mentions.js?v=3.5-r36"></script><!-- Round 35: @-mentions (chips, providers) -->
+<script src="/suggestions.js?v=1.0"></script>
+<script src="/memory.js?v=1.1-r40"></script>
+<script src="/schedsend.js?v=1.0-r29"></script>
+<script src="/plan-ui.js?v=1.1-r30"></script>
+<script src="/plan-triggers.js?v=3-r37"></script>
+<script src="/plan-conds.js?v=2-r37"></script>
+<script src="/plan-templates.js?v=1-r37"></script>
+<script src="/plan.js?v=3.8-r46"></script>
+<script src="/flows.js?v=3.8-r46"></script><!-- Round 35: steps inside a task (Планирование по-новому) -->
+<script src="/inbox.js?v=3.5-r36"></script><!-- Round 35: «Входящие» hub, sidebar button after «Планирование» -->
+<script src="/deeplinks.js?v=3.5-r36"></script><!-- Round 35: memuai:// links — confirmation dialog, Settings → «Ссылки и командная строка» -->
+<script src="/export.js?v=1.0-r29"></script>
+<script src="/video.js?v=1.1-r26"></script>
+<script src="/code-stats.js?v=1.1-cost"></script>
+<script src="/tools.js?v=1.1-r33"></script>
+<script src="/memu-dragsort.js?v=3.5-r33"></script>
+<script src="/sketch.js?v=1.0-r27"></script>
+<script src="/selfdocs.js?v=1.0"></script>
+<script src="/research.js?v=1.0-r27"></script>
+<script src="/agents.js?v=1.1-r25"></script>
+<script src="/realtime.js?v=1.4-r27"></script>
+<script src="/companion/companion-core.js?v=1.1-r26"></script>
+<script src="/companion/companion.js?v=1.1-r34"></script>
+<script src="/companion/settings.js?v=1.1-r23"></script>
+<script src="/companion/companion-live.js?v=1.1-r26"></script>
+<script src="/docs-ai.js?v=1.1-r29"></script>
+<script src="/docs.js?v=1.4-r29"></script>
+<script src="/modules-aipack.js?v=1.1-r30"></script>
+<script src="/code-editor.js?v=1.1"></script>
+<script src="/memucode.js?v=2.6-r36"></script>
+<script src="/search.js?v=1.3-r30"></script>
+<script src="/chat-find.js?v=3.5-r37"></script><!-- Round 37: Ctrl+F in the chat, message bookmarks -->
+<script src="/chat-drafts.js?v=3.5-r37"></script><!-- Round 37: per-chat composer drafts, ↑ — last message -->
+<script src="/compare.js?v=3.5-r37"></script><!-- Round 37: compare answer versions, answer with another model -->
+<script src="/composer-snippets.js?v=3.5-r37"></script><!-- Round 37: ;snippets and {?field} templates in the composer -->
+<script src="/settings-transfer.js?v=3.5-r37"></script><!-- Round 37: Settings → Data → export / import settings -->
+<script src="/music-dock.js?v=1.3-r40" defer></script><!-- Round 37: MemuMusic host player (mini-player, media keys) -->
+<script src="/module-integration.js?v=1.2-r39" defer></script><!-- Round 38: module panels, commands, widgets -->
+<script src="/tour.js?v=1.0-r31"></script>
+<!-- Round 32: skill library window + catalog; after app.js (takes over showSkillsModal). -->
+<script src="/skills-ui.js?v=1.0-r36"></script>
+<div id="code-palette" class="code-palette" hidden>
+  <div class="code-palette-card" role="dialog" aria-modal="true" aria-label="Палитра MemuCode" data-en-label="MemuCode palette">
+    <label class="cp-search"><i data-cicon="search"></i><input id="code-palette-input" placeholder="Файл, команда или скилл…" data-en-placeholder="File, command or skill…" aria-label="Палитра MemuCode" data-en-label="MemuCode palette" spellcheck="false" autocomplete="off" role="combobox" aria-controls="code-palette-list" aria-expanded="true"><kbd>Esc</kbd></label>
+    <div id="code-palette-list" class="code-palette-list" role="listbox"></div>
+    <div class="cp-foot" data-en-html="&lt;span&gt;&lt;kbd&gt;↑&lt;/kbd&gt;&lt;kbd&gt;↓&lt;/kbd&gt; select&lt;/span&gt;&lt;span&gt;&lt;kbd&gt;Enter&lt;/kbd&gt; open&lt;/span&gt;&lt;span&gt;&lt;kbd&gt;/&lt;/kbd&gt; commands&lt;/span&gt;&lt;span&gt;&lt;kbd&gt;#&lt;/kbd&gt; skills&lt;/span&gt;"><span><kbd>↑</kbd><kbd>↓</kbd> выбрать</span><span><kbd>Enter</kbd> открыть</span><span><kbd>/</kbd> команды</span><span><kbd>#</kbd> скиллы</span></div>
+  </div>
+</div>
+</body>
+</html>

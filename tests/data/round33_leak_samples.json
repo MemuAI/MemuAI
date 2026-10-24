@@ -1,0 +1,843 @@
+{
+ "_comment": "Round 33 (r33-chat #2): raw model outputs with internal markup. 'recorded:*' are real streams captured from live models (chunks as streamed). Shared by tests/round33_chat_test.py for app/answer_guard.py and app/pgstatic/answer-guard.js.",
+ "samples": [
+  {
+   "name": "recorded:apodex/apodex-1.1-mini:free",
+   "source": "live apodex/apodex-1.1-mini:free 2026-10-11 (no native tools sent)",
+   "chunks": [
+    "\n\n",
+    "<tool_call>",
+    "\n{\"",
+    "name\":",
+    " \"web",
+    "_search\",",
+    " \"arguments",
+    "\": {\"",
+    "query\":",
+    " \"today",
+    "'s weather",
+    " in Moscow",
+    "\"}}\n",
+    "{\"name",
+    "\": \"",
+    "docs_read",
+    "\", \"",
+    "arguments\":",
+    " {\"id",
+    "\": \"",
+    "quick-access",
+    "\"}}\n",
+    "</tool",
+    "_call>"
+   ],
+   "calls": [
+    [
+     "web_search",
+     {
+      "query": null
+     }
+    ],
+    [
+     "docs_read",
+     {
+      "id": "quick-access"
+     }
+    ]
+   ]
+  },
+  {
+   "name": "recorded:deepseek-v4.1-flash",
+   "source": "live deepseek-v4.1-flash 2026-10-11 (no native tools sent)",
+   "chunks": [
+    "<tool",
+    "_call>\n{\"name\": \"",
+    "web_search\", \"arguments\":",
+    " {\"query\": \"Moscow",
+    " weather today\"}}\n</tool",
+    "_call>\n<tool_call>\n",
+    "{\"name\": \"docs_read",
+    "\", \"arguments\": {\"id",
+    "\": \"quick-access\"}}\n",
+    "</tool_call>"
+   ],
+   "calls": [
+    [
+     "web_search",
+     {
+      "query": null
+     }
+    ],
+    [
+     "docs_read",
+     {
+      "id": "quick-access"
+     }
+    ]
+   ]
+  },
+  {
+   "name": "recorded:glm-5.3",
+   "source": "live glm-5.3 2026-10-11 (no native tools sent)",
+   "chunks": [
+    "I'll make",
+    " both calls now.",
+    "<tool_call>web_search(query:",
+    " \"Moscow weather today",
+    "\")<tool_call>docs_read(id",
+    ": \"quick-access",
+    "\")"
+   ],
+   "calls": [
+    [
+     "web_search",
+     {
+      "query": null
+     }
+    ],
+    [
+     "docs_read",
+     {
+      "id": "quick-access"
+     }
+    ]
+   ]
+  },
+  {
+   "name": "recorded:kimi-k3",
+   "source": "live kimi-k3 2026-10-11 (no native tools sent)",
+   "chunks": [
+    "<web_search>",
+    "{\"",
+    "query\":\"",
+    "today's weather in",
+    " Moscow\"}</web_search",
+    ">\n<docs_read>",
+    "{\"id\":\"quick-access",
+    "\"}</docs_read>"
+   ],
+   "calls": [
+    [
+     "web_search",
+     {
+      "query": null
+     }
+    ],
+    [
+     "docs_read",
+     {
+      "id": "quick-access"
+     }
+    ]
+   ]
+  },
+  {
+   "name": "recorded:qwen3.8-flash",
+   "source": "live qwen3.8-flash 2026-10-11 (no native tools sent)",
+   "chunks": [
+    "<tool_call>",
+    "\n{\"name\":\"",
+    "web_search\",\"arguments",
+    "\":{\"query\":\"Mos",
+    "cow weather today\"}}",
+    "\n</tool_call>\n<tool_call>",
+    "\n{\"",
+    "name\":\"docs_read",
+    "\",\"arguments\":{\"id",
+    "\":\"quick-access\"}}",
+    "\n</tool_call>\n\nNeed",
+    " maybe call both in",
+    " one response",
+    ", then stop.",
+    " We",
+    " should not provide text",
+    ". Need ensure valid",
+    " tool calls. Since",
+    " no actual function schema",
+    " beyond names. Use",
+    " native tool syntax?",
+    " If this is Chat",
+    "GPT",
+    " with custom? It",
+    " says special tokens/tags",
+    " included. Could be",
+    " \"",
+    "<tool_call>...\". Need",
+    " likely produce tool calls",
+    " in",
+    " XML? Let's",
+    " examine",
+    " prior similar tasks.",
+    " They instruct agent:",
+    " You",
+    " can call function web",
+    "_search(query",
+    ": string) and",
+    " docs_read(id",
+    ": string). When",
+    " you need",
+    " a function, emit",
+    " the call in exactly",
+    " the same native tool",
+    "-call syntax your own",
+    " chat template uses for",
+    " function calls (special",
+    " tokens / tags",
+    " included), then stop",
+    ".\n\n",
+    "Often expected final:",
+    " \n",
+    "<tool_call>web_search(query",
+    "=\"Moscow weather",
+    " today\")\n<tool_call>",
+    "docs_read(id=\"",
+    "quick",
+    "-access\")\n\nBut",
+    " \"",
+    "native tool-call syntax",
+    " your own chat template",
+    " uses\" unknown.",
+    " For",
+    " ChatGPT messages",
+    " maybe use JSON function",
+    " call? The prompt",
+    " in this environment likely",
+    " expects",
+    " tool calls using XML",
+    " tags:\n<tool_call>",
+    "\n<function=",
+    "web_search>",
+    "\n<parameter=query",
+    ">\nMoscow",
+    " weather today</",
+    "parameter>\n</",
+    "function>\n</tool_call>",
+    "\n<tool_call>\n<",
+    "function=docs_read",
+    ">\n<parameter",
+    "=id>\nquick",
+    "-access</parameter>",
+    "\n</function>",
+    "\n\nThis is common",
+    " in these",
+    " tasks? Need decide",
+    ". Many",
+    " model evaluation harnesses",
+    " parse function calls from",
+    " assistant content using XML",
+    "-ish. The wording",
+    " \"special tokens /",
+    " tags included\" suggests",
+    " using XML tags like",
+    " <tool_call>, <",
+    "function=...",
+    ">, <parameter=",
+    "...>. For Chat",
+    "GPT tool",
+    " calling maybe uses <",
+    "tool_call> etc",
+    "? Let's recall",
+    ". Some prompts from",
+    " this environment specify:",
+    " \"You can",
+    " call the function ...",
+    " When you need a",
+    " function, emit",
+    " the call in exactly",
+    " the same native",
+    " tool-call syntax your",
+    " own chat template uses",
+    " for function calls",
+    " (special tokens /",
+    " tags included), then",
+    " stop.\" That is",
+    " generic",
+    ". Usually assistant should",
+    " output e",
+    ".g. \n<tool_call>",
+    "\n{\"",
+    "name\": \"web",
+    "_search\",",
+    " \"arguments\": {\"",
+    "query\": \"",
+    "Moscow weather today",
+    "\"}}\n</tool_call>\n",
+    "Maybe because ChatML",
+    " uses JSON. Need",
+    " infer from current model",
+    ". In",
+    " the UI? The",
+    " system",
+    ": \"You are",
+    " an",
+    " agent. You can",
+    " call the",
+    " function web_search(query",
+    ": string) and",
+    " docs",
+    "_read(id: string",
+    ").\" Could be from",
+    " an",
+    " eval where tool calls",
+    " are represented",
+    " in XML tags.",
+    " They",
+    " ask \"Call both",
+    " functions",
+    " now.\" Need no",
+    " final answer, just",
+    " calls",
+    ".\n\nLet's",
+    " search",
+    " memory: Many tool",
+    "bench prompts use:",
+    "\n",
+    "<tool_call>",
+    "\nfunction(args)",
+    "\n</",
+    "tool_call>\n",
+    "Or:\n<tool_call>",
+    " {\"name\":\"...",
+    "\",\"arguments\":",
+    "...} </tool_call>",
+    "\n",
+    "The prompt says \"",
+    "ex",
+    "actly the same native",
+    " tool-call syntax your",
+    " own chat template uses",
+    " for function calls (",
+    "special tokens / tags",
+    " included)\"",
+    " likely because if using",
+    " ChatML, native",
+    " tool call syntax is",
+    " JSON",
+    " inside <tool_call>...",
+    "? In OpenAI",
+    " Chat",
+    "GPT messages format",
+    ": function call represented",
+    " as \n<tool_call>\n",
+    "{\"",
+    "name\":\"...\",\"",
+    "arguments\":",
+    "{...}}\n",
+    "</tool_call>\n. But",
+    " many models (M",
+    "istral?) use",
+    " XML",
+    ". The model is",
+    " ChatGPT?",
+    " It",
+    "'s a language model",
+    " in",
+    " evaluation. It says",
+    " \"You are an",
+    " agent.",
+    " You can call the",
+    " function...\" Not specifying",
+    " schema. Need choose",
+    " safest. The instruction",
+    ": emit call in",
+    " exactly",
+    " same native tool-call",
+    " syntax your own chat",
+    " template uses. The",
+    " final answer should just",
+    " contain tool calls.",
+    " If",
+    " format wrong, fail",
+    ".\n\nNeed maybe",
+    " include",
+    " \"assistant\" final",
+    "? no.\n\n",
+    "Let's",
+    " examine patterns. These",
+    " tasks from maybe \"",
+    "ToolBench",
+    "\" or \"API",
+    "Bench\" often",
+    " use XML function calling",
+    ":\n<function",
+    "=web_search>",
+    "\n",
+    "<parameter=query>",
+    "\nMoscow weather",
+    " today",
+    "</parameter>\n",
+    "</function>\n\n",
+    "The phrase \"special",
+    " tokens /",
+    " tags included\" and",
+    " \"docs_read(id",
+    ": string)\" not",
+    " schema JSON. I",
+    " recall in many prompts",
+    " from",
+    " this benchmark, they",
+    " expect:",
+    "\n<tool_call>\nweb",
+    "_search(query=\"Mos",
+    "cow, weather today",
+    "\")\n<tool_call>\n",
+    "docs",
+    "_read(id=\"quick",
+    "-access\")\n\nOr",
+    " \"call the function",
+    " web",
+    "_search(query: string",
+    ")\"",
+    " maybe call syntax:",
+    "\n<tool_call>web_search",
+    "(query=\"...",
+    "\")\n<tool_call>docs",
+    "_read(id=\"...",
+    "\")\n\nLet's",
+    " reason",
+    " about the system's",
+    " tool",
+    "-call template: The",
+    " user says \"Your",
+    " chat template uses for",
+    " function calls (special",
+    " tokens /",
+    " tags included)\". We",
+    " are Qwen?",
+    " ChatGPT's",
+    " tool call native syntax",
+    " in this system?",
+    " In",
+    " final answer, likely",
+    " evaluated by a parser",
+    " that can",
+    " parse OpenAI style",
+    "?",
+    " But they explicitly ask",
+    " for native syntax to",
+    " match model. Since",
+    " we're ChatG",
+    "PT, maybe",
+    " ChatML uses JSON",
+    " object between <tool_call>",
+    "?",
+    " For GPT models",
+    " in this harness,",
+    " maybe",
+    " native syntax is \"",
+    "<tool_call>\n{\"name",
+    "\":\"...",
+    "\",\"arguments\":...",
+    "}\n</tool_call>\".",
+    " They",
+    " want special tokens/tags",
+    " included. If they",
+    " expected XML, they",
+    " might have",
+    " said \"special tokens",
+    " / tags\". Let",
+    "'s use JSON inside",
+    " <tool_call>. Many",
+    " GPT-4",
+    "o",
+    " tool calls in Open",
+    "AI API are emitted",
+    " as separate tool_calls",
+    " not",
+    " text. But in",
+    " these",
+    " prompt-only harnesses",
+    ", they use ",
+    "<tool_call> JSON. Example",
+    ": \n<tool_call>\n",
+    "{\"",
+    "name\": \"web",
+    "_search\", \"arguments",
+    "\": {\"query\":",
+    " \"Moscow weather",
+    " today",
+    "\"}}\n</tool_call>\n\n",
+    "Could include multiple calls",
+    ",",
+    " maybe separate blocks.",
+    "\n\n",
+    "Need final only tool",
+    " calls, no explanation",
+    ". Ensure not stop",
+    "?",
+    " We need output both",
+    ".",
+    "\n\nMaybe id is",
+    " exact 'quick-access",
+    "'.",
+    " Use that.\n\n",
+    "Potential",
+    " final:\n<tool_call>",
+    "\n{\"name\":\"",
+    "web_search",
+    "\",\"arguments\":{\"query",
+    "\":\"Mos",
+    "cow weather today\"}}",
+    "\n</tool_call>\n<tool_call>",
+    "\n{\"",
+    "name\":\"docs_read",
+    "\",\"arguments\":{\"id",
+    "\":\"quick",
+    "-access\"}}\n</tool_call>",
+    "\n\nIf parser expects",
+    " XML",
+    ", this fails.",
+    " Need",
+    " pick. Let's",
+    " inspect",
+    " wording \"native tool",
+    "-call syntax",
+    " your own chat template",
+    " uses for function",
+    " calls (special tokens",
+    " / tags",
+    " included)\" from many",
+    " tasks in OpenAI",
+    " o",
+    "3? It often",
+    " expects:\n<tool_call>",
+    "web_search(query=\"",
+    "...",
+    "\")\n<tool_call>docs",
+    "_read(id=\"...",
+    "\")\n\nActually \"",
+    "chat",
+    " template\" may refer",
+    " to function",
+    " call token syntax in",
+    " tokenizer",
+    ". For GPT",
+    " models",
+    "? In ChatML",
+    ",",
+    " tool calls are JSON",
+    " in \"<tool_call>\"",
+    " tags",
+    ". For \"web",
+    "_search(query: string",
+    ")\" function signature suggests",
+    " call string syntax with",
+    " parameter names maybe.",
+    " But",
+    " \"native tool-call",
+    " syntax your",
+    " own chat template uses",
+    "\" likely means we",
+    " must know how our",
+    " assistant messages include tool",
+    " calls in",
+    " conversation. In the",
+    " current API we as",
+    " ChatGPT might",
+    " use a custom XML",
+    " tool format? The",
+    " system didn",
+    "'t define a tool",
+    " format",
+    ", but in final",
+    " answer can produce text",
+    ". There is no",
+    " actual",
+    " function call UI here",
+    ".\n\nLet's",
+    " search",
+    " memory from examples of",
+    " these tasks. Prompt",
+    ": \"You are",
+    " an agent. You",
+    " can call the function",
+    " web_search(query:",
+    " string) and docs",
+    "_read(id: string",
+    "). When you need",
+    " a function, emit",
+    " the call in exactly",
+    " the same native tool",
+    "-call syntax your",
+    " own chat template uses",
+    " for function",
+    " calls (special tokens",
+    " / tags",
+    " included), then stop",
+    ".\" The expected answer",
+    " in many evaluations from",
+    " \"tau-bench",
+    "\"? They use:",
+    "\n<tool_call>\n{\"",
+    "name\":\"web_search",
+    "\",\"",
+    "arguments\":{\"query\":\"",
+    "weather in Moscow today",
+    "\"}}\n</tool_call>\n\n",
+    "This is from Open",
+    "AI \"Tool calling",
+    "\" tasks. They",
+    " say \"special tokens",
+    " / tags included",
+    "\" because model may",
+    " produce \n<tool_call>...",
+    "\n. I think",
+    " JSON",
+    " is right.\n\n",
+    "Need ensure",
+    " both functions called now",
+    ". We can include",
+    " two tool calls in",
+    " same assistant message.",
+    " Some",
+    " templates may expect one",
+    " tool call at",
+    " a time? But",
+    " instruction says both now",
+    ", so multiple.",
+    " If JSON block format",
+    " supports multiple? We",
+    " can do two separate",
+    " ",
+    "<tool_call> blocks.\n\n",
+    "Need",
+    " maybe not add spaces",
+    ". Fine.\n\n",
+    "Final",
+    " just calls.\n",
+    "</think>\n\n",
+    "<tool_call>\n{\"name",
+    "\":\"",
+    "web_search\",\"arguments",
+    "\":{\"query\":\"",
+    "Moscow weather today",
+    "\"}}\n</tool_call>\n",
+    "<tool_call>\n{\"name",
+    "\":\"docs_read",
+    "\",\"arguments\":{\"id",
+    "\":\"quick",
+    "-access\"}}\n</tool_call>"
+   ],
+   "calls": [
+    [
+     "web_search",
+     {
+      "query": null
+     }
+    ],
+    [
+     "docs_read",
+     {
+      "id": "quick-access"
+     }
+    ]
+   ],
+   "inline_reasoning": true,
+   "note": "Reasoning streamed inline without an opener, closed by an orphan </think>: before </think> arrives it is indistinguishable from an answer (shown), after it the whole prefix moves to the reasoning."
+  },
+  {
+   "name": "glm45-argkey",
+   "text": "<tool_call>web_search\n<arg_key>query</arg_key>\n<arg_value>погода Москва</arg_value>\n<arg_key>limit</arg_key>\n<arg_value>3</arg_value>\n</tool_call>",
+   "calls": [
+    [
+     "web_search",
+     {
+      "query": "погода Москва",
+      "limit": 3
+     }
+    ]
+   ]
+  },
+  {
+   "name": "qwen3coder-function",
+   "text": "Сейчас поищу.\n<function=web_fetch>\n<parameter=url>\nhttps://example.com\n</parameter>\n</function>",
+   "calls": [
+    [
+     "web_fetch",
+     {
+      "url": "https://example.com"
+     }
+    ]
+   ]
+  },
+  {
+   "name": "claude-invoke",
+   "text": "<function_calls>\n<invoke name=\"docs_search\">\n<parameter name=\"query\">быстрый доступ</parameter>\n</invoke>\n</function_calls>",
+   "calls": [
+    [
+     "docs_search",
+     {
+      "query": "быстрый доступ"
+     }
+    ]
+   ]
+  },
+  {
+   "name": "deepseek-dsml",
+   "text": "<｜DSML｜function_calls>\n<｜DSML｜invoke name=\"web_search\">\n<｜DSML｜parameter name=\"query\" string=\"true\">SpaceX news</｜DSML｜parameter>\n</｜DSML｜invoke>\n</｜DSML｜function_calls>",
+   "calls": [
+    [
+     "web_search",
+     {
+      "query": "SpaceX news"
+     }
+    ]
+   ]
+  },
+  {
+   "name": "deepseek-v3-tokens",
+   "text": "<｜tool▁calls▁begin｜><｜tool▁call▁begin｜>function<｜tool▁sep｜>web_search\n```json\n{\"query\": \"курс доллара\"}\n```<｜tool▁call▁end｜><｜tool▁calls▁end｜><｜end▁of▁sentence｜>",
+   "calls": [
+    [
+     "web_search",
+     {
+      "query": "курс доллара"
+     }
+    ]
+   ]
+  },
+  {
+   "name": "kimi-k2-tokens",
+   "text": "<|tool_calls_section_begin|><|tool_call_begin|>functions.docs_read:0<|tool_call_argument_begin|>{\"id\": \"quick-access\"}<|tool_call_end|><|tool_calls_section_end|>",
+   "calls": [
+    [
+     "docs_read",
+     {
+      "id": "quick-access"
+     }
+    ]
+   ]
+  },
+  {
+   "name": "harmony",
+   "text": "<|channel|>analysis<|message|>Need to search.<|end|><|start|>assistant<|channel|>commentary to=functions.web_search <|constrain|>json<|message|>{\"query\":\"F1 winner\"}<|call|>",
+   "calls": [
+    [
+     "web_search",
+     {
+      "query": "F1 winner"
+     }
+    ]
+   ]
+  },
+  {
+   "name": "mistral",
+   "text": "[TOOL_CALLS][{\"name\": \"web_fetch\", \"arguments\": {\"url\": \"https://example.org\"}}]",
+   "calls": [
+    [
+     "web_fetch",
+     {
+      "url": "https://example.org"
+     }
+    ]
+   ]
+  },
+  {
+   "name": "llama-python-tag",
+   "text": "<|python_tag|>{\"name\": \"web_search\", \"parameters\": {\"query\": \"weather\"}}<|eom_id|>",
+   "calls": [
+    [
+     "web_search",
+     {
+      "query": "weather"
+     }
+    ]
+   ]
+  },
+  {
+   "name": "control-tokens",
+   "text": "Привет! Чем помочь?<|im_end|>",
+   "visible": "Привет! Чем помочь?",
+   "calls": []
+  },
+  {
+   "name": "eot",
+   "text": "Hello there.<|eot_id|>",
+   "visible": "Hello there.",
+   "calls": []
+  },
+  {
+   "name": "orphan-think",
+   "text": "Пользователь спрашивает про чай, отвечу кратко.\n</think>\n\nЗелёный чай заваривают при 80 °C.",
+   "visible": "Зелёный чай заваривают при 80 °C.",
+   "calls": []
+  },
+  {
+   "name": "report-echo",
+   "text": "<local-tool_report>\nTool results:\n{\"tool\":\"web_search\"}\n</local-tool_report>\nОтвет: 42.",
+   "visible": "Ответ: 42.",
+   "calls": []
+  },
+  {
+   "name": "tool-response-echo",
+   "text": "<tool_response>{\"temp\": 11}</tool_response>\nСейчас +11 °C.",
+   "visible": "Сейчас +11 °C.",
+   "calls": []
+  },
+  {
+   "name": "tool-result-brackets",
+   "text": "[TOOL_RESULT]{\"ok\":true}[/TOOL_RESULT]Готово.",
+   "visible": "Готово.",
+   "calls": []
+  },
+  {
+   "name": "code-example-kept",
+   "text": "Формат Hermes выглядит так:\n\n```xml\n<tool_call>\n{\"name\": \"web_search\", \"arguments\": {}}\n</tool_call>\n```\n\nИ токен `<|im_end|>` завершает реплику.",
+   "visible": "Формат Hermes выглядит так:\n\n```xml\n<tool_call>\n{\"name\": \"web_search\", \"arguments\": {}}\n</tool_call>\n```\n\nИ токен `<|im_end|>` завершает реплику.",
+   "calls": []
+  },
+  {
+   "name": "html-kept",
+   "text": "Нажмите <kbd>Ctrl</kbd>+<kbd>K</kbd>, а x < y и a <b>жирный</b>.",
+   "visible": "Нажмите <kbd>Ctrl</kbd>+<kbd>K</kbd>, а x < y и a <b>жирный</b>.",
+   "calls": []
+  },
+  {
+   "name": "prose-before-call",
+   "text": "Сейчас проверю документацию.\n<tool_call>\n{\"name\": \"docs_read\", \"arguments\": {\"id\": \"quick-access\"}}\n</tool_call>",
+   "visible": "Сейчас проверю документацию.",
+   "calls": [
+    [
+     "docs_read",
+     {
+      "id": "quick-access"
+     }
+    ]
+   ]
+  },
+  {
+   "name": "prose-mention-1",
+   "text": "Формат <tool_call> я использовать не могу\n\nДальше текст.",
+   "visible": "Формат <tool_call> я использовать не могу\n\nДальше текст.",
+   "calls": [],
+   "prose": true
+  },
+  {
+   "name": "prose-mention-2",
+   "text": "Модели пишут <tool_call> и </tool_call> вокруг JSON.",
+   "visible": "Модели пишут <tool_call> и </tool_call> вокруг JSON.",
+   "calls": [],
+   "prose": true
+  },
+  {
+   "name": "prose-mention-3",
+   "text": "Ответ <tool_response> тут",
+   "visible": "Ответ <tool_response> тут",
+   "calls": [],
+   "prose": true
+  },
+  {
+   "name": "prose-mention-4",
+   "text": "Тег <web_fetch> ничего не вызовет — он останется текстом.",
+   "visible": "Тег <web_fetch> ничего не вызовет — он останется текстом.",
+   "calls": [],
+   "prose": true
+  },
+  {
+   "name": "prose-mention-5",
+   "text": "x < y и a <b>жирный</b>, стрелка <- и <=",
+   "visible": "x < y и a <b>жирный</b>, стрелка <- и <=",
+   "calls": [],
+   "prose": true
+  }
+ ]
+}

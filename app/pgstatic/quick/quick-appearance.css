@@ -1,0 +1,74 @@
+/* MemuAI Quick Ask — Round 30 (r30-p3-quick): Settings → Appearance extras in the Alt+Space window.
+
+   quick.js applyAppearance puts the same html[data-*] attributes as the main window (appearance-plus.js):
+     ui_radius        sharp | round        → data-radius        corners of the card, rows, chips, menus
+     ui_glass         light | strong       → data-glass         frosted menus; translucent card in the browser preview
+                                                                and over a Windows material (data-backdrop)
+     ui_contrast      more                 → data-contrast      stronger secondary text and lines
+     ui_density       compact | spacious   → data-density       list rows, conversation spacing
+     ui_motion_speed  slow | fast          → data-motion-speed  window, views, menus and chips
+   Square designs (terminal, brutal, grid) keep their own corners; data-motion reduced/off always wins over speed.
+   The Glass design already is frosted, so data-glass leaves it alone. */
+
+/* ------------------------------------------------------------------ corners */
+:root[data-radius="sharp"]:not(:is([data-design="terminal"], [data-design="brutal"], [data-design="grid"])) { --qa-radius: 8px; }
+:root[data-radius="sharp"]:not(:is([data-design="terminal"], [data-design="brutal"], [data-design="grid"])) :is(.qa-row, .qa-act, .qa-btn, .qa-model,
+  .qa-icon, .qa-more, .qa-route, .qa-chip-page, .qa-chip-sel, .qc-menu button, .qcv-menu button) { border-radius: 5px; }
+:root[data-radius="sharp"]:not(:is([data-design="terminal"], [data-design="brutal"], [data-design="grid"])) :is(.qa-send, .qa-search, .qa-seg, .qa-thumb,
+  .qa-tip, .qc-menu, .qcv-menu) { border-radius: 6px; }
+:root[data-radius="sharp"]:not(:is([data-design="terminal"], [data-design="brutal"], [data-design="grid"])) kbd { border-radius: 3px; }
+
+:root[data-radius="round"]:not(:is([data-design="terminal"], [data-design="brutal"], [data-design="grid"])) { --qa-radius: 24px; }
+:root[data-radius="round"]:not(:is([data-design="terminal"], [data-design="brutal"], [data-design="grid"])) :is(.qa-row, .qa-act, .qa-btn, .qa-model,
+  .qa-icon, .qa-more, .qa-route, .qc-menu button, .qcv-menu button) { border-radius: 11px; }
+:root[data-radius="round"]:not(:is([data-design="terminal"], [data-design="brutal"], [data-design="grid"])) :is(.qa-chip-page, .qa-chip-sel) { border-radius: 14px; }
+:root[data-radius="round"]:not(:is([data-design="terminal"], [data-design="brutal"], [data-design="grid"])) :is(.qa-send, .qa-search, .qa-seg, .qa-thumb) { border-radius: 14px; }
+:root[data-radius="round"]:not(:is([data-design="terminal"], [data-design="brutal"], [data-design="grid"])) :is(.qa-tip, .qc-menu, .qcv-menu) { border-radius: 16px; }
+:root[data-radius="round"]:not(:is([data-design="terminal"], [data-design="brutal"], [data-design="grid"])) kbd { border-radius: 7px; }
+
+/* ------------------------------------------------------------------ higher contrast */
+:root[data-contrast="more"] {
+  --muted: color-mix(in srgb, var(--text) 80%, var(--bg));
+  --border: color-mix(in srgb, var(--text) 24%, var(--bg));
+  --qa-faint: color-mix(in srgb, var(--text) 66%, var(--bg));
+  --qa-line: color-mix(in srgb, var(--text) 20%, transparent);
+  --qa-chip-line: color-mix(in srgb, var(--text) 18%, transparent);
+  --qa-hover: color-mix(in srgb, var(--text) 10%, transparent);
+}
+
+/* ------------------------------------------------------------------ frosted glass */
+:root[data-glass]:not([data-design="glass"]) { --qa-glass-a: 84%; --qa-glass-blur: blur(18px) saturate(1.3); }
+:root[data-glass="strong"]:not([data-design="glass"]) { --qa-glass-a: 70%; --qa-glass-blur: blur(30px) saturate(1.6); }
+:root[data-glass]:not([data-design="glass"]) :is(.qc-menu, .qcv-menu) {
+  background: color-mix(in srgb, var(--panel-2, var(--panel)) var(--qa-glass-a), transparent);
+  -webkit-backdrop-filter: var(--qa-glass-blur); backdrop-filter: var(--qa-glass-blur);
+}
+/* The native window paints its own opaque colour behind the page — the card is see-through only in the browser
+   preview or over a real Windows material. */
+:root[data-glass]:not([data-design="glass"]):is(:not([data-native="1"]), [data-backdrop]) { --qa-surface: color-mix(in srgb, var(--panel) var(--qa-glass-a), transparent); }
+:root[data-glass]:not([data-design="glass"]):not([data-native="1"]) .qa-card { -webkit-backdrop-filter: var(--qa-glass-blur); backdrop-filter: var(--qa-glass-blur); }
+
+/* ------------------------------------------------------------------ density */
+:root[data-density="compact"] .qa-row { min-height: 31px; }
+:root[data-density="compact"] .qa-row.qx-row { min-height: 40px; }   /* two-line rows (snippets) */
+:root[data-density="compact"] .qa-section { padding-top: 8px; }
+:root[data-density="compact"] .qa-turn + .qa-turn { margin-top: 6px; padding-top: 11px; }
+:root[data-density="compact"] .qa-input-row { padding-top: 12px; padding-bottom: 10px; }
+:root[data-density="spacious"] .qa-row { min-height: 42px; }
+:root[data-density="spacious"] .qa-row.qx-row { min-height: 54px; }
+:root[data-density="spacious"] .qa-section { padding-top: 14px; padding-bottom: 6px; }
+:root[data-density="spacious"] .qa-turn + .qa-turn { margin-top: 14px; padding-top: 22px; }
+:root[data-density="spacious"] .qa-input-row { padding-top: 18px; padding-bottom: 16px; }
+
+/* ------------------------------------------------------------------ motion speed */
+:root[data-motion-speed="fast"]:not([data-motion="reduced"]):not([data-motion="off"]) .qa-card.qa-enter,
+:root[data-motion-speed="fast"]:not([data-motion="reduced"]):not([data-motion="off"]) .qa-card.qa-enter .qa-inner,
+:root[data-motion-speed="fast"]:not([data-motion="reduced"]):not([data-motion="off"]) :is(.qa-picker, .qa-chats, .qa-menu, .qa-answer) { animation-duration: .13s; }
+:root[data-motion-speed="fast"]:not([data-motion="reduced"]):not([data-motion="off"]) :is(.qc-menu, .qcv-menu, .qa-chip-page, .qa-chip-sel, .qa-thumb) { animation-duration: .09s; }
+:root[data-motion-speed="fast"]:not([data-motion="reduced"]):not([data-motion="off"]) :is(.qa-card, .qa-row, .qa-act, .qa-icon, .qa-send) { transition-duration: .09s; }
+
+:root[data-motion-speed="slow"]:not([data-motion="reduced"]):not([data-motion="off"]) .qa-card.qa-enter,
+:root[data-motion-speed="slow"]:not([data-motion="reduced"]):not([data-motion="off"]) .qa-card.qa-enter .qa-inner,
+:root[data-motion-speed="slow"]:not([data-motion="reduced"]):not([data-motion="off"]) :is(.qa-picker, .qa-chats, .qa-menu, .qa-answer) { animation-duration: .36s; }
+:root[data-motion-speed="slow"]:not([data-motion="reduced"]):not([data-motion="off"]) :is(.qc-menu, .qcv-menu, .qa-chip-page, .qa-chip-sel, .qa-thumb) { animation-duration: .24s; }
+:root[data-motion-speed="slow"]:not([data-motion="reduced"]):not([data-motion="off"]) :is(.qa-card, .qa-row, .qa-act, .qa-icon, .qa-send) { transition-duration: .26s; }

@@ -1,0 +1,803 @@
+{
+ "version": "1.0-r33",
+ "cases": [
+  {
+   "id": "reform-claude-opus-4-6-thinking",
+   "prefix": "reform",
+   "name": "Claude Opus 4.6 Thinking",
+   "base": "claude-opus-4.6-thinking",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "prefix-claude-opus-4.6-thinking",
+   "prefix": "",
+   "name": "Claude Opus 4.6 Thinking",
+   "base": "claude-opus-4.6-thinking",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "xkiro-qwen/qwen3.8-max:free",
+   "prefix": "xkiro",
+   "name": "Qwen3.8 Max",
+   "base": "qwen3.8-max",
+   "badges": [
+    "free"
+   ],
+   "date": ""
+  },
+  {
+   "id": "xkiro-qwen/qwen3-vl-plus:free",
+   "prefix": "",
+   "name": "Qwen3 VL Plus",
+   "base": "qwen3-vl-plus",
+   "badges": [
+    "free"
+   ],
+   "date": ""
+  },
+  {
+   "id": "aws9-gpt-6.1-sol",
+   "prefix": "aws9",
+   "name": "GPT-6.1 Sol",
+   "base": "gpt-6.1-sol",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "aws9-gpt-6.1-sol-thinking",
+   "prefix": "",
+   "name": "GPT-6.1 Sol Thinking",
+   "base": "gpt-6.1-sol-thinking",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "gpt://b1gabc/yandexgpt-5.1/latest",
+   "prefix": "",
+   "name": "YandexGPT 5.1",
+   "base": "yandexgpt-5.1",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "ya-gpt://b1g/deepseek-v4.1-flash/latest",
+   "prefix": "",
+   "name": "DeepSeek V4.1 Flash",
+   "base": "deepseek-v4.1-flash",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "reform-glm-5-3",
+   "prefix": "reform",
+   "name": "GLM-5.3",
+   "base": "glm-5.3",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "reform-glm-5.3-flash",
+   "prefix": "reform",
+   "name": "GLM-5.3 Flash",
+   "base": "glm-5.3-flash",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "reform-deepseek-v4-1-flash",
+   "prefix": "reform",
+   "name": "DeepSeek V4.1 Flash",
+   "base": "deepseek-v4.1-flash",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "reform-deepseek-v4-pro-0813",
+   "prefix": "reform",
+   "name": "DeepSeek V4 Pro",
+   "base": "deepseek-v4-pro",
+   "badges": [],
+   "date": "08-13"
+  },
+  {
+   "id": "reform-qwen3.8-max-0902",
+   "prefix": "reform",
+   "name": "Qwen3.8 Max",
+   "base": "qwen3.8-max",
+   "badges": [],
+   "date": "09-02"
+  },
+  {
+   "id": "reform-kimi-k3",
+   "prefix": "reform",
+   "name": "Kimi K3",
+   "base": "kimi-k3",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "reform-kimi-k2-7-code",
+   "prefix": "reform",
+   "name": "Kimi K2.7 Code",
+   "base": "kimi-k2.7-code",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "reform-grok-imagine-image-2-0",
+   "prefix": "reform",
+   "name": "Grok Imagine Image 2.0",
+   "base": "grok-imagine-image-2.0",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "reform-wanx2.1-t2i-turbo",
+   "prefix": "reform",
+   "name": "Wanx 2.1 T2I Turbo",
+   "base": "wanx2.1-t2i-turbo",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "reform-gpt-imagine-2.5",
+   "prefix": "reform",
+   "name": "GPT Imagine 2.5",
+   "base": "gpt-imagine-2.5",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "reform-qwen3.5-plus-2026-04-20",
+   "prefix": "reform",
+   "name": "Qwen3.5 Plus",
+   "base": "qwen3.5-plus",
+   "badges": [],
+   "date": "2026-04-20"
+  },
+  {
+   "id": "reform-qwen3-5-omni-flash",
+   "prefix": "reform",
+   "name": "Qwen3.5 Omni Flash",
+   "base": "qwen3.5-omni-flash",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "reform-qwen3-8-flash",
+   "prefix": "",
+   "name": "Qwen3.8 Flash",
+   "base": "qwen3.8-flash",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "openrouter-apodex/apodex-1.1-mini:free",
+   "prefix": "openrouter",
+   "name": "Apodex 1.1 Mini",
+   "base": "apodex-1.1-mini",
+   "badges": [
+    "free"
+   ],
+   "date": ""
+  },
+  {
+   "id": "genspark-image/auto",
+   "prefix": "",
+   "name": "Auto",
+   "base": "auto",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "genspark-image/gpt-image-2",
+   "prefix": "",
+   "name": "GPT Image 2",
+   "base": "gpt-image-2",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "genspark-image/nano-banana-pro",
+   "prefix": "",
+   "name": "Nano Banana Pro",
+   "base": "nano-banana-pro",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "genspark-video/sora-2",
+   "prefix": "",
+   "name": "Sora 2",
+   "base": "sora-2",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "antigravity-gemini-3.1-pro-high",
+   "prefix": "antigravity",
+   "name": "Gemini 3.1 Pro High",
+   "base": "gemini-3.1-pro-high",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "kiro-claude-sonnet-4.5",
+   "prefix": "kiro",
+   "name": "Claude Sonnet 4.5",
+   "base": "claude-sonnet-4.5",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "anthropic/claude-3-5-sonnet-20241022",
+   "prefix": "",
+   "name": "Claude 3.5 Sonnet",
+   "base": "claude-3.5-sonnet",
+   "badges": [],
+   "date": "2024-10-22"
+  },
+  {
+   "id": "claude-3-7-sonnet-latest",
+   "prefix": "",
+   "name": "Claude 3.7 Sonnet Latest",
+   "base": "claude-3.7-sonnet-latest",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "gpt-4o-mini",
+   "prefix": "",
+   "name": "GPT-4o Mini",
+   "base": "gpt-4o-mini",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "gpt-4o",
+   "prefix": "",
+   "name": "GPT-4o",
+   "base": "gpt-4o",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "o3-mini",
+   "prefix": "",
+   "name": "o3 Mini",
+   "base": "o3-mini",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "o4-mini-high",
+   "prefix": "",
+   "name": "o4 Mini High",
+   "base": "o4-mini-high",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "o1",
+   "prefix": "",
+   "name": "o1",
+   "base": "o1",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "meta-llama/llama-3.1-70b-instruct",
+   "prefix": "",
+   "name": "Llama 3.1 70B Instruct",
+   "base": "llama-3.1-70b-instruct",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "qwen/qwen3-235b-a22b-2507",
+   "prefix": "",
+   "name": "Qwen3 235B A22B 2507",
+   "base": "qwen3-235b-a22b-2507",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "mistralai/mixtral-8x7b-instruct",
+   "prefix": "",
+   "name": "Mixtral 8x7B Instruct",
+   "base": "mixtral-8x7b-instruct",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "deepseek-r1",
+   "prefix": "",
+   "name": "DeepSeek R1",
+   "base": "deepseek-r1",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "deepseek/deepseek-chat-v3.1:free",
+   "prefix": "",
+   "name": "DeepSeek Chat V3.1",
+   "base": "deepseek-chat-v3.1",
+   "badges": [
+    "free"
+   ],
+   "date": ""
+  },
+  {
+   "id": "gpt-oss-120b",
+   "prefix": "",
+   "name": "GPT-OSS 120B",
+   "base": "gpt-oss-120b",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "openai/gpt-oss-20b:free",
+   "prefix": "",
+   "name": "GPT-OSS 20B",
+   "base": "gpt-oss-20b",
+   "badges": [
+    "free"
+   ],
+   "date": ""
+  },
+  {
+   "id": "gemini-2.5-flash-image-preview",
+   "prefix": "",
+   "name": "Gemini 2.5 Flash Image Preview",
+   "base": "gemini-2.5-flash-image-preview",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "dall-e-3",
+   "prefix": "",
+   "name": "DALL·E 3",
+   "base": "dall-e-3",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "local-qwen2.5-7b-instruct-q4_k_m.gguf",
+   "prefix": "local",
+   "name": "Qwen2.5 7B Instruct Q4_K_M",
+   "base": "qwen2.5-7b-instruct-q4_k_m",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "llama3.1:8b",
+   "prefix": "",
+   "name": "Llama 3.1 8B",
+   "base": "llama3.1",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "qwen2.5-coder:32b",
+   "prefix": "",
+   "name": "Qwen2.5 Coder 32B",
+   "base": "qwen2.5-coder",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "moonshotai/kimi-k2-0905",
+   "prefix": "",
+   "name": "Kimi K2 0905",
+   "base": "kimi-k2-0905",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "kimi-k2.5",
+   "prefix": "",
+   "name": "Kimi K2.5",
+   "base": "kimi-k2.5",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "minimax-m2",
+   "prefix": "",
+   "name": "MiniMax M2",
+   "base": "minimax-m2",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "MiniMax-M2.1",
+   "prefix": "",
+   "name": "MiniMax M2.1",
+   "base": "MiniMax-M2.1",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "glm-4.5v",
+   "prefix": "",
+   "name": "GLM-4.5V",
+   "base": "glm-4.5v",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "z-ai/glm-4.6",
+   "prefix": "",
+   "name": "GLM-4.6",
+   "base": "glm-4.6",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "x-ai/grok-4-fast:free",
+   "prefix": "",
+   "name": "Grok 4 Fast",
+   "base": "grok-4-fast",
+   "badges": [
+    "free"
+   ],
+   "date": ""
+  },
+  {
+   "id": "grok-4.7",
+   "prefix": "",
+   "name": "Grok 4.7",
+   "base": "grok-4.7",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "claude-sonnet-4",
+   "prefix": "",
+   "name": "Claude Sonnet 4",
+   "base": "claude-sonnet-4",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "claude-opus-4-5-20251101",
+   "prefix": "",
+   "name": "Claude Opus 4.5",
+   "base": "claude-opus-4.5",
+   "badges": [],
+   "date": "2025-11-01"
+  },
+  {
+   "id": "gpt-5.1-codex-max",
+   "prefix": "",
+   "name": "GPT-5.1 Codex Max",
+   "base": "gpt-5.1-codex-max",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "gpt-5-chat-latest",
+   "prefix": "",
+   "name": "GPT-5 Chat Latest",
+   "base": "gpt-5-chat-latest",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "sora-2-pro",
+   "prefix": "",
+   "name": "Sora 2 Pro",
+   "base": "sora-2-pro",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "veo-3.1-generate-preview",
+   "prefix": "",
+   "name": "Veo 3.1 Generate Preview",
+   "base": "veo-3.1-generate-preview",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "flux-1.1-pro-ultra",
+   "prefix": "",
+   "name": "FLUX 1.1 Pro Ultra",
+   "base": "flux-1.1-pro-ultra",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "black-forest-labs/flux.2-pro",
+   "prefix": "",
+   "name": "FLUX.2 Pro",
+   "base": "flux.2-pro",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "aws9-auto",
+   "prefix": "aws9",
+   "name": "Auto",
+   "base": "auto",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "mymodel-x1",
+   "prefix": "",
+   "name": "Mymodel X1",
+   "base": "mymodel-x1",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "foo-bar-baz",
+   "prefix": "",
+   "name": "Foo Bar Baz",
+   "base": "foo-bar-baz",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "Qwen/Qwen3-Coder-480B-A35B-Instruct",
+   "prefix": "",
+   "name": "Qwen3 Coder 480B A35B Instruct",
+   "base": "Qwen3-Coder-480B-A35B-Instruct",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "text-embedding-3-large",
+   "prefix": "",
+   "name": "Text Embedding 3 Large",
+   "base": "text-embedding-3-large",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "whisper-1",
+   "prefix": "",
+   "name": "Whisper 1",
+   "base": "whisper-1",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "tts-1-hd",
+   "prefix": "",
+   "name": "TTS 1 HD",
+   "base": "tts-1-hd",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "gemma-3-27b-it",
+   "prefix": "",
+   "name": "Gemma 3 27B IT",
+   "base": "gemma-3-27b-it",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "google/gemma-3n-e4b-it:free",
+   "prefix": "",
+   "name": "Gemma 3n E4B IT",
+   "base": "gemma-3n-e4b-it",
+   "badges": [
+    "free"
+   ],
+   "date": ""
+  },
+  {
+   "id": "mistral-large-2411",
+   "prefix": "",
+   "name": "Mistral Large 2411",
+   "base": "mistral-large-2411",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "codestral-2508",
+   "prefix": "",
+   "name": "Codestral 2508",
+   "base": "codestral-2508",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "llama-4-maverick-17b-128e-instruct",
+   "prefix": "",
+   "name": "Llama 4 Maverick 17B 128e Instruct",
+   "base": "llama-4-maverick-17b-128e-instruct",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "nvidia/llama-3.3-nemotron-super-49b-v1.5",
+   "prefix": "",
+   "name": "Llama 3.3 Nemotron Super 49B V1.5",
+   "base": "llama-3.3-nemotron-super-49b-v1.5",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "command-a-03-2025",
+   "prefix": "",
+   "name": "Command A",
+   "base": "command-a",
+   "badges": [],
+   "date": "2025-03"
+  },
+  {
+   "id": "sonar-reasoning-pro",
+   "prefix": "",
+   "name": "Sonar Reasoning Pro",
+   "base": "sonar-reasoning-pro",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "~anthropic/claude-haiku-latest",
+   "prefix": "",
+   "name": "Claude Haiku Latest",
+   "base": "claude-haiku-latest",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "qwen3-max-preview:thinking",
+   "prefix": "",
+   "name": "Qwen3 Max Preview Thinking",
+   "base": "qwen3-max-preview",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "anthropic/claude-3.7-sonnet:thinking",
+   "prefix": "",
+   "name": "Claude 3.7 Sonnet Thinking",
+   "base": "claude-3.7-sonnet",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "deepseek-v3.2-exp",
+   "prefix": "",
+   "name": "DeepSeek V3.2 Exp",
+   "base": "deepseek-v3.2-exp",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "ERNIE-4.5-300B-A47B",
+   "prefix": "",
+   "name": "ERNIE 4.5 300B A47B",
+   "base": "ERNIE-4.5-300B-A47B",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "doubao-seed-1-6-250615",
+   "prefix": "",
+   "name": "Doubao Seed 1.6",
+   "base": "doubao-seed-1.6",
+   "badges": [],
+   "date": "2025-06-15"
+  },
+  {
+   "id": "hunyuan-t1-latest",
+   "prefix": "",
+   "name": "Hunyuan T1 Latest",
+   "base": "hunyuan-t1-latest",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "gigachat-2-max",
+   "prefix": "",
+   "name": "GigaChat 2 Max",
+   "base": "gigachat-2-max",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "yandexgpt-lite",
+   "prefix": "",
+   "name": "YandexGPT Lite",
+   "base": "yandexgpt-lite",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "seedream-4-0-250828",
+   "prefix": "",
+   "name": "Seedream 4.0",
+   "base": "seedream-4.0",
+   "badges": [],
+   "date": "2025-08-28"
+  },
+  {
+   "id": "kling-v2-1-master",
+   "prefix": "",
+   "name": "Kling V2.1 Master",
+   "base": "kling-v2.1-master",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "hailuo-02",
+   "prefix": "",
+   "name": "Hailuo 02",
+   "base": "hailuo-02",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "ui-tars-1.5-7b",
+   "prefix": "",
+   "name": "UI-TARS 1.5 7B",
+   "base": "ui-tars-1.5-7b",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "phi-4-reasoning-plus",
+   "prefix": "",
+   "name": "Phi-4 Reasoning Plus",
+   "base": "phi-4-reasoning-plus",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "nano-banana-2",
+   "prefix": "",
+   "name": "Nano Banana 2",
+   "base": "nano-banana-2",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "imagen-4.0-ultra-generate-001",
+   "prefix": "",
+   "name": "Imagen 4.0 Ultra Generate 001",
+   "base": "imagen-4.0-ultra-generate-001",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "gemini-3-pro-image-preview",
+   "prefix": "",
+   "name": "Gemini 3 Pro Image Preview",
+   "base": "gemini-3-pro-image-preview",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "chatgpt-4o-latest",
+   "prefix": "",
+   "name": "ChatGPT-4o Latest",
+   "base": "chatgpt-4o-latest",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "custom-my-finetune-v2",
+   "prefix": "",
+   "name": "Custom My Finetune V2",
+   "base": "custom-my-finetune-v2",
+   "badges": [],
+   "date": ""
+  },
+  {
+   "id": "",
+   "prefix": "",
+   "name": "",
+   "base": "",
+   "badges": [],
+   "date": ""
+  }
+ ]
+}

@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark" data-quick-layer="1">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="/icon.png">
+<script src="/memu-keys.js?v=3.5-r33"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MemuAI Quick · layer</title>
+<!-- Round 28: the screen layer of Quick Ask — the user's MemuAI panels and quick-action buttons anywhere on the
+     monitor Quick Ask opened on. Native side: app/quick_layer.py (a click-through window clipped to the items);
+     layout: app/quick_layer_core.py via /api/quick/layer/*; talking to the Quick Ask window: quick-bus.js. -->
+<script>
+try {
+  const root = document.documentElement;
+  root.dataset.native = new URLSearchParams(location.search).get("native") === "1" ? "1" : "0";
+  const theme = localStorage.getItem("memu_theme") === "light" ? "light" : "dark";
+  root.dataset.theme = theme;
+  const accent = localStorage.getItem("memu_accent") || "";
+  root.dataset.accent = /^[a-z]{2,24}$/.test(accent) ? accent : "terracotta";
+  const design = localStorage.getItem("memu_design") || "";
+  root.dataset.design = /^(aurora|focus|grid|glass|soft|terminal|brutal)$/.test(design) ? design : "classic";
+  root.lang = localStorage.getItem("memu_lang") === "en" ? "en" : "ru";
+  const motion = localStorage.getItem("memu_motion") || "";
+  if (motion === "off") root.dataset.motion = "off";
+} catch (_) {}
+</script>
+<link rel="stylesheet" href="/themes.css">
+<link rel="stylesheet" href="/panels.css?v=1.5-r36">
+<link rel="stylesheet" href="/quick/layer.css?v=1.3-r34">
+<link rel="stylesheet" href="/quick/panel-look.css?v=1.1-r32">
+<link rel="stylesheet" href="/quick/panel-text.css?v=1.0-r32" data-pt-css="1">
+<style id="memu-user-theme"></style>
+<script>
+try {
+  const css = localStorage.getItem("memu_user_theme_" + document.documentElement.dataset.theme);
+  if (css) document.getElementById("memu-user-theme").textContent = css;
+} catch (_) {}
+</script>
+</head>
+<body>
+<div class="ql" id="ql" data-edit="0" data-visible="0" aria-label="MemuAI">
+  <div class="ql-zone" id="ql-zone" hidden></div>
+  <div class="ql-items" id="ql-items" role="group"></div>
+  <div class="ql-guides" id="ql-guides" aria-hidden="true"></div>
+  <div class="ql-bar" id="ql-bar" hidden></div>
+  <div class="ql-toast" id="ql-toast" role="status" aria-live="polite"></div>
+</div>
+<script src="/quick/quick-bus.js?v=1.0-r28"></script>
+<script src="/memu-live.js?v=1.0-r40"></script><!-- Round 40 (r40-lag): module panels' player.wait over a WebSocket -->
+<script src="/quick/plugins/canvas-icons.js?v=1.0-r27"></script>
+<script src="/memu-ctxmenu.js?v=1.1-r34"></script>
+<script src="/quick/panel-text.js?v=1.0-r32" data-pt-js="1"></script>
+<script src="/quick/panel-look.js?v=1.1-r32"></script>
+<script src="/quick/layer.js?v=1.5-r30"></script>
+</body>
+</html>

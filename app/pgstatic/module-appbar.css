@@ -1,0 +1,88 @@
+/* Round 38 (п.6): the title bar of a module installed as an app — see module-appbar.js.
+   html[data-mab="1"] + data-mab-style = auto | transparent | custom | none. */
+
+:root[data-module-app][data-mab="1"] {
+  --mab-h: 36px;
+  --mab-bg: color-mix(in srgb, var(--accent) 7%, color-mix(in srgb, var(--panel) 94%, var(--bg)));
+  --mab-fg: var(--text);
+  --mab-hover: color-mix(in srgb, var(--mab-fg) 10%, transparent);
+  --mab-press: color-mix(in srgb, var(--mab-fg) 16%, transparent);
+}
+
+/* The module header strip IS the caption. */
+:root[data-module-app][data-mab="1"] .module-window-bar {
+  min-height: var(--mab-h); height: var(--mab-h); box-sizing: border-box;
+  padding: 0 0 0 12px; gap: 8px;
+  background: var(--mab-bg); color: var(--mab-fg);
+  border-bottom: 1px solid color-mix(in srgb, var(--mab-fg) 9%, transparent);
+  transition: background-color .2s ease, color .2s ease;
+}
+:root[data-module-app][data-mab="1"] .module-window-bar b { color: inherit; font-size: 12.5px; font-weight: 600; letter-spacing: .01em; }
+:root[data-module-app][data-mab="1"] .module-window-icon { color: inherit; opacity: .9; }
+:root[data-module-app][data-mab="1"] .module-window-icon .ui-icon { width: 15px; height: 15px; }
+:root[data-module-app][data-mab="1"] .module-window-tools button,
+:root[data-module-app][data-mab="1"] .module-window-actions button { color: inherit; opacity: .78; }
+:root[data-module-app][data-mab="1"] .module-window-tools button { width: 30px; height: 28px; }
+:root[data-module-app][data-mab="1"] .module-window-tools button:hover,
+:root[data-module-app][data-mab="1"] .module-window-actions button:hover { opacity: 1; background: var(--mab-hover); color: inherit; }
+:root[data-module-app][data-mab-active="false"] .module-window-bar b,
+:root[data-module-app][data-mab-active="false"] .mab-btn:not(:hover) { opacity: .5; }
+
+/* auto/custom — a bar above the module. transparent/none — floats over the module's own content. */
+:root[data-module-app][data-mab-style="transparent"] .module-window-bar,
+:root[data-module-app][data-mab-style="none"] .module-window-bar {
+  position: absolute; inset: 0 0 auto 0; z-index: 5;
+  background: transparent; border-bottom-color: transparent;
+}
+:root[data-module-app][data-mab-style="transparent"] .module-window-bar {
+  /* a soft scrim keeps the title readable over bright covers without a visible edge */
+  background: linear-gradient(to bottom, color-mix(in srgb, #000 22%, transparent), transparent);
+  background-origin: border-box;   /* otherwise the gradient tile repeats in the 1px border: a dark hairline under the bar */
+}
+:root[data-module-app][data-mab-style="transparent"] .module-window-bar b { text-shadow: 0 1px 6px rgba(0, 0, 0, .35); }
+:root[data-module-app][data-mab-style="none"] .module-window-bar > :not(.mab-wc):not(.grow) { display: none !important; }
+/* Memu.appbar.set({caption:false}): the module shows its own name — only ✦ ⋯ and the window buttons stay. */
+:root[data-module-app][data-mab="1"][data-mab-caption="off"] .module-window-bar :is(.module-window-icon, [data-win="title"], [data-win="subtitle"], #module-window-title, #module-window-subtitle) { visibility: hidden; }
+/* dark text on a transparent bar (a light module theme): a light scrim, no dark halo under the letters */
+:root[data-module-app][data-mab-style="transparent"][data-mab-ink="dark"] .module-window-bar { background: linear-gradient(to bottom, color-mix(in srgb, #fff 30%, transparent), transparent); background-origin: border-box; }
+:root[data-module-app][data-mab-style="transparent"][data-mab-ink="dark"] .module-window-bar b { text-shadow: none; }
+:root[data-module-app][data-mab="1"][data-mab-ink="dark"] .module-window-tools button,
+:root[data-module-app][data-mab="1"][data-mab-ink="dark"] .module-window-actions button,
+:root[data-module-app][data-mab="1"][data-mab-ink="dark"] .mab-btn:not(:hover) { opacity: .86; }
+:root[data-module-app][data-mab-style="none"] .module-window-bar { pointer-events: none; }
+:root[data-module-app][data-mab-style="none"] .mab-wc { pointer-events: auto; }
+:root[data-module-app][data-mab-style="transparent"] .module-window-body,
+:root[data-module-app][data-mab-style="none"] .module-window-body { position: absolute; inset: 0; }
+
+/* Window buttons: 46 px wide like Windows 11, flush with the top-right corner. */
+.mab-wc { display: flex; align-self: stretch; flex: none; margin-left: 4px; }
+.mab-btn {
+  width: 46px; height: 100%; display: grid; place-items: center; padding: 0;
+  border: 0; border-radius: 0; background: transparent; color: var(--mab-fg); cursor: default;
+  transition: background-color .12s ease, color .12s ease;
+}
+.mab-btn:hover { background: var(--mab-hover); }
+.mab-btn:active { background: var(--mab-press); }
+.mab-btn.mab-close:hover { background: #c42b1c; color: #fff; }
+.mab-btn.mab-close:active { background: #b22a1b; color: #fff; }
+.mab-btn:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 80%, transparent); outline-offset: -3px; }
+.mab-ico { display: grid; place-items: center; width: 10px; height: 10px; }
+.mab-ico svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1; shape-rendering: geometricPrecision; }
+.mab-maximize .restore, .mab-maximize.is-maximized .max { display: none; }
+.mab-maximize.is-maximized .restore { display: grid; }
+
+/* The top resize band (side and bottom borders stay Windows' own). Off when maximized. */
+.mab-resize { display: none; }
+:root[data-mab="1"] .mab-resize { display: block; position: fixed; z-index: 2147483001; inset: 0 0 auto 0; height: 5px; }
+:root[data-mab="1"][data-mab-max="1"] .mab-resize { display: none; }
+.mab-resize i { position: absolute; top: 0; height: 100%; }
+.mab-resize [data-edge="top"] { left: 12px; right: 12px; cursor: n-resize; }
+.mab-resize [data-edge="topleft"] { left: 0; width: 12px; cursor: nw-resize; }
+.mab-resize [data-edge="topright"] { right: 0; width: 12px; cursor: ne-resize; }
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-module-app][data-mab="1"] .module-window-bar, .mab-btn { transition: none; }
+}
+
+/* The module's ✦ ⋯ capsule sits on the bar without its own frame — one calm row. */
+:root[data-module-app][data-mab="1"] .module-window-tools { background: transparent !important; border-color: transparent !important; box-shadow: none !important; }

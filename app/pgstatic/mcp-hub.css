@@ -1,0 +1,104 @@
+/* MemuAI · Settings → Integrations → MCP (Round 40, r40-mcp). Settings-kit tokens (--sx-*) and theme tokens only. */
+
+.mcph-root { display: flex; flex-direction: column; gap: 16px; padding-top: 14px; }
+.mcph-loading, .mcph-muted { color: var(--muted); font-size: 12.5px; line-height: 1.5; margin: 0; }
+.mcph-ic { display: inline-grid; place-items: center; width: 14px; height: 14px; flex: none; }
+.mcph-ic svg, .mcph-brand svg, .mcph-iconbtn svg, .mcph-mono svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.mcph-brand { display: grid; place-items: center; width: 100%; height: 100%; padding: 6px; color: var(--accent); }
+
+/* server cards */
+.mcph-list { display: flex; flex-direction: column; gap: 8px; }
+.mcph-card { border: 1px solid var(--sx-line); border-radius: var(--sx-r, 14px); background: var(--sx-card); overflow: hidden; }
+.mcph-card.open { border-color: color-mix(in srgb, var(--accent) 35%, var(--sx-line)); }
+.mcph-head { display: flex; align-items: center; gap: 12px; padding: 12px 14px; min-width: 0; }
+.mcph-mono { width: 32px; height: 32px; flex: none; display: grid; place-items: center; border-radius: 9px; color: #fff;
+  font: 650 15px/1 var(--sx-font); background: var(--c, color-mix(in srgb, var(--accent) 80%, #000)); }
+.mcph-mono svg { width: 18px; height: 18px; }
+.mcph-title { flex: 1; min-width: 0; }
+.mcph-title b { display: block; font: 650 14px/1.3 var(--sx-display, inherit); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mcph-title small { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; margin-top: 2px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.mcph-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; background: color-mix(in srgb, var(--muted) 60%, transparent); }
+.mcph-card.live .mcph-dot { background: var(--ok, #22c55e); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok, #22c55e) 20%, transparent); }
+.mcph-card.err .mcph-dot { background: var(--danger, #ef4444); }
+.mcph-chips { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; max-width: 42%; }
+.mcph-chip { font: 600 11px/1 var(--sx-font); padding: 4px 8px; border-radius: 99px; background: var(--sx-press); color: var(--text); white-space: nowrap; }
+.mcph-chip.muted { color: var(--muted); }
+.mcph-chip.ro { background: color-mix(in srgb, var(--ok, #22c55e) 14%, transparent); color: color-mix(in srgb, var(--ok, #22c55e) 75%, var(--text)); }
+.mcph-chip.warn { background: color-mix(in srgb, var(--sx-warn, #f59e0b) 16%, transparent); color: color-mix(in srgb, var(--sx-warn, #f59e0b) 70%, var(--text)); }
+.mcph-iconbtn { width: 30px; height: 30px; flex: none; display: grid; place-items: center; padding: 7px; border: 0; border-radius: 8px;
+  background: transparent; color: var(--muted); cursor: pointer; }
+.mcph-iconbtn:hover, .mcph-iconbtn[aria-expanded="true"] { background: var(--sx-hover, var(--sx-press)); color: var(--text); }
+.mcph-head .pbtn, .mcph-head .switch { flex: none; }
+.mcph-err, .mcph-ok { margin: 0 14px 12px; padding: 8px 10px; border-radius: var(--sx-r-sm, 9px); font-size: 12.5px; line-height: 1.45; display: flex; gap: 8px; align-items: center; }
+.mcph-err { background: color-mix(in srgb, var(--danger, #ef4444) 10%, transparent); color: color-mix(in srgb, var(--danger, #ef4444) 80%, var(--text)); word-break: break-word; }
+.mcph-ok { background: color-mix(in srgb, var(--ok, #22c55e) 10%, transparent); color: var(--text); }
+.mcph-ok .mcph-ic { color: var(--ok, #22c55e); }
+
+/* details */
+.mcph-body { border-top: 1px solid var(--sx-line); padding: 14px; display: flex; flex-direction: column; gap: 16px; }
+.mcph-body section { display: flex; flex-direction: column; gap: 8px; }
+.mcph-body h4 { margin: 0; font: 650 12px/1.3 var(--sx-font); letter-spacing: .02em; text-transform: uppercase; color: var(--muted); }
+.mcph-sw { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; min-height: 32px; }
+.mcph-sw > span:first-child { min-width: 0; }
+.mcph-sw select { max-width: 260px; }
+.mcph-sublabel { font-size: 13px; margin-top: 4px; }
+.mcph-agents { display: flex; flex-wrap: wrap; gap: 6px; }
+.mcph-agent { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 99px; border: 1px solid var(--sx-line); font-size: 12.5px; cursor: pointer; }
+.mcph-agent:has(input:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.mcph-agent input { margin: 0; accent-color: var(--accent); }
+.mcph-env, .mcph-custom { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; }
+.mcph-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); min-width: 0; }
+.mcph-field > span { display: flex; align-items: center; gap: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mcph-field .pinput { width: 100%; margin: 0; color: var(--text); }
+.mcph-field.wide { grid-column: 1 / -1; }
+.mcph-row-actions { display: flex; align-items: center; gap: 12px; grid-column: 1 / -1; }
+.mcph-row-actions.end { justify-content: flex-end; }
+.mcph-row-actions small { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+.mcph-row-actions .pbtn .mcph-ic { margin-right: 6px; }
+.mcph-tools { display: flex; flex-direction: column; border: 1px solid var(--sx-line); border-radius: var(--sx-r-sm, 9px); max-height: 320px; overflow: auto; }
+.mcph-tool { display: flex; align-items: center; gap: 12px; padding: 8px 10px; }
+.mcph-tool + .mcph-tool { border-top: 1px solid var(--sx-line-soft, var(--sx-line)); }
+.mcph-tool > div { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.mcph-tool code { font: 600 12.5px/1.3 var(--mono, monospace); }
+.mcph-tool small { flex-basis: 100%; color: var(--muted); font-size: 12px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.mcph-tool select { width: 190px; flex: none; margin: 0; }
+.mcph-res { display: flex; flex-wrap: wrap; gap: 6px; }
+.mcph-res code { font: 12px/1.3 var(--mono, monospace); padding: 4px 8px; border-radius: 6px; background: var(--sx-press); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mcph-logs summary { cursor: pointer; font-size: 12.5px; color: var(--muted); }
+.mcph-logs pre { margin: 8px 0 0; max-height: 200px; overflow: auto; padding: 10px; border-radius: var(--sx-r-sm, 9px); background: var(--sx-press); font: 11.5px/1.5 var(--mono, monospace); white-space: pre-wrap; word-break: break-word; }
+
+.mcph-empty { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 22px; border: 1px dashed var(--sx-line); border-radius: var(--sx-r, 14px); color: var(--muted); font-size: 13px; text-align: center; }
+.mcph-empty .mcph-ic { width: 22px; height: 22px; color: var(--accent); margin-bottom: 4px; }
+.mcph-empty b { color: var(--text); font-weight: 650; }
+
+/* catalogue */
+.mcph-cat-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 4px; }
+.mcph-cat-head h3 { margin: 0; font: 650 15px/1.3 var(--sx-display, inherit); }
+.mcph-cat-head .pinput { width: 220px; margin: 0; }
+.mcph-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
+.mcph-item { border: 1px solid var(--sx-line); border-radius: var(--sx-r, 14px); padding: 12px; background: var(--sx-card); display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.mcph-item.on { grid-column: 1 / -1; border-color: color-mix(in srgb, var(--accent) 35%, var(--sx-line)); }
+.mcph-item-top { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.mcph-item-top > div { flex: 1; min-width: 0; }
+.mcph-item-top b { display: block; font-size: 13.5px; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mcph-item-top small { display: block; color: var(--muted); font-size: 11.5px; margin-top: 1px; }
+.mcph-item-top .pbtn { flex: none; }
+.mcph-item p { margin: 0; color: var(--muted); font-size: 12.5px; line-height: 1.45; }
+.mcph-warn { color: color-mix(in srgb, var(--sx-warn, #f59e0b) 75%, var(--text)) !important; }
+.mcph-install { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; padding-top: 8px; border-top: 1px solid var(--sx-line-soft, var(--sx-line)); }
+.mcph-install .mcph-sw { grid-column: 1 / -1; }
+.mcph-doc { display: inline-flex; align-items: center; gap: 6px; color: var(--accent); font-size: 12.5px; text-decoration: none; }
+.mcph-foot { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; margin: 0; }
+
+@media (max-width: 720px) {
+  .mcph-chips { display: none; }
+  .mcph-env, .mcph-custom, .mcph-install { grid-template-columns: 1fr; }
+  .mcph-tool { flex-wrap: wrap; }
+  .mcph-tool select { width: 100%; }
+}
+
+/* the settings shell stretches every select.pinput to 100%: size ours explicitly */
+:root .sx-shell .mcph-tool select.pinput { flex: none; width: 190px !important; max-width: 45%; margin: 0; }
+:root .sx-shell .mcph-sw select.pinput { flex: none; width: 280px !important; max-width: 60%; margin: 0; }
+:root .sx-shell .mcph-cat-head .pinput { width: 240px !important; margin: 0; }
+@media (max-width: 720px) { :root .sx-shell .mcph-tool select.pinput { width: 100% !important; max-width: 100%; } }

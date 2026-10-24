@@ -1,0 +1,41 @@
+/* Quick Ask plugin «Слово-активатор» (Round 27): the listening strip and the mic button while the wake word records.
+   Colours only from the theme tokens (themes.css), like the rest of the window. */
+.mqw-host { padding: 6px var(--qa-pad, 16px) 0; }
+.mqw { --lvl: var(--mqw-level, 0); display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 4px 6px 4px 10px;
+  border-radius: 12px; border: 1px solid color-mix(in srgb, var(--danger, #e5484d) 34%, var(--border));
+  background: color-mix(in srgb, var(--danger, #e5484d) 8%, var(--panel-2, var(--panel))); animation: mqw-in .18s ease-out; }
+.mqw-ic { flex: 0 0 auto; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%;
+  color: var(--on-accent, #fff); background: var(--danger, #e5484d);
+  box-shadow: 0 0 0 calc(2px + var(--lvl) * 7px) color-mix(in srgb, var(--danger, #e5484d) 24%, transparent); transition: box-shadow .1s linear; }
+.mqw-ic svg { width: 15px; height: 15px; }
+.mqw-bars { flex: 0 0 auto; display: flex; align-items: center; gap: 3px; height: 18px; }
+.mqw-bars i { display: block; width: 3px; border-radius: 2px; background: var(--danger, #e5484d); opacity: .85;
+  height: calc(4px + var(--lvl) * 14px); transition: height .1s linear; }
+.mqw-bars i:nth-child(2), .mqw-bars i:nth-child(4) { height: calc(4px + var(--lvl) * 9px); }
+.mqw-bars i:nth-child(1), .mqw-bars i:nth-child(5) { height: calc(3px + var(--lvl) * 5px); }
+.mqw-text { flex: 1 1 auto; min-width: 0; color: var(--text); font-size: .92em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mqw-btn { flex: 0 0 auto; display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 8px;
+  color: var(--muted); background: transparent; cursor: pointer; }
+.mqw-btn:hover, .mqw-btn:focus-visible { color: var(--text); background: color-mix(in srgb, var(--text) 9%, transparent); }
+.mqw-btn svg { width: 15px; height: 15px; }
+.mqw-btn[hidden] { display: none; }
+:root[data-mqw-state="transcribing"] .mqw-bars i { animation: mqw-wave 1s ease-in-out infinite; height: 8px; }
+:root[data-mqw-state="transcribing"] .mqw-bars i:nth-child(2) { animation-delay: .12s; }
+:root[data-mqw-state="transcribing"] .mqw-bars i:nth-child(3) { animation-delay: .24s; }
+:root[data-mqw-state="transcribing"] .mqw-bars i:nth-child(4) { animation-delay: .36s; }
+:root[data-mqw-state="transcribing"] .mqw-bars i:nth-child(5) { animation-delay: .48s; }
+
+/* the mic button of the «commands» plugin looks pressed while the wake word records (its own state is not touched) */
+:root[data-mqw-state="listening"] .qa-plugin-btn[data-plugin="voice"] { color: var(--on-accent, #fff); background: var(--danger, #e5484d);
+  box-shadow: 0 0 0 calc(2px + var(--mic, 0) * 8px) color-mix(in srgb, var(--danger, #e5484d) 28%, transparent); }
+
+/* «Анимация отклика»: a soft glow around the card while listening */
+:root[data-mqw-glow][data-mqw-state] .qa-card { animation: mqw-glow 1.8s ease-in-out infinite; }
+
+@keyframes mqw-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@keyframes mqw-wave { 0%, 100% { transform: scaleY(.6); } 50% { transform: scaleY(1.6); } }
+@keyframes mqw-glow { 0%, 100% { box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent), 0 0 18px 0 color-mix(in srgb, var(--accent) 22%, transparent); }
+  50% { box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 60%, transparent), 0 0 28px 2px color-mix(in srgb, var(--accent) 34%, transparent); } }
+:root[data-motion="off"] .mqw, :root[data-motion="reduced"] .mqw,
+:root[data-motion="off"][data-mqw-glow] .qa-card, :root[data-motion="reduced"][data-mqw-glow] .qa-card { animation: none !important; }
+@media (prefers-reduced-motion: reduce) { .mqw, :root[data-mqw-glow][data-mqw-state] .qa-card, .mqw-bars i { animation: none !important; } }

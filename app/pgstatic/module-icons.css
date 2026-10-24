@@ -1,0 +1,76 @@
+/* Round 39 — module icons (module-icons.js). One element everywhere: .mico[data-mico], size via --mico-size. */
+.mico { --mico-size: 18px; position: relative; display: inline-grid; place-items: center; flex: none;
+  width: var(--mico-size); height: var(--mico-size); line-height: 0; }
+.mico > img { width: 100%; height: 100%; display: block; object-fit: contain; user-select: none; -webkit-user-drag: none; }
+/* A module with only a glyph name: the same squircle as the drawn icons (5.5% margin, 23% radius, top light, rim). */
+.mico-glyph::before { content: ""; position: absolute; inset: 5.5%; border-radius: 26%;
+  background: radial-gradient(120% 90% at 22% 8%, rgb(255 255 255 / .34), transparent 60%), linear-gradient(135deg, var(--mico-a), var(--mico-b));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / .38), inset 0 -1px 0 rgb(0 0 0 / .12); }
+.mico-glyph > .ui-icon { position: relative; width: 58% !important; height: 58% !important; color: #fff !important; }
+.mico-glyph > .ui-icon svg { width: 100%; height: 100%; stroke: #fff; stroke-width: 2.1; }
+
+/* Where module icons sit (sizes per place; the old accent tiles behind a glyph go away). */
+.module-launch .mico { --mico-size: 20px; }
+.module-launch.inline .mico { --mico-size: 18px; }
+.module-card-icon:has(.mico) { background: none; border-radius: 0; cursor: pointer; }
+.module-card-icon .mico { --mico-size: 38px; transition: transform .16s ease; }
+.module-card-icon[data-module-icon-edit]:hover .mico { transform: scale(1.06); }
+.module-card-icon[data-module-icon-edit]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 10px; }
+.mhb-icon .mico, .module-window-icon .mico { --mico-size: 18px; }
+.module-window:not([data-active="1"]) .module-window-icon .mico { opacity: .72; }
+.module-task .mico { --mico-size: 18px; }
+.net-import-ask-icon:has(.mico) { background: none; }
+.net-import-ask-icon .mico { --mico-size: 40px; }
+.pbtn .mico { --mico-size: 16px; }
+.module-code-head .mico, .mw-head .mico { --mico-size: 22px; }
+
+/* ------------------------------------------------------------------ the picker */
+.panel.mico-panel { width: min(640px, calc(100vw - 32px)); }
+.mico-dialog { display: flex; flex-direction: column; gap: 16px; }
+.mico-head { display: flex; align-items: flex-start; gap: 16px; padding-right: 28px; }
+.mico-head-text { flex: 1; min-width: 0; }
+.mico-head h2 { margin: 0 0 4px; font-size: 1.08rem; }
+.mico-head .sub { margin: 0; color: var(--muted); font-size: .86rem; line-height: 1.45; }
+.mico-pv { flex: none; padding: 10px 12px; border-radius: 14px; border: 1px solid var(--border); background: var(--panel-2, var(--panel)); }
+.mico-pv-now { display: flex; align-items: flex-end; gap: 12px; }
+.mico-pv-cell { display: inline-flex; flex-direction: column; align-items: center; gap: 4px; }
+.mico-pv-cell > span > .mico { --mico-size: inherit; }
+.mico-pv-cell small { font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.mico-tabs { display: inline-flex; align-self: flex-start; gap: 2px; padding: 3px; border-radius: 10px; background: var(--panel-2, var(--panel)); border: 1px solid var(--border); }
+.mico-tabs button { height: 30px; padding: 0 14px; border-radius: 7px; color: var(--muted); font-weight: 550; }
+.mico-tabs button[aria-selected="true"] { background: var(--bg, var(--panel)); color: var(--text); box-shadow: 0 1px 3px rgb(0 0 0 / .12); }
+.mico-body { display: flex; flex-direction: column; gap: 10px; min-height: min(300px, 40vh); max-height: min(52vh, 460px); overflow: auto; scrollbar-width: thin; padding: 2px; }
+.mico-cap { margin: 4px 0 0; font-size: .74rem; font-weight: 650; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.mico-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 6px; }
+.mico-grid.big { grid-template-columns: repeat(auto-fill, minmax(60px, 1fr)); gap: 8px; }
+.mico-opt { aspect-ratio: 1; display: grid; place-items: center; padding: 4px; border-radius: 12px; border: 1px solid transparent; transition: background .14s, border-color .14s; }
+.mico-opt img { width: 100%; height: 100%; display: block; }
+.mico-opt:hover { background: var(--panel-2, var(--panel)); }
+.mico-opt.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.mico-swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+.mico-swatch { width: 26px; height: 26px; border-radius: 8px; background: linear-gradient(135deg, var(--mico-a), var(--mico-b));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / .35); transition: transform .14s; }
+.mico-swatch:hover { transform: scale(1.08); }
+.mico-swatch.on { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mico-emoji-row { display: flex; gap: 12px; align-items: flex-start; }
+.mico-emoji-input { width: 72px; height: 72px; flex: none; text-align: center; font-size: 36px; border-radius: 16px; border: 1px solid var(--border); background: var(--panel-2, var(--panel)); color: var(--text); }
+.mico-emoji-input:focus { outline: none; border-color: var(--accent); }
+.mico-emoji-pick { display: grid; grid-template-columns: repeat(auto-fill, minmax(36px, 1fr)); gap: 4px; flex: 1; }
+.mico-emoji-pick button { height: 36px; border-radius: 9px; font-size: 20px; line-height: 1; }
+.mico-emoji-pick button:hover { background: var(--panel-2, var(--panel)); }
+.mico-drop { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 28px 20px; text-align: center; cursor: pointer;
+  border: 1.5px dashed var(--border); border-radius: 14px; color: var(--muted); transition: border-color .14s, background .14s; }
+.mico-drop .ui-icon { width: 22px; height: 22px; color: var(--accent); }
+.mico-drop b { color: var(--text); font-weight: 600; }
+.mico-drop small { max-width: 420px; line-height: 1.45; }
+.mico-drop:hover, .mico-drop.over { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, transparent); }
+.mico-file-name { margin-top: 4px; padding: 3px 10px; border-radius: 999px; background: var(--panel-2, var(--panel)); color: var(--text); font-size: .82rem; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mico-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 4px; border-top: 1px solid var(--border); padding-top: 14px; }
+.mico-foot-end { display: inline-flex; gap: 8px; }
+@media (prefers-reduced-motion: reduce) { .mico-opt, .mico-swatch, .module-card-icon .mico { transition: none; } }
+/* Module apps (module-apps.js): installed apps list and the install dialog tile show the same icon. */
+.mapp-row-ico:has(.mico) { background: none; border-radius: 0; overflow: visible; }
+.mapp-row-ico .mico { --mico-size: 32px; }
+.mapp-tile:has(img[src^="data:image/png"]) { background: none; box-shadow: none; }
+/* Module cards in chat (module-integration.js): a card without a cover shows the module icon. */
+.mmi-cover.mmi-mico { background: none; border-radius: 0; object-fit: contain; }

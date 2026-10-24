@@ -1,0 +1,91 @@
+/* MemuAI — Round 35: data & integration triggers of «Планирование» (plan-triggers.js). Theme tokens only. */
+
+/* the categorized picker */
+.ptx-picker .ptx-picker-box { width: 720px; }
+.ptx-picker-main { display: grid; grid-template-columns: minmax(170px, 220px) 1fr; gap: 12px; min-height: 0; }
+.ptx-cats { display: flex; flex-direction: column; gap: 2px; padding-right: 10px; border-right: 1px solid var(--border); }
+.ptx-cats button { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border: 0; border-radius: var(--r-sm, 9px); background: none;
+  color: var(--text); font-size: 13px; text-align: left; cursor: pointer; }
+.ptx-cats button .ui-icon { width: 16px; height: 16px; color: var(--muted); flex: none; }
+.ptx-cats button:hover { background: var(--panel-2); }
+.ptx-cats button.on { background: var(--accent-soft, color-mix(in srgb, var(--accent) 14%, transparent)); color: var(--text); font-weight: 600; }
+.ptx-cats button.on .ui-icon { color: var(--accent); }
+.ptx-cats button:focus-visible, .ptx-src:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.ptx-srcs { display: flex; flex-direction: column; gap: 4px; overflow-y: auto; max-height: 420px; min-width: 0; }
+.ptx-src { display: flex; align-items: flex-start; gap: 11px; padding: 10px 11px; border: 1px solid var(--border); border-radius: var(--r-md, 12px);
+  background: var(--panel); color: var(--text); text-align: left; cursor: pointer; transition: background var(--m-dur-1, 120ms) ease, border-color var(--m-dur-1, 120ms) ease; }
+.ptx-src:hover { background: var(--panel-2); border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); }
+.ptx-src > .ui-icon { width: 20px; height: 20px; color: var(--accent); flex: none; margin-top: 1px; }
+.ptx-src > span { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ptx-src b { font-size: 13.5px; font-weight: 600; }
+.ptx-src small { font-size: 12px; color: var(--muted); line-height: 1.35; }
+.ptx-badge { font-style: normal; font-size: 10.5px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); white-space: nowrap; align-self: center; }
+.ptx-badge.warn { color: color-mix(in srgb, #e3a33b 62%, var(--text)); border-color: color-mix(in srgb, #e3a33b 45%, var(--border)); }
+
+/* builder row */
+.pln-row .ptx-cat { margin-right: 2px; }
+.ptx-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
+.ptx-health { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); min-width: 0; }
+.ptx-health .ui-icon { width: 13px; height: 13px; color: var(--ok, #2fb37f); }
+.ptx-health.bad { color: var(--danger, #e06c5a); }
+.ptx-health.bad .ui-icon { color: var(--danger, #e06c5a); }
+.ptx-result { display: flex; gap: 9px; align-items: flex-start; padding: 9px 11px; border-radius: var(--r-sm, 10px); font-size: 12.5px;
+  background: var(--panel-2); border: 1px solid var(--border); color: var(--text); }
+.ptx-result > .ui-icon { width: 15px; height: 15px; margin-top: 1px; flex: none; }
+.ptx-result.ok > .ui-icon { color: var(--ok, #2fb37f); }
+.ptx-result.bad { border-color: color-mix(in srgb, var(--danger, #e06c5a) 45%, var(--border)); background: color-mix(in srgb, var(--danger, #e06c5a) 7%, var(--panel)); }
+.ptx-result.bad > .ui-icon { color: var(--danger, #e06c5a); }
+.ptx-result > div { display: flex; flex-direction: column; gap: 6px; min-width: 0; flex: 1; }
+.ptx-result > div > .pbtn { align-self: flex-start; }
+.ptx-result b { font-weight: 600; overflow-wrap: anywhere; }
+.ptx-result ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 3px; }
+.ptx-result li { display: flex; gap: 8px; align-items: baseline; min-width: 0; }
+.ptx-result li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.ptx-result li small { color: var(--muted); font-size: 11.5px; white-space: nowrap; }
+.ptx-result .pln-spin { margin-right: 4px; }
+.ptx-result .pln-live { align-self: flex-start; }
+.ptx-check:empty { display: none; }
+.ptx-conn { align-items: center; }
+.ptx-conn span { flex: 1; }
+.ptx-hook { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ptx-hook code { flex: 1 1 260px; min-width: 0; padding: 6px 9px; border-radius: var(--r-xs, 6px); background: var(--panel-2); border: 1px solid var(--border);
+  font-size: 12px; overflow-wrap: anywhere; color: var(--text); }
+.ptx-sub { display: flex; flex-direction: column; gap: 8px; padding: 8px 10px; border-radius: var(--r-sm, 9px); border: 1px dashed var(--border); position: relative; }
+.ptx-sub .pln-or { position: absolute; top: -10px; left: 12px; }
+.ptx-sub > .pln-line > .ui-icon { color: var(--accent); }
+
+/* task card */
+.ptx-card-health { display: flex; align-items: center; gap: 6px; margin-top: 5px; font-size: 12px; color: var(--muted); min-width: 0; }
+.ptx-card-health > .ui-icon { width: 13px; height: 13px; flex: none; }
+.ptx-card-health > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.ptx-card-health.bad { color: var(--danger, #e06c5a); }
+.ptx-card-health .pln-link { flex: none; }
+
+/* Round 35 (finish-c): the overlay covers the whole builder even when it is scrolled (absolute inset:0 moved with
+   the scroll and left the bottom and the «Итог» footer undimmed); #panel is the containing block when it has one. */
+.pln-picker.ptx-picker { position: fixed; border-radius: 0; z-index: 1200; }
+
+/* designs */
+:root[data-design="brutal"] .ptx-picker .ptx-picker-box { border-radius: 12px; background: var(--b-card, var(--panel)); border: var(--b-line, 2px solid var(--text)); box-shadow: var(--b-sh-2, 6px 6px 0 var(--text)); }
+:root[data-design="brutal"] .ptx-src { border: var(--b-w, 2px) solid var(--b-ink, var(--text)); border-radius: 8px; }
+:root[data-design="brutal"] .ptx-src:hover, :root[data-design="brutal"] .ptx-src:focus-visible { background: var(--b-block, color-mix(in srgb, var(--accent) 12%, var(--panel))); box-shadow: 3px 3px 0 var(--b-ink, var(--text)); outline: 0; }
+:root[data-design="brutal"] .ptx-cats { border-right: var(--b-w, 2px) solid var(--b-ink, var(--text)); }
+:root[data-design="brutal"] .ptx-cats button { border-radius: 7px; }
+:root[data-design="brutal"] .ptx-cats button.on { box-shadow: inset 0 0 0 var(--b-w, 2px) var(--b-ink, var(--text)); }
+:root[data-design="brutal"] :is(.ptx-result, .ptx-hook code, .ptx-badge) { border-width: 2px; }
+:root[data-design="soft"] .ptx-picker .ptx-picker-box { border-radius: 24px; border: 0; background: var(--s-c2, var(--panel)); box-shadow: var(--s-elev-3, 0 18px 50px -12px rgba(0, 0, 0, .3)); padding: 18px; }
+:root[data-design="soft"] .ptx-src { border-radius: 16px; border-color: transparent; background: var(--s-c1, var(--panel-2)); }
+:root[data-design="soft"] .ptx-cats { border-right: 0; }
+:root[data-design="soft"] .ptx-cats button { border-radius: 12px; }
+:root[data-design="aurora"] .ptx-picker .ptx-picker-box { border-radius: 20px; }
+:root[data-design="aurora"] .ptx-src { border-radius: 14px; background: color-mix(in srgb, var(--panel) 82%, transparent); }
+:root[data-design="terminal"] .ptx-picker .ptx-picker-box { border-radius: 2px; box-shadow: 0 0 0 1px var(--border), 0 18px 50px rgba(0, 0, 0, .18); }
+:root[data-design="terminal"] :is(.ptx-src, .ptx-cats button, .ptx-result, .ptx-hook code, .ptx-sub, .ptx-badge) { border-radius: 2px; }
+:root[data-design="terminal"] .ptx-cats button.on { box-shadow: inset 2px 0 0 var(--accent); }
+:root[data-design="grid"] :is(.ptx-picker .ptx-picker-box, .ptx-src, .ptx-cats button) { border-radius: 0; }
+
+@media (max-width: 760px) {
+  .ptx-picker-main { grid-template-columns: 1fr; }
+  .ptx-cats { flex-direction: row; flex-wrap: wrap; border-right: 0; padding-right: 0; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+  .ptx-cats button span { white-space: nowrap; }
+}

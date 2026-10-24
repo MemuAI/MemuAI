@@ -1,0 +1,1 @@
+import{a,b,c,d,e,f,g,h,i,j,k,l}from"./c-2KHR2WJW.js";import"./c-62FT2O6I.js";import"./c-5EECB6RK.js";import"./c-VHNSBD2M.js";export{k as autoCloseTags,d as completionPath,l as esLint,j as javascript,f as javascriptLanguage,h as jsxLanguage,c as localCompletionSource,e as scopeCompletionSource,a as snippets,i as tsxLanguage,g as typescriptLanguage,b as typescriptSnippets};

@@ -1,0 +1,326 @@
+/* =====================================================================
+   MemuAI · Панели — места на окне, мягкие полосы прокрутки и режим
+   «Изменить расположение» (Round 33, r33-panels; panels-layout.js).
+   Colours only from theme tokens; every design × light/dark keeps working.
+   ===================================================================== */
+
+/* ---------------------------------------------------- soft scrollbars */
+/* The native bar is gone in the panel areas (Chromium ≥121 draws the standard thin bar with arrow buttons and a
+   grey track on Windows once `scrollbar-width` is set — the «ugly scrollbar»). A thumb overlays the edge on hover /
+   while scrolling (.mp-sthumb, fixed, drawn by panels-layout.js) and the edges fade where more content waits. */
+.mp-softscroll { scrollbar-width: none !important; -ms-overflow-style: none; --mp-fs: 0px; --mp-fe: 0px; }
+.mp-softscroll::-webkit-scrollbar { display: none; width: 0 !important; height: 0 !important; }
+.mp-softscroll[data-mp-scroll="y"]:not([data-mp-soft]) {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 var(--mp-fs), #000 calc(100% - var(--mp-fe)), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 var(--mp-fs), #000 calc(100% - var(--mp-fe)), transparent 100%);
+}
+.mp-softscroll[data-mp-scroll="x"] {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 var(--mp-fs), #000 calc(100% - var(--mp-fe)), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 var(--mp-fs), #000 calc(100% - var(--mp-fe)), transparent 100%);
+}
+.mp-softscroll[data-fade-start="1"] { --mp-fs: 22px; }
+.mp-softscroll[data-fade-end="1"] { --mp-fe: 30px; }
+/* While something is dragged the masks would hide the drop placeholder at the very edge. */
+body.mp-dragging .mp-softscroll { -webkit-mask-image: none; mask-image: none; }
+.mp-sthumb {
+  position: fixed; z-index: 70; width: 5px; height: 5px; border-radius: 99px; pointer-events: none; opacity: 0;
+  background: color-mix(in srgb, var(--text) 30%, transparent);
+  transition: opacity .28s var(--m-ease-std, ease), width .14s, height .14s, translate .14s, background .14s;
+}
+.mp-sthumb[hidden] { display: none; }
+.mp-sthumb.on { opacity: 1; pointer-events: auto; cursor: default; }
+.mp-sthumb[data-axis="y"]:hover, .mp-sthumb[data-axis="y"].drag { width: 8px; translate: -3px 0; }
+.mp-sthumb[data-axis="x"]:hover, .mp-sthumb[data-axis="x"].drag { height: 8px; translate: 0 -3px; }
+.mp-sthumb:hover { background: color-mix(in srgb, var(--text) 46%, transparent); }
+.mp-sthumb.drag { background: var(--accent); }
+body.mp-layout-edit .mp-sthumb.on, body.mp-dragging .mp-sthumb { opacity: 0; pointer-events: none; }
+:root[data-design="grid"] .mp-sthumb, :root[data-design="brutal"] .mp-sthumb, :root[data-design="terminal"] .mp-sthumb { border-radius: 1px; }
+:root[data-design="brutal"] .mp-sthumb { background: var(--text); width: 6px; }
+:root[data-design="glass"] .mp-sthumb { background: color-mix(in srgb, #fff 42%, transparent); box-shadow: 0 0 0 .5px color-mix(in srgb, #000 18%, transparent); }
+:root[data-design="glass"][data-theme="light"] .mp-sthumb { background: color-mix(in srgb, #000 28%, transparent); box-shadow: none; }
+
+/* ------------------------------------------------------------- zones */
+.mp-zone-wrap { box-sizing: border-box; min-width: 0; position: relative; }
+.mp-zone-head:empty { display: none; }
+.mp-zone-body { box-sizing: border-box; min-width: 0; }
+.mp-zone-end { display: none; }
+.mp-zone-wrap[data-count="0"] .mp-zone-end { display: flex; }
+.mp-zone-end { align-items: center; justify-content: center; flex: 1 1 auto; min-height: 44px; min-width: 140px; padding: 6px 12px;
+  border-radius: 12px; border: 1.5px dashed var(--mp-line-strong); color: var(--mp-muted); font: 550 12px/1.3 var(--mp-text); text-align: center; box-sizing: border-box; }
+
+/* Strips: above the greeting / above the message box. Same column as the composer. */
+.chat-view-wrap > .mp-zone-strip {
+  display: none; width: 100%; max-width: calc(var(--conversation-width, 780px) + 48px); margin: 0 auto; padding: 0 24px;
+  flex-shrink: 0; order: 0;
+}
+.chat-view-wrap.empty-chat > .mp-zone-strip:not([data-count="0"]),
+.chat-view-wrap:not(.empty-chat) > .mp-zone-strip[data-chats="1"]:not([data-count="0"]),
+body.mp-layout-edit .chat-view-wrap.empty-chat > .mp-zone-strip,
+body.mp-dragging .chat-view-wrap.empty-chat > .mp-zone-strip { display: block; }
+/* Round 36 (perf): body.project-mode / body.temp-guide-on / body.chat-empty ставит app.js (updateWorkUI / updateTempUI / renderMessages).
+   Раньше здесь были :has() с поиском по потомкам на предках чата — каждая вставка элемента в переписку перепроверяла их. */
+body.project-mode .chat-view-wrap > .mp-zone-strip, body.temp-guide-on .chat-view-wrap > .mp-zone-strip { display: none !important; }
+#panels-z-top { padding-top: 12px; }
+.chat-view-wrap.empty-chat > #panels-z-top { margin-bottom: 4px; }
+#panels-z-composer { padding-top: 6px; }
+.chat-view-wrap:not(.empty-chat) > #panels-z-composer { padding-top: 4px; }
+:root[data-design="focus"] .empty-chat > #panels-z-top { order: 0; }
+:root[data-design="focus"] .empty-chat > #panels-z-composer { order: 2; padding-top: 22px; margin-bottom: -18px; }
+.mp-zone-strip .mp-zone-body {
+  display: flex; gap: var(--mp-gap, 10px); overflow-x: auto; overflow-y: hidden; padding: 3px 2px 8px; align-items: flex-start;
+  scroll-snap-type: x proximity; overscroll-behavior-x: contain; justify-content: safe center;
+}
+.mp-zone-strip .mp-zone-body[data-view="chips"] { align-items: center; justify-content: safe center; gap: 6px; padding: 3px 2px 6px; }
+.mp-zone-strip .mp-zone-body > .mp-card { flex: 0 0 var(--mp-sw, 268px); width: var(--mp-sw, 268px); scroll-snap-align: start; }
+.mp-zone-strip .mp-card[data-zsize="s"], .mp-placeholder[data-ph="strip"][data-zsize="s"] { --mp-sw: 196px; }
+.mp-zone-strip .mp-card[data-zsize="m"], .mp-placeholder[data-ph="strip"][data-zsize="m"] { --mp-sw: 268px; }
+.mp-zone-strip .mp-card[data-zsize="l"], .mp-placeholder[data-ph="strip"][data-zsize="l"] { --mp-sw: 340px; }
+.mp-zone-strip .mp-card[data-zsize="w"], .mp-placeholder[data-ph="strip"][data-zsize="w"] { --mp-sw: 440px; }
+.mp-zone-strip .mp-zone-body > .mp-zone-end { flex: 1 1 auto; }
+/* chips in the strip above the message box sit quietly, like suggestion chips */
+#panels-z-composer .mp-chip { background: color-mix(in srgb, var(--panel) 70%, transparent); border-color: var(--mp-line); height: 30px; }
+#panels-z-composer .mp-chip:hover { border-color: var(--mp-line-strong); }
+
+/* Columns beside the chat area. */
+.main-content > .mp-zone-col {
+  display: none; flex: 0 0 var(--mp-col-w, 280px); width: var(--mp-col-w, 280px); min-height: 0; flex-direction: column;
+  padding: 14px 8px 12px; box-sizing: border-box;
+}
+body.chat-empty .main-content > .mp-zone-col:not([data-count="0"]),
+.main-content > .mp-zone-col[data-chats="1"]:not([data-count="0"]),
+body.mp-layout-edit.chat-empty .main-content > .mp-zone-col,
+body.mp-dragging.chat-empty .main-content > .mp-zone-col { display: flex; }
+.main-content > .mp-zone-col[data-fold="hide"], body.code-mode .main-content > .mp-zone-col,
+body.temp-guide-on .main-content > .mp-zone-col,
+.main-content:has(> #live-preview-pane:not([style*="none"])) > #panels-z-right { display: none !important; }
+.main-content > .mp-zone-col[data-fold="rail"] { flex-basis: 60px; width: 60px; padding: 14px 6px; }
+#panels-z-left { padding-left: 12px; }
+#panels-z-right { padding-right: 12px; }
+.mp-zone-col .mp-zone-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column;
+  gap: var(--mp-gap, 10px); padding: 2px 2px 10px; overscroll-behavior: contain; }
+.mp-zone-col .mp-zone-body > .mp-card { flex: none; }
+.mp-zone-col .mp-zone-body[data-view="chips"][data-flow="wrap"] { flex-flow: row wrap; align-content: flex-start; gap: 6px; }
+.mp-zone-col[data-fold="rail"] .mp-zone-body { align-items: center; gap: 6px; }
+.mp-zone-col[data-fold="rail"] .mp-chip { flex-direction: column; height: auto; width: 46px; padding: 7px 2px 6px; gap: 3px; justify-content: center; }
+.mp-zone-col[data-fold="rail"] .mp-chip .mp-chip-label, .mp-zone-col[data-fold="rail"] .mp-chip .mp-chip-unit { display: none; }
+.mp-zone-col[data-fold="rail"] .mp-chip .mp-chip-value { font-size: 11px; max-width: 42px; overflow: hidden; text-overflow: ellipsis; }
+.mp-zone-col[data-fold="rail"] .mp-zone-end { min-width: 0; padding: 4px; font-size: 0; }
+.mp-zone-col .mp-zone-end { flex: 0 0 auto; min-height: 120px; }
+.mp-col-grip { display: none; position: absolute; top: 10px; bottom: 10px; width: 10px; cursor: col-resize; z-index: 5; touch-action: none; }
+#panels-z-left .mp-col-grip { right: -5px; }
+#panels-z-right .mp-col-grip { left: -5px; }
+.mp-col-grip::after { content: ""; position: absolute; left: 4px; top: 50%; height: 44px; translate: 0 -50%; width: 3px; border-radius: 3px;
+  background: color-mix(in srgb, var(--accent) 55%, transparent); transition: height .15s, background .15s; }
+.mp-col-grip:hover::after, body.mp-col-resizing .mp-col-grip::after { height: 88px; background: var(--accent); }
+body.mp-layout-edit .mp-zone-col:not([data-fold="rail"]) .mp-col-grip { display: block; }
+body.mp-col-resizing, body.mp-col-resizing * { cursor: col-resize !important; user-select: none; }
+
+/* Sidebar bottom: docked above the profile card. */
+.mp-zone-sbottom { flex: none; display: flex; flex-direction: column; max-height: 40vh; padding: 6px 10px 2px; }
+.mp-zone-sbottom[data-count="0"] { display: none; }
+body.mp-layout-edit .mp-zone-sbottom[data-count="0"], body.mp-dragging .mp-zone-sbottom[data-count="0"] { display: flex; }
+.mp-zone-sbottom .mp-zone-body { overflow-y: auto; overflow-x: hidden; min-height: 0; display: flex; flex-direction: column; gap: 6px; padding: 2px 0 4px; }
+.mp-zone-sbottom .mp-zone-body[data-view="chips"] { flex-flow: row wrap; gap: 5px; }
+.mp-zone-sbottom .mp-chip { max-width: 100%; }
+.mp-zone-sbottom .mp-chip .mp-chip-label { max-width: 110px; }
+.side.hidden .mp-zone-sbottom, .side.collapsed .mp-zone-sbottom { display: none !important; }
+#group-panels .mp-side-list[data-view="chips"] { display: flex; flex-flow: row wrap; gap: 5px; }
+#group-panels .mp-side-list[data-view="chips"] > .mp-side-empty { flex-basis: 100%; }
+
+/* ---------------------------------------------------- placeholders */
+.mp-placeholder[data-ph="chip"] { width: 76px; height: 30px; min-height: 0 !important; border-radius: 10px; flex: none; }
+.mp-placeholder[data-ph="strip"] { flex: 0 0 var(--mp-sw, 268px); width: var(--mp-sw, 268px); min-height: 92px !important; }
+.mp-placeholder[data-ph="stack"] { min-height: 72px !important; flex: none; }
+
+/* =================================================== «Edit layout» mode */
+body.mp-layout-edit [data-zone-wrap], body.mp-layout-edit #panels-appbar {
+  outline: 1.5px dashed color-mix(in srgb, var(--accent) 42%, transparent); outline-offset: 2px; border-radius: 14px;
+  background-color: color-mix(in srgb, var(--accent) 3.5%, transparent);
+  transition: outline-color .15s, background-color .15s;
+}
+body.mp-layout-edit #panels-appbar { display: flex; min-width: 150px; min-height: 32px; outline-offset: -1px; border-radius: 11px; }
+body.mp-layout-edit #panels-appbar:empty::before { content: attr(data-zone-label); margin: auto; color: var(--mp-muted); font: 600 11.5px/1 var(--mp-text); }
+body.mp-layout-edit #panels-home { display: flex !important; padding-top: 8px; padding-bottom: 6px; flex: none; overflow: visible;
+  -webkit-mask-image: none; mask-image: none; margin-top: 6px; }
+/* In «Edit layout» every zone must be reachable: the whole start screen scrolls (nothing is squeezed into a tiny
+   scroller) and leaves room under the floating bar. */
+body.mp-layout-edit .chat-view-wrap.empty-chat { overflow-y: auto; overflow-x: hidden; justify-content: flex-start !important; padding-bottom: 84px; }
+body.mp-layout-edit .chat-view-wrap.empty-chat > * { flex-shrink: 0 !important; }
+body.mp-layout-edit .main-content > .mp-zone-col { padding-bottom: 84px; }
+body.mp-layout-edit #group-panels { display: block !important; padding-bottom: 6px; margin: 0 6px 6px; }
+body.mp-layout-edit .mp-zone-strip { padding-top: 6px; padding-bottom: 4px; margin-top: 6px; }
+body.mp-layout-edit [data-zone-wrap]:has(.mp-over), body.mp-layout-edit #panels-appbar.mp-over {
+  outline: 2px solid var(--accent); background-color: color-mix(in srgb, var(--accent) 8%, transparent); }
+/* the drop zones themselves already got outlines from panels.css while dragging — in edit mode the frame is the wrap */
+body.mp-layout-edit.mp-dragging .mp-zone-body.mp-drop-zone, body.mp-layout-edit.mp-dragging #panels-home .mp-drop-zone,
+body.mp-layout-edit.mp-dragging #group-panels .mp-drop-zone { outline: none; background: none; }
+.mp-zone-head { display: flex; align-items: center; gap: 6px; min-height: 28px; margin: 0 2px 6px; color: var(--mp-muted); font: 600 11.5px/1 var(--mp-text); }
+.mp-zone-head .grow { flex: 1; }
+.mp-zone-name { display: inline-flex; align-items: center; gap: 6px; min-width: 0; color: color-mix(in srgb, var(--accent) 70%, var(--text)); }
+.mp-zone-name b { font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mp-zone-name .mp-ico { font-size: 15px; }
+.mp-zone-seg { display: inline-flex; padding: 2px; gap: 2px; border-radius: 8px; background: color-mix(in srgb, var(--text) 6%, transparent); }
+.mp-zone-seg button, .mp-zone-tog, .mp-zone-add {
+  height: 22px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: var(--mp-muted);
+  font: 600 11px/1 var(--mp-text); cursor: pointer; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
+}
+.mp-zone-seg button[aria-pressed="true"] { background: var(--panel); color: var(--text); box-shadow: 0 1px 2px rgba(0, 0, 0, .12); }
+.mp-zone-tog { border: 1px solid var(--mp-line); }
+.mp-zone-tog[aria-pressed="true"] { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.mp-zone-tog .mp-ico { font-size: 12px; }
+.mp-zone-add { width: 24px; padding: 0; justify-content: center; background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
+.mp-zone-add .mp-ico { font-size: 14px; }
+.mp-zone-seg button:hover, .mp-zone-tog:hover { color: var(--text); }
+.mp-zone-add:hover { background: var(--accent); color: var(--on-accent, #fff); }
+.mp-zone-col .mp-zone-head, .mp-zone-sbottom .mp-zone-head, #group-panels > .mp-zone-head { flex-wrap: wrap; row-gap: 6px; }
+.mp-zone-col .mp-zone-name, .mp-zone-sbottom .mp-zone-name, #group-panels > .mp-zone-head .mp-zone-name { flex: 1 0 100%; }
+.mp-zone-col .mp-zone-head > .grow, .mp-zone-sbottom .mp-zone-head > .grow, #group-panels > .mp-zone-head > .grow { display: none; }
+.mp-zone-col .mp-zone-add, .mp-zone-sbottom .mp-zone-add, #group-panels > .mp-zone-head .mp-zone-add { margin-left: auto; }
+#group-panels > .mp-zone-head { margin: 2px 4px 8px; }
+.mp-zone-col[data-fold="rail"] .mp-zone-head { justify-content: center; }
+.mp-zone-col[data-fold="rail"] .mp-zone-head > :not(.mp-zone-add) { display: none; }
+.mp-zone-sbottom .mp-zone-head .mp-zone-seg button { padding: 0 6px; }
+body.mp-layout-edit .panels-home-head [data-mp-act="arrange"] { display: none; }
+@container mphome (max-width: 480px) { .panels-home-head .mp-head-label { display: none; } }
+body.mp-layout-edit .mp-zone-wrap[data-count="0"] .mp-zone-end, body.mp-dragging .mp-zone-wrap[data-count="0"] .mp-zone-end { display: flex; }
+body.mp-layout-edit .mp-card[data-place], body.mp-layout-edit .mp-chip[data-place] { cursor: grab; }
+body.mp-layout-edit .mp-card[data-place] > *:not(.mp-menu-btn), body.mp-layout-edit .mp-chip[data-place] > * { pointer-events: none; }
+body.mp-layout-edit .mp-card[data-place] { user-select: none; }
+body.mp-layout-edit .mp-card[data-place]:focus-visible, body.mp-layout-edit .mp-chip[data-place]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+body.mp-layout-edit .mp-card .mp-menu-btn { opacity: 0 !important; pointer-events: none; }
+body.mp-layout-edit .mp-add-tile { min-height: 72px; }
+
+/* the floating bar */
+.mp-editbar { position: fixed; left: 50%; bottom: 18px; translate: -50% 0; z-index: 3000; width: max-content; max-width: calc(100vw - 24px); box-sizing: border-box; }
+/* toasts («removed from … — Ctrl+Z») float above the bar instead of hiding under it */
+body.mp-layout-edit .toast-container { bottom: 82px; z-index: 3001; }
+.mp-editbar-in {
+  display: flex; align-items: center; gap: 6px; padding: 6px 6px 6px 14px; border-radius: 16px;
+  background: color-mix(in srgb, var(--panel) 94%, transparent); border: 1px solid var(--mp-line-strong);
+  box-shadow: 0 18px 50px -14px rgba(0, 0, 0, .55), 0 2px 6px rgba(0, 0, 0, .12); color: var(--text);
+  backdrop-filter: blur(18px) saturate(1.4); -webkit-backdrop-filter: blur(18px) saturate(1.4); font: 500 12.5px/1.2 var(--mp-text);
+}
+.mp-editbar .grow { flex: 1 1 8px; }
+.mp-editbar-title { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
+.mp-editbar-title .mp-ico { font-size: 17px; color: var(--accent); }
+.mp-editbar-title b { font-weight: 650; }
+.mp-editbar-hint { color: var(--mp-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; margin-left: 6px; flex: none; max-width: 46vw; }
+.mp-eb-btn, .mp-eb-done {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 32px; min-width: 32px; padding: 0 8px; border-radius: 10px;
+  border: 0; background: transparent; color: var(--text); font: 600 12.5px/1 var(--mp-text); cursor: pointer; white-space: nowrap; flex: none;
+}
+.mp-eb-btn .mp-ico, .mp-eb-done .mp-ico { font-size: 16px; }
+.mp-eb-btn:hover:not(:disabled) { background: color-mix(in srgb, var(--text) 8%, transparent); }
+.mp-eb-btn:disabled { opacity: .35; cursor: default; }
+.mp-eb-done { padding: 0 14px; background: var(--accent); color: var(--on-accent, #fff); margin-left: 2px; }
+.mp-eb-done:hover { filter: brightness(1.06); }
+.mp-editbar.saving .mp-editbar-title .mp-ico { animation: mp-eb-pulse 1s ease-in-out infinite; }
+@keyframes mp-eb-pulse { 50% { opacity: .35; } }
+@media (max-width: 1100px) { .mp-editbar-hint { display: none; } }
+@media (max-width: 640px) { .mp-eb-btn.wide span, .mp-editbar-title b { display: none; } .mp-editbar { bottom: 10px; } }
+
+/* the card's own toolbar (one floating chrome follows the hovered / focused item) */
+.mp-edchrome { position: fixed; z-index: 2900; pointer-events: none; border-radius: var(--mp-r, 16px); box-sizing: border-box;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 80%, transparent), 0 0 0 6px color-mix(in srgb, var(--accent) 14%, transparent); }
+.mp-edchrome[hidden] { display: none; }
+.mp-edchrome[data-chip="1"] { border-radius: 10px; }
+.mp-edc-tools { position: absolute; top: 6px; right: 6px; display: flex; align-items: center; gap: 3px; padding: 3px; pointer-events: auto;
+  border-radius: 10px; background: color-mix(in srgb, var(--panel) 96%, transparent); border: 1px solid var(--mp-line-strong);
+  box-shadow: 0 6px 18px -8px rgba(0, 0, 0, .45); }
+.mp-edchrome[data-chip="1"] .mp-edc-tools { top: auto; bottom: calc(100% + 6px); right: 50%; translate: 50% 0; }
+.mp-edc-seg { display: inline-flex; gap: 1px; padding: 1px; border-radius: 7px; background: color-mix(in srgb, var(--text) 6%, transparent); }
+.mp-edc-seg button { min-width: 22px; height: 24px; padding: 0 5px; border: 0; border-radius: 6px; background: transparent; color: var(--mp-muted);
+  font: 700 11px/1 var(--mp-text); cursor: pointer; }
+.mp-edc-seg button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent, #fff); }
+.mp-edc-seg button:hover:not([aria-pressed="true"]) { color: var(--text); background: color-mix(in srgb, var(--text) 8%, transparent); }
+.mp-edc-btn { width: 26px; height: 26px; display: grid; place-items: center; border: 0; border-radius: 7px; background: transparent; color: var(--mp-muted); cursor: pointer; }
+.mp-edc-btn .mp-ico { font-size: 15px; }
+.mp-edc-btn:hover { background: color-mix(in srgb, var(--text) 9%, transparent); color: var(--text); }
+.mp-edc-btn[data-edc="unpin"]:hover { color: var(--mp-down); }
+.mp-edgrip { position: absolute; right: -7px; bottom: -7px; width: 22px; height: 22px; padding: 0; display: grid; place-items: center;
+  border-radius: 50%; border: 2px solid var(--bg); background: var(--accent); color: var(--on-accent, #fff); cursor: ew-resize; pointer-events: auto;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .3); touch-action: none; }
+.mp-edgrip[hidden] { display: none; }
+.mp-edgrip .mp-ico { font-size: 12px; }
+.mp-edchrome.resizing { box-shadow: 0 0 0 2px var(--accent), 0 0 0 8px color-mix(in srgb, var(--accent) 22%, transparent); }
+.mp-edchrome.resizing .mp-edc-tools { display: none; }
+body.mp-resizing, body.mp-resizing * { cursor: ew-resize !important; user-select: none; }
+.mp-resize-tag { position: fixed; z-index: 3100; padding: 5px 9px; border-radius: 8px; background: var(--text); color: var(--bg);
+  font: 650 12px/1 var(--mp-text); pointer-events: none; white-space: nowrap; box-shadow: 0 6px 18px -6px rgba(0, 0, 0, .5); }
+
+/* -------------------------------------------------------- zone map */
+.mp-zmap { display: grid; gap: 6px; }
+.mp-zmap-win {
+  position: relative; display: grid; gap: 3px; padding: 4px; border-radius: 10px; border: 1px solid var(--mp-line-strong);
+  background: color-mix(in srgb, var(--bg) 70%, var(--panel)); height: 176px; box-sizing: border-box;
+  grid-template-columns: 22% 13% minmax(0, 1fr) 13%;
+  grid-template-rows: 22px 26px 26px 20px minmax(0, 1fr) 30px;
+  grid-template-areas: "side bar bar bar" "side left top right" "side left composer right" "side left box right" "side left home right" "sbot left home right";
+}
+.mp-zmap.compact .mp-zmap-win { height: 150px; grid-template-rows: 20px 22px 22px 18px minmax(0, 1fr) 26px; }
+.mp-zmap .mz { position: relative; display: flex; align-items: center; justify-content: center; min-width: 0; min-height: 0; padding: 0 3px;
+  border-radius: 6px; border: 1px dashed var(--mp-line-strong); color: var(--mp-muted); font: 600 10px/1.1 var(--mp-text); text-align: center;
+  cursor: pointer; overflow: hidden; transition: background .12s, border-color .12s, color .12s; }
+.mp-zmap .mz span { overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.mp-zmap .mz input { position: absolute; opacity: 0; pointer-events: none; width: 1px; height: 1px; }
+.mp-zmap .mz:hover { border-color: color-mix(in srgb, var(--accent) 60%, transparent); color: var(--text); }
+.mp-zmap .mz:has(input:checked) { border-style: solid; border-color: var(--accent); background: color-mix(in srgb, var(--accent) 20%, transparent); color: var(--text); }
+.mp-zmap .mz:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 1px; }
+.mp-zmap .mz[data-mz="appbar"] { grid-area: bar; }
+.mp-zmap .mz[data-mz="sidebar"] { grid-area: side; align-items: flex-start; padding-top: 8px; }
+.mp-zmap .mz[data-mz="sidebar_bottom"] { grid-area: sbot; }
+.mp-zmap .mz[data-mz="left"] { grid-area: left; writing-mode: vertical-rl; rotate: 180deg; }
+.mp-zmap .mz[data-mz="right"] { grid-area: right; writing-mode: vertical-rl; }
+.mp-zmap .mz[data-mz="top"] { grid-area: top; }
+.mp-zmap .mz[data-mz="composer"] { grid-area: composer; }
+.mp-zmap .mz[data-mz="home"] { grid-area: home; }
+.mp-zmap .mz-box { grid-area: box; display: flex; align-items: center; gap: 5px; padding: 0 8px; border-radius: 7px; border: 1px solid var(--mp-line-strong);
+  background: var(--panel); color: color-mix(in srgb, var(--mp-muted) 70%, transparent); font: 500 9.5px/1 var(--mp-text); overflow: hidden; white-space: nowrap; }
+.mp-zmap .mz-box i { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex: none; opacity: .7; }
+.mp-zmap-names { color: var(--mp-muted); font: 500 11.5px/1.35 var(--mp-text); min-height: 1.35em; }
+:root[data-design="grid"] .mp-zmap-win, :root[data-design="grid"] .mp-zmap .mz, :root[data-design="grid"] .mp-zmap .mz-box,
+:root[data-design="brutal"] .mp-zmap-win, :root[data-design="brutal"] .mp-zmap .mz, :root[data-design="brutal"] .mp-zmap .mz-box { border-radius: 2px; }
+
+/* ------------------------------------------------ settings popover */
+.mp-laypop { position: fixed; z-index: 4050; width: 340px; max-width: calc(100vw - 16px); max-height: calc(100vh - 16px); overflow: auto; box-sizing: border-box;
+  display: grid; gap: 12px; padding: 12px 14px 14px; border-radius: 16px; background: var(--panel); color: var(--text);
+  border: 1px solid var(--mp-line-strong); box-shadow: var(--d-pop-shadow, 0 18px 48px -12px rgba(0, 0, 0, .5)); font-family: var(--mp-text); scrollbar-width: none; }
+.mp-lp-head { display: flex; align-items: center; gap: 8px; font: 650 13.5px/1.2 var(--mp-text); }
+.mp-lp-head .grow { flex: 1; }
+.mp-lp-head .mp-ico { color: var(--accent); }
+.mp-lp-row { display: grid; gap: 6px; font: 600 11.5px/1.2 var(--mp-text); color: var(--mp-muted); }
+.mp-lp-row .mp-input { color: var(--text); }
+.mp-edc-seg.big { display: grid; grid-template-columns: repeat(4, 1fr); padding: 2px; border-radius: 9px; }
+.mp-edc-seg.big button { height: auto; padding: 6px 4px; display: grid; gap: 2px; font-size: 12.5px; }
+.mp-edc-seg.big button small { font: 500 10px/1.1 var(--mp-text); opacity: .8; }
+.mp-lp-acts { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.mp-lp-acts .grow { flex: 1; }
+.mp-btn.danger { color: var(--mp-down); }
+:root[data-design="glass"] .mp-laypop, :root[data-design="glass"] .mp-editbar-in, :root[data-design="glass"] .mp-edc-tools {
+  background: var(--g-pop, color-mix(in srgb, var(--panel) 94%, transparent)); backdrop-filter: blur(30px) saturate(1.7); -webkit-backdrop-filter: blur(30px) saturate(1.7);
+  border-color: color-mix(in srgb, #fff 18%, transparent); }
+:root[data-design="grid"] .mp-laypop, :root[data-design="grid"] .mp-editbar-in, :root[data-design="grid"] .mp-edc-tools,
+:root[data-design="brutal"] .mp-laypop, :root[data-design="brutal"] .mp-editbar-in, :root[data-design="brutal"] .mp-edc-tools { border-radius: 4px; }
+:root[data-design="brutal"] .mp-editbar-in { border: 2px solid var(--text); box-shadow: 5px 5px 0 var(--text); }
+:root[data-design="brutal"] body.mp-layout-edit [data-zone-wrap], :root[data-design="brutal"] body.mp-layout-edit #panels-appbar { border-radius: 2px; }
+:root[data-design="terminal"] .mp-editbar-in, :root[data-design="terminal"] .mp-laypop { border-radius: 6px; }
+
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-motion="off"]) body:not(.reduce-motion) .mp-editbar { animation: mp-eb-in var(--m-dur-4, 320ms) var(--mp-spring) backwards; }
+  /* «backwards», not «both»: a finished opacity animation that keeps filling makes .mp-editbar the backdrop root, and the
+     frosted bar inside then blurs nothing — the cards under it showed through crisp (glass). */
+  :root:not([data-motion="off"]) body:not(.reduce-motion) .mp-laypop { animation: m-pop-in var(--m-dur-2, 180ms) var(--mp-spring) both; transform-origin: top left; }
+}
+@keyframes mp-eb-in { from { opacity: 0; translate: -50% 16px; } }
+.mp-zone-wrap .mp-chip .mp-chip-value, #group-panels .mp-chip .mp-chip-value { max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
+.panels-home-head .mp-home-label { display: inline-flex; align-items: center; gap: 6px; }
+body.mp-layout-edit .panels-home-head .mp-home-label { color: color-mix(in srgb, var(--accent) 70%, var(--text)); font-weight: 650; }
+.panels-home-head .mp-home-label .mp-ico { font-size: 15px; }
+.mp-tbox { width: 12px; height: 12px; border-radius: 3.5px; border: 1.5px solid currentColor; display: inline-grid; place-items: center; box-sizing: border-box; opacity: .8; }
+.mp-zone-tog[aria-pressed="true"] .mp-tbox { background: var(--accent); border-color: var(--accent); color: var(--on-accent, #fff); opacity: 1; }
+.mp-tbox .mp-ico { font-size: 10px; }
+:root[data-design="focus"] .empty-chat > #panels-z-top { margin-bottom: 18px; }
+/* Round 33: with strips above the greeting / the message box the start screen can get taller than a small window.
+   The grid under the message box keeps a readable minimum (panels-layout.js sets it, never more than its content)
+   and the start screen itself scrolls (soft scrollbar) instead of squeezing the grid to nothing. */
+body:not(.project-mode):not(.temp-guide-on) #chat-view-wrap.empty-chat:has(> .panels-home:not([hidden])) { overflow-y: auto; overflow-x: hidden; }

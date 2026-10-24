@@ -1,0 +1,162 @@
+{
+  "id": "benchmarks",
+  "title": "Бенчмарки",
+  "title_en": "Benchmarks",
+  "summary": "Все рейтинги ИИ-моделей в одном месте: arena.ai по всем аренам и категориям, Artificial Analysis, LiveBench, SimpleBench и EQ-Bench, собственный сводный рейтинг MemuAI Index и личная арена для ваших моделей.",
+  "summary_en": "Every AI model leaderboard in one place: arena.ai across all arenas and categories, Artificial Analysis, LiveBench, SimpleBench and EQ-Bench, the MemuAI Index composite ranking and a personal arena for your own models.",
+  "version": "1.0",
+  "icon": "icon.svg",
+  "enabled": false,
+  "default_locale": "ru",
+  "launcher": {
+    "hidden": false,
+    "slot": "sidebar"
+  },
+  "window": {
+    "default_width": 1240,
+    "default_height": 780,
+    "min_width": 560,
+    "min_height": 420,
+    "max_width": 2400,
+    "max_height": 1600,
+    "fixed": false,
+    "resizable": true,
+    "size_mode": "user",
+    "center": true
+  },
+  "persist": [
+    "view",
+    "board",
+    "mine_only",
+    "hide_deprecated",
+    "cache_arena_nav",
+    "cache_arena",
+    "cache_aa",
+    "cache_livebench",
+    "cache_simple",
+    "cache_eq",
+    "own_setup",
+    "own_runs"
+  ],
+  "permissions": [
+    "web",
+    "models",
+    "chat",
+    "storage",
+    "external",
+    "clipboard",
+    "background",
+    "notify"
+  ],
+  "bridge": {
+    "model": "",
+    "keep_in_chat": false,
+    "thinking": false,
+    "web_search": false,
+    "instructions": ""
+  },
+  "contributes": {
+    "panels": [
+      {
+        "id": "leaders",
+        "title": "Лидеры бенчмарков",
+        "title_en": "Benchmark leaders",
+        "icon": "trophy",
+        "size": "m",
+        "height": 262,
+        "summary": "Топ моделей LMArena, Artificial Analysis, LiveBench и других — переключение одним нажатием",
+        "summary_en": "Top models on LMArena, Artificial Analysis, LiveBench and more — one tap to switch",
+        "data": "benchmarks.panel",
+        "entry": "integration/panel.html",
+        "scripts": [
+          "integration/panels.js"
+        ],
+        "styles": [
+          "integration/panels.css"
+        ]
+      },
+      {
+        "id": "changes",
+        "title": "Изменения бенчмарков",
+        "title_en": "Benchmark changes",
+        "icon": "chart",
+        "size": "m",
+        "height": 220,
+        "summary": "Что поменялось в рейтингах по данным фонового наблюдения",
+        "summary_en": "What moved in the leaderboards, from background monitoring",
+        "data": "benchmarks.panel",
+        "entry": "integration/panel.html",
+        "scripts": [
+          "integration/panels.js"
+        ],
+        "styles": [
+          "integration/panels.css"
+        ]
+      }
+    ],
+    "commands": [
+      {
+        "id": "leaders",
+        "title": "Лидеры бенчмарка",
+        "title_en": "Benchmark leaders",
+        "run": {
+          "handler": "benchmarks.leaders"
+        },
+        "description": "Кто лидирует в рейтинге (board: arena | code | aa | livebench | simple | eq; без board — LMArena)",
+        "description_en": "Who leads a leaderboard (board: arena | code | aa | livebench | simple | eq; none — LMArena)",
+        "args": {
+          "type": "object",
+          "properties": {
+            "board": {
+              "type": "string",
+              "description": "arena, code, aa, livebench, simple, eq"
+            },
+            "top": {
+              "type": "integer",
+              "description": "1-10"
+            }
+          }
+        },
+        "phrases": [
+          "кто лидирует в бенчмарке {board}",
+          "топ бенчмарка {board}",
+          "кто лидирует на арене"
+        ],
+        "phrases_en": [
+          "who leads the benchmark {board}",
+          "top of the benchmark {board}"
+        ]
+      },
+      {
+        "id": "changes",
+        "title": "Изменения рейтингов",
+        "title_en": "Leaderboard changes",
+        "run": {
+          "handler": "benchmarks.changes"
+        },
+        "description": "Что изменилось в рейтингах (из фонового наблюдения модуля)",
+        "description_en": "What changed in the leaderboards (module monitoring)",
+        "args": {
+          "type": "object",
+          "properties": {
+            "topic": {
+              "type": "string"
+            },
+            "open": {
+              "type": "boolean",
+              "description": "also open the module"
+            }
+          }
+        },
+        "phrases": [
+          "что изменилось в бенчмарках",
+          "что нового в рейтингах"
+        ],
+        "phrases_en": [
+          "what changed in the benchmarks"
+        ]
+      }
+    ],
+    "skill": "integration/skill.md"
+  }
+}

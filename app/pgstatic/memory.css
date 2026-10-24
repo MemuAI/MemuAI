@@ -1,0 +1,358 @@
+/* MemuAI · Memory v2 panel (Round 29, memory.js).
+   Theme tokens (--panel, --text, --muted, --accent, --border, --danger) and settings-kit tokens
+   (--sx-card, --sx-line, --sx-r …) only, so every design (aurora, focus, grid, glass, soft, terminal,
+   brutal) and both themes keep their own look. */
+
+:root {
+  --mem2-ok: color-mix(in srgb, #2fa36b 78%, var(--accent));
+  --mem2-mid: color-mix(in srgb, #d79a2b 82%, var(--accent));
+  --mem2-low: color-mix(in srgb, #d0647a 82%, var(--accent));
+  --mem2-soft: color-mix(in srgb, var(--accent) 9%, var(--sx-card, var(--panel)));
+  --mem2-card: var(--sx-card, color-mix(in srgb, var(--text) 2.2%, var(--panel)));
+  --mem2-card-hover: var(--sx-card-hover, color-mix(in srgb, var(--text) 4.5%, var(--panel)));
+  --mem2-line: var(--sx-line, var(--border));
+  --mem2-r: var(--sx-r, 14px);
+  --mem2-r-sm: var(--sx-r-sm, 9px);
+}
+
+.panel.mem2-panel {
+  width: 820px; max-width: calc(100vw - 40px); height: min(720px, calc(100vh - 64px));
+  padding: 22px 24px 18px; display: flex; flex-direction: column; overflow: hidden;
+  font-family: var(--sx-font, inherit);
+}
+.mem2-panel .ui-icon { width: 15px; height: 15px; }
+.mem2-loading { display: flex; align-items: center; gap: 10px; color: var(--muted); padding: 40px; justify-content: center; }
+.mem2-spinner { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--mem2-line); border-top-color: var(--accent); animation: mem2-spin .8s linear infinite; }
+@keyframes mem2-spin { to { transform: rotate(360deg); } }
+
+/* ---------------------------------------------------------- head */
+.mem2-head { display: flex; align-items: flex-start; gap: 14px; padding-right: 44px; flex: none; }
+.mem2-mark {
+  width: 44px; height: 44px; flex: none; border-radius: 14px; display: grid; place-items: center; color: var(--accent);
+  background: radial-gradient(circle at 30% 25%, color-mix(in srgb, var(--accent) 24%, transparent), color-mix(in srgb, var(--accent) 8%, transparent) 70%);
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+}
+.mem2-mark .ui-icon { width: 22px; height: 22px; }
+.mem2-head-text { flex: 1; min-width: 0; }
+.mem2-head-text h2 { margin: 0 0 3px; font-family: var(--sx-display, var(--serif)); }
+.mem2-head-text .sub { margin: 0; line-height: 1.45; }
+.mem2-master { margin-top: 8px; flex: none; }
+
+.mem2-banner {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 12px 0 0; padding: 10px 14px; font-size: 13px;
+  border-radius: var(--mem2-r-sm); background: var(--mem2-soft); border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+}
+.mem2-banner > span:not(.ui-icon) { flex: 1; min-width: 200px; line-height: 1.45; }
+.mem2-banner.off { background: color-mix(in srgb, var(--muted) 10%, transparent); border-color: var(--mem2-line); color: var(--muted); }
+.mem2-banner.warn { background: color-mix(in srgb, var(--mem2-mid) 12%, transparent); border-color: color-mix(in srgb, var(--mem2-mid) 35%, transparent); }
+.mem2-body > .mem2-banner { margin: 0 0 12px; }
+
+/* ---------------------------------------------------------- stats & tabs */
+.mem2-stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin: 16px 0 12px; flex: none; }
+.mem2-stats > div, .mem2-pcard-stats > div {
+  padding: 9px 12px; border-radius: var(--mem2-r-sm); background: var(--mem2-card); border: 1px solid var(--mem2-line); min-width: 0;
+}
+.mem2-stats b, .mem2-pcard-stats b { display: block; font-size: 17px; font-family: var(--sx-display, inherit); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mem2-stats span, .mem2-pcard-stats span { color: var(--muted); font-size: 11.5px; }
+.mem2-stats .attn, .mem2-pcard-stats .attn { border-color: color-mix(in srgb, var(--accent) 45%, transparent); background: var(--mem2-soft); }
+.mem2-stats .attn b, .mem2-pcard-stats .attn b { color: var(--accent); }
+
+.mem2-tabs { display: flex; gap: 4px; padding: 3px; border-radius: 12px; background: var(--mem2-card); border: 1px solid var(--mem2-line); flex: none; overflow-x: auto; }
+.mem2-tab {
+  flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 7px 10px; border: 0; border-radius: 9px;
+  background: transparent; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; white-space: nowrap; transition: background .15s, color .15s;
+}
+.mem2-tab:hover { color: var(--text); background: var(--sx-hover, color-mix(in srgb, var(--text) 5%, transparent)); }
+.mem2-tab.on { background: var(--panel); color: var(--text); box-shadow: 0 1px 3px color-mix(in srgb, #000 14%, transparent), inset 0 0 0 1px var(--mem2-line); }
+.mem2-tab em { font-style: normal; font-size: 11px; padding: 0 6px; border-radius: 99px; background: color-mix(in srgb, var(--text) 9%, transparent); color: var(--muted); font-variant-numeric: tabular-nums; }
+.mem2-tab em.hot { background: var(--accent); color: var(--on-accent, #fff); }
+.mem2-tab:focus-visible, .mem2-icon:focus-visible, .mem2-src:focus-visible, .mem2-chipbtn:focus-visible, .mem2-scope button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: 2px;
+}
+
+.mem2-body { flex: 1; min-height: 0; overflow: auto; margin: 12px -8px 0 0; padding: 2px 8px 6px 0; scrollbar-gutter: stable; }
+
+/* ---------------------------------------------------------- toolbar */
+.mem2-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.mem2-toolbar select, .mem2-toolbar .pretty-select { min-width: 0; max-width: 190px; }
+/* one height and type size for every control of the panel (search, pickers, buttons) */
+.mem2-panel .pretty-select-button { min-height: 36px; padding: 6px 11px; font-size: 13.5px; }
+.mem2-panel .mem2-edit-row .pretty-select-button, .mem2-panel .mem2-bulk .pretty-select-button { min-height: 32px; padding: 4px 10px; font-size: 13px; }
+.mem2-panel .pretty-select-menu button { font-size: 13.5px; }
+/* an icon inside a button sits on the text's centre line, not on its baseline */
+.mem2-panel .pbtn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.mem2-panel .pbtn .ui-icon, .mem2-panel .pbtn svg { flex: none; }
+.mem2-search {
+  flex: 1 1 220px; display: flex; align-items: center; gap: 8px; padding: 0 12px; height: 36px; min-width: 180px;
+  border-radius: var(--mem2-r-sm); border: 1px solid var(--mem2-line); background: var(--panel); color: var(--muted);
+}
+.mem2-toolbar > .mem2-search { flex-basis: 100%; }      /* search on its own row, pickers + Add below */
+.mem2-toolbar > .mem2-add { margin-left: auto; }
+.mem2-search:focus-within { border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
+.mem2-search input { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--text); font: inherit; font-size: 13.5px; outline: none; }
+.mem2-add { height: 36px; min-height: 36px; padding-block: 0; display: inline-flex; align-items: center; gap: 6px; }
+.mem2-hint { color: var(--muted); font-size: 12.5px; line-height: 1.5; }
+.mem2-toolbar > .mem2-hint { flex: 1 1 220px; min-width: 0; }   /* the hint shrinks, the buttons stay on its row */
+.mem2-toolbar > .mem2-hint + .grow { display: none; }
+.mem2-toolbar > .pbtn { white-space: nowrap; }
+.mem2-hint.block { display: block; margin: 0 0 12px; }
+.grow { flex: 1; }
+
+.mem2-icon {
+  width: 30px; height: 30px; display: inline-grid; place-items: center; border-radius: 8px; border: 1px solid transparent;
+  background: transparent; color: var(--muted); cursor: pointer; transition: background .15s, color .15s, border-color .15s;
+}
+.mem2-toolbar .mem2-icon { width: 36px; height: 36px; border-color: var(--mem2-line); }
+.mem2-icon:hover { background: var(--sx-hover, color-mix(in srgb, var(--text) 6%, transparent)); color: var(--text); }
+.mem2-icon.on { color: var(--accent); background: var(--mem2-soft); border-color: color-mix(in srgb, var(--accent) 30%, transparent); }
+.mem2-icon.danger:hover { color: var(--danger, #d2504c); background: color-mix(in srgb, var(--danger, #d2504c) 10%, transparent); }
+.mem2-link { border: 0; background: none; padding: 0; color: var(--accent); font: inherit; font-size: 12.5px; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.mem2-link.danger { color: var(--danger, #d2504c); }
+.mem2-chipbtn {
+  display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; border-radius: 99px; border: 1px solid var(--mem2-line);
+  background: var(--panel); color: var(--text); font: inherit; font-size: 12.5px; cursor: pointer; transition: border-color .15s, background .15s;
+}
+.mem2-chipbtn:hover { border-color: color-mix(in srgb, var(--accent) 50%, transparent); background: var(--mem2-soft); }
+.mem2-chipbtn.danger { color: var(--danger, #d2504c); }
+
+/* ---------------------------------------------------------- composer / bulk */
+.mem2-composer, .mem2-bulk {
+  padding: 12px; margin-bottom: 12px; border-radius: var(--mem2-r); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  background: var(--mem2-soft); animation: mem2-in .18s var(--sx-ease, ease);
+}
+.mem2-composer textarea, .mem2-edit {
+  width: 100%; box-sizing: border-box; resize: vertical; min-height: 54px; padding: 9px 11px; border-radius: var(--mem2-r-sm);
+  border: 1px solid var(--mem2-line); background: var(--panel); color: var(--text); font: inherit; font-size: 14px; line-height: 1.45; outline: none;
+}
+.mem2-composer textarea:focus, .mem2-edit:focus { border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
+.mem2-composer-row, .mem2-edit-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.mem2-inline-check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text); }
+.mem2-bulk { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; position: sticky; top: 0; z-index: 3; box-shadow: 0 6px 18px color-mix(in srgb, #000 12%, transparent); }
+.mem2-bulk b { font-size: 13px; margin-right: 4px; }
+.mem2-bulk select { max-width: 200px; }
+.mem2-tags-input { flex: 1 1 180px; min-width: 120px; height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--mem2-line); background: var(--panel); color: var(--text); font: inherit; font-size: 13px; }
+@keyframes mem2-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+
+/* ---------------------------------------------------------- cards */
+.mem2-list { display: flex; flex-direction: column; gap: 8px; }
+.mem2-group { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+.mem2-group-head { display: flex; align-items: center; gap: 7px; margin: 6px 2px 0; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+.mem2-group-head b { color: var(--text); font-weight: 600; }
+.mem2-card {
+  position: relative; display: flex; gap: 10px; align-items: flex-start; padding: 12px 12px 11px; border-radius: var(--mem2-r);
+  border: 1px solid var(--mem2-line); background: var(--mem2-card); transition: border-color .15s, background .15s, box-shadow .15s;
+}
+.mem2-card:hover { background: var(--mem2-card-hover); }
+.mem2-card.pinned { border-color: color-mix(in srgb, var(--accent) 38%, transparent); box-shadow: inset 3px 0 0 var(--accent); }
+.mem2-card.sel { border-color: var(--accent); background: var(--mem2-soft); }
+.mem2-card.sensitive::after { content: ""; position: absolute; right: 10px; top: 10px; width: 6px; height: 6px; border-radius: 50%; background: var(--mem2-mid); }
+.mem2-card.deleted .mem2-text { color: var(--muted); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--muted) 60%, transparent); }
+.mem2-card.pending { border-style: dashed; border-color: color-mix(in srgb, var(--accent) 45%, transparent); flex-direction: column; }
+.mem2-check { padding-top: 2px; flex: none; }
+.mem2-check input, .mem2-check-all input { accent-color: var(--accent); width: 15px; height: 15px; cursor: pointer; }
+.mem2-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 7px; width: 100%; }
+.mem2-text { margin: 0; font-size: 14.2px; line-height: 1.5; color: var(--text); cursor: text; overflow-wrap: anywhere; border-radius: 6px; }
+.mem2-text:hover { background: color-mix(in srgb, var(--text) 3%, transparent); }
+.mem2-actions { display: flex; gap: 2px; flex: none; opacity: .55; transition: opacity .15s; }
+.mem2-card:hover .mem2-actions, .mem2-card:focus-within .mem2-actions, .mem2-actions .on { opacity: 1; }
+
+.mem2-meta, .mem2-prov { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+.mem2-cat, .mem2-scope, .mem2-tag, .mem2-flag, .mem2-src, .mem2-reason {
+  display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 9px; border-radius: 99px; font: inherit; font-size: 12px;
+  border: 1px solid var(--mem2-line); background: var(--panel); color: var(--muted); white-space: nowrap; max-width: 100%;
+}
+.mem2-cat .ui-icon, .mem2-scope .ui-icon, .mem2-src .ui-icon, .mem2-flag .ui-icon, .mem2-reason .ui-icon, .mem2-dates .ui-icon { width: 13px; height: 13px; }
+.mem2-cat { color: var(--text); }
+.mem2-cat.cat-identity .ui-icon, .mem2-cat.cat-preference .ui-icon { color: var(--accent); }
+.mem2-cat.cat-tech .ui-icon, .mem2-cat.cat-project .ui-icon, .mem2-cat.cat-work .ui-icon { color: color-mix(in srgb, #3f8fd9 80%, var(--accent)); }
+.mem2-cat.cat-health .ui-icon, .mem2-cat.cat-finance .ui-icon { color: var(--mem2-mid); }
+.mem2-cat.cat-people .ui-icon, .mem2-cat.cat-interest .ui-icon, .mem2-cat.cat-goal .ui-icon { color: color-mix(in srgb, #8f6bd8 82%, var(--accent)); }
+.mem2-scope { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, transparent); background: var(--mem2-soft); padding-right: 3px; }
+.mem2-scope button { border: 0; background: none; color: inherit; font: inherit; padding: 0; cursor: pointer; }
+.mem2-scope-edit:hover { text-decoration: underline; }
+.mem2-scope.add { cursor: pointer; color: var(--muted); border-style: dashed; background: transparent; padding-right: 9px; }
+.mem2-scope.add:hover { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 50%, transparent); }
+.mem2-x { width: 18px; height: 18px; display: inline-grid !important; place-items: center; border-radius: 50%; }
+.mem2-x:hover { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+.mem2-x .ui-icon { width: 11px !important; height: 11px !important; }
+.mem2-tag { cursor: pointer; height: 22px; }
+.mem2-tag:hover { color: var(--accent); }
+.mem2-flag { color: var(--mem2-mid); border-color: color-mix(in srgb, var(--mem2-mid) 40%, transparent); }
+
+.mem2-src { color: var(--text); overflow: hidden; }
+.mem2-src span { overflow: hidden; text-overflow: ellipsis; max-width: 300px; }
+.mem2-src.link { cursor: pointer; }
+.mem2-src.link:hover { border-color: color-mix(in srgb, var(--accent) 55%, transparent); color: var(--accent); background: var(--mem2-soft); }
+.mem2-src:disabled { opacity: 1; cursor: default; }
+.mem2-src.svc-code .ui-icon:first-child { color: color-mix(in srgb, #3f8fd9 80%, var(--accent)); }
+.mem2-src.svc-telegram .ui-icon:first-child { color: color-mix(in srgb, #2aa3df 85%, var(--accent)); }
+.mem2-src.svc-quick .ui-icon:first-child { color: var(--mem2-mid); }
+.mem2-src.svc-note .ui-icon:first-child { color: color-mix(in srgb, #8f6bd8 82%, var(--accent)); }
+.mem2-more-src { font-size: 11.5px; color: var(--muted); cursor: help; }
+.mem2-dates { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+
+/* confidence: five bars + a number, colour by level */
+.mem2-conf { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px 0 7px; border-radius: 99px; font-size: 11.5px;
+  background: color-mix(in srgb, var(--c, var(--mem2-ok)) 11%, transparent); color: var(--c, var(--mem2-ok)); }
+.mem2-conf.high { --c: var(--mem2-ok); }
+.mem2-conf.mid { --c: var(--mem2-mid); }
+.mem2-conf.low { --c: var(--mem2-low); }
+.mem2-conf b { font-weight: 600; font-variant-numeric: tabular-nums; }
+.mem2-conf-bars { display: inline-flex; align-items: flex-end; gap: 2px; height: 11px; }
+.mem2-conf-bars i { width: 3px; border-radius: 2px; background: color-mix(in srgb, var(--c) 25%, transparent); }
+.mem2-conf-bars i:nth-child(1) { height: 4px; } .mem2-conf-bars i:nth-child(2) { height: 6px; } .mem2-conf-bars i:nth-child(3) { height: 8px; }
+.mem2-conf-bars i:nth-child(4) { height: 10px; } .mem2-conf-bars i:nth-child(5) { height: 11px; }
+.mem2-conf-bars i.on { background: var(--c); }
+
+/* history */
+.mem2-history { list-style: none; margin: 2px 0 0; padding: 4px 0 0 6px; border-top: 1px dashed var(--mem2-line); display: flex; flex-direction: column; gap: 8px; }
+.mem2-history li { display: flex; gap: 10px; font-size: 12.5px; position: relative; }
+.mem2-history .dot { width: 8px; height: 8px; border-radius: 50%; background: color-mix(in srgb, var(--accent) 70%, transparent); margin-top: 5px; flex: none; box-shadow: 0 0 0 3px var(--mem2-soft); }
+.mem2-history li > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.mem2-history span { color: var(--muted); font-size: 11.5px; }
+.mem2-history q { quotes: "«" "»"; color: var(--text); opacity: .85; overflow-wrap: anywhere; }
+.mem2-history .mem2-link { align-self: flex-start; font-size: 11.5px; }
+
+/* «only for» picker */
+.mem2-scope-menu { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 10px; border-radius: var(--mem2-r-sm); background: var(--panel); border: 1px solid var(--mem2-line); font-size: 12.5px; animation: mem2-in .15s var(--sx-ease, ease); }
+.mem2-scope-menu > span { color: var(--muted); margin-right: 2px; }
+.mem2-svc-toggle { display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px; border-radius: 99px; border: 1px solid var(--mem2-line); cursor: pointer; color: var(--muted); user-select: none; }
+.mem2-svc-toggle input { position: absolute; opacity: 0; pointer-events: none; }
+.mem2-svc-toggle.on { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); background: var(--mem2-soft); }
+.mem2-svc-toggle:focus-within { outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: 1px; }
+.mem2-scope-menu .pbtn { margin-left: auto; padding: 5px 12px; }
+
+.mem2-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 12px; color: var(--muted); font-size: 12px; }
+.mem2-check-all { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; }
+
+.mem2-empty { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; padding: 44px 20px; color: var(--muted); }
+.mem2-empty > .ui-icon { width: 34px; height: 34px; color: color-mix(in srgb, var(--accent) 60%, var(--muted)); margin-bottom: 4px; }
+.mem2-empty b { color: var(--text); font-size: 15px; }
+.mem2-empty span { max-width: 440px; line-height: 1.5; font-size: 13px; }
+.mem2-empty .pbtn { margin-top: 10px; }
+.mem2-empty.small { padding: 18px; flex-direction: row; justify-content: center; }
+.mem2-empty.small > .ui-icon { width: 18px; height: 18px; margin: 0; }
+
+/* ---------------------------------------------------------- inbox */
+.mem2-pending-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.mem2-reason { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 35%, transparent); background: var(--mem2-soft); }
+.mem2-reason.r-sensitive, .mem2-reason.r-low_confidence { color: var(--mem2-mid); border-color: color-mix(in srgb, var(--mem2-mid) 40%, transparent); background: color-mix(in srgb, var(--mem2-mid) 10%, transparent); }
+.mem2-reason.r-forget { color: var(--mem2-low); border-color: color-mix(in srgb, var(--mem2-low) 40%, transparent); background: color-mix(in srgb, var(--mem2-low) 10%, transparent); }
+.mem2-diff .old { font-size: 13px; color: var(--muted); text-decoration: line-through; padding: 6px 10px; border-radius: 8px; background: color-mix(in srgb, var(--mem2-low) 8%, transparent); }
+.mem2-diff span { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; text-decoration: none; margin-bottom: 2px; }
+.mem2-diff .new span { color: var(--mem2-ok); margin: 6px 0 -2px 2px; }
+.mem2-excerpt { margin: 0; padding: 6px 10px; border-left: 3px solid color-mix(in srgb, var(--accent) 40%, transparent); color: var(--muted); font-size: 12.5px; font-style: italic; overflow-wrap: anywhere; background: color-mix(in srgb, var(--text) 2.5%, transparent); border-radius: 0 8px 8px 0; }
+.mem2-pending-actions { display: flex; gap: 8px; justify-content: flex-end; width: 100%; }
+
+/* ---------------------------------------------------------- rules */
+.mem2-rule-add { display: flex; gap: 8px; }
+.mem2-rule-add .pinput { flex: 1; margin: 0; }
+.mem2-rule-examples { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 14px; }
+.mem2-rules { display: flex; flex-direction: column; gap: 8px; }
+.mem2-rule { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: var(--mem2-r); border: 1px solid var(--mem2-line); background: var(--mem2-card); }
+.mem2-rule.off { opacity: .6; }
+.mem2-rule-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.mem2-rule-text { width: 100%; border: 0; background: transparent; color: var(--text); font: inherit; font-size: 14px; padding: 3px 4px; border-radius: 6px; outline: none; }
+.mem2-rule-text:focus { background: var(--panel); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent); }
+.mem2-rule-enf { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--muted); padding-left: 4px; }
+.mem2-rule-enf .ui-icon { width: 12px; height: 12px; color: var(--mem2-ok); }
+.switch.small { transform: scale(.82); transform-origin: center; }
+
+/* ---------------------------------------------------------- settings */
+.mem2-set { display: flex; flex-direction: column; gap: 8px; }
+.mem2-set-row { display: flex; align-items: center; gap: 16px; padding: 12px 14px; border-radius: var(--mem2-r); border: 1px solid var(--mem2-line); background: var(--mem2-card); }
+.mem2-set-row > div:first-child { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.mem2-set-row b { font-size: 14px; font-weight: 600; }
+.mem2-set-row span { color: var(--muted); font-size: 12.5px; line-height: 1.45; }
+.mem2-set-control { flex: none; display: flex; align-items: center; }
+.mem2-seg { display: inline-flex; padding: 3px; border-radius: 10px; background: var(--panel); border: 1px solid var(--mem2-line); }
+.mem2-seg button { border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 13px; padding: 5px 12px; border-radius: 7px; cursor: pointer; }
+.mem2-seg button.on { background: var(--accent); color: var(--on-accent, #fff); }
+.mem2-range { display: flex; align-items: center; gap: 10px; }
+.mem2-range input { width: 150px; accent-color: var(--accent); }
+.mem2-range output { min-width: 46px; text-align: right; font-variant-numeric: tabular-nums; font-size: 13px; }
+.mem2-h3 { margin: 14px 0 2px; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 600; }
+.mem2-svc-table { border-radius: var(--mem2-r); border: 1px solid var(--mem2-line); overflow: hidden; }
+.mem2-svc-head, .mem2-svc-row { display: grid; grid-template-columns: 1fr 96px 110px; align-items: center; padding: 7px 14px; }
+.mem2-svc-head { font-size: 11.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; background: var(--mem2-card); }
+.mem2-svc-row { border-top: 1px solid var(--mem2-line); font-size: 13.5px; }
+.mem2-svc-row > span:first-child { display: inline-flex; align-items: center; gap: 8px; }
+.mem2-svc-head span:not(:first-child), .mem2-svc-row span:not(:first-child) { text-align: center; }
+.mem2-na { color: var(--muted); }
+.mem2-transfer { display: flex; gap: 8px; flex-wrap: wrap; }
+.mem2-transfer .pbtn { display: inline-flex; align-items: center; gap: 6px; }
+.mem2-danger { display: flex; align-items: center; gap: 14px; margin-top: 12px; padding: 12px 14px; border-radius: var(--mem2-r); border: 1px solid color-mix(in srgb, var(--danger, #d2504c) 35%, transparent); background: color-mix(in srgb, var(--danger, #d2504c) 5%, transparent); }
+.mem2-danger > div { flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.mem2-danger span { color: var(--muted); font-size: 12.5px; }
+
+/* ---------------------------------------------------------- profile card (Settings → Profile) */
+.mem2-pcard { display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: var(--mem2-r); border: 1px solid var(--mem2-line); background: var(--mem2-card); margin-top: 8px; }
+.mem2-pcard-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.mem2-pcard-stats > div { background: var(--panel); }
+.mem2-pcard-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.mem2-pcard-list li { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 6px 4px; border-bottom: 1px solid var(--sx-line-soft, var(--mem2-line)); }
+.mem2-pcard-list li:last-child { border-bottom: 0; }
+.mem2-pcard-list li > span:not(.mem2-conf):not(.mem2-pin-dot) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mem2-pin-dot { color: var(--accent); display: inline-flex; }
+.mem2-pin-dot .ui-icon { width: 13px; height: 13px; }
+.mem2-pcard-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.mem2-pcard-actions .pbtn { display: inline-flex; align-items: center; gap: 6px; }
+
+/* the source message after «jump to source» */
+.mem2-flash { animation: mem2-flash 2.2s ease; border-radius: 14px; }
+@keyframes mem2-flash {
+  0%, 30% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 55%, transparent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+  100% { box-shadow: 0 0 0 0 transparent; background: transparent; }
+}
+
+/* ---------------------------------------------------------- designs */
+:root[data-design="terminal"] .mem2-panel { font-family: var(--mono); }
+:root[data-design="terminal"] .mem2-cat, :root[data-design="terminal"] .mem2-scope, :root[data-design="terminal"] .mem2-src,
+:root[data-design="terminal"] .mem2-conf, :root[data-design="terminal"] .mem2-tag, :root[data-design="terminal"] .mem2-reason,
+:root[data-design="terminal"] .mem2-chipbtn, :root[data-design="terminal"] .mem2-svc-toggle { border-radius: 3px; }
+:root[data-design="terminal"] .mem2-card, :root[data-design="terminal"] .mem2-mark, :root[data-design="terminal"] .mem2-tabs,
+:root[data-design="terminal"] .mem2-tab { border-radius: 4px; }
+:root[data-design="brutal"] .mem2-card, :root[data-design="brutal"] .mem2-stats > div, :root[data-design="brutal"] .mem2-set-row,
+:root[data-design="brutal"] .mem2-rule { border-width: 2px; border-color: var(--text); box-shadow: 3px 3px 0 var(--text); border-radius: 4px; }
+:root[data-design="brutal"] .mem2-card.pinned { box-shadow: 3px 3px 0 var(--accent), inset 4px 0 0 var(--accent); }
+:root[data-design="brutal"] .mem2-tab.on { box-shadow: none; outline: 2px solid var(--text); }
+:root[data-design="glass"] .mem2-card, :root[data-design="glass"] .mem2-stats > div, :root[data-design="glass"] .mem2-set-row {
+  backdrop-filter: blur(10px) saturate(1.2); -webkit-backdrop-filter: blur(10px) saturate(1.2);
+}
+:root[data-design="focus"] .mem2-card { background: transparent; }
+:root[data-design="focus"] .mem2-card:hover { background: var(--sx-hover, transparent); }
+:root[data-design="soft"] .mem2-card { box-shadow: 0 2px 10px color-mix(in srgb, #000 6%, transparent); border-color: transparent; }
+
+@media (max-width: 720px) {
+  .panel.mem2-panel { padding: 18px 14px 12px; height: calc(100vh - 54px); }
+  .mem2-stats { grid-template-columns: repeat(3, 1fr); }
+  .mem2-stats > div:nth-child(n+4) { display: none; }
+  .mem2-tab span { display: none; }
+  .mem2-dates { margin-left: 0; }
+  .mem2-svc-head, .mem2-svc-row { grid-template-columns: 1fr 70px 80px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mem2-composer, .mem2-bulk, .mem2-scope-menu, .mem2-flash, .mem2-spinner { animation: none; }
+}
+
+/* Round 40 (r40-memory): associations, the period of a replaced wording, the session diary */
+.mem2-concepts { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; font-size: 11.5px; color: var(--muted); }
+.mem2-concepts-label { display: inline-flex; align-items: center; gap: 4px; margin-right: 2px; }
+.mem2-concepts-label .ui-icon { width: 12px; height: 12px; color: color-mix(in srgb, var(--accent) 70%, var(--muted)); }
+.mem2-concept { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 6px; white-space: nowrap;
+  background: color-mix(in srgb, var(--text) 5%, transparent); color: color-mix(in srgb, var(--text) 72%, var(--muted)); }
+.mem2-concepts-input { flex: 1 1 220px; }
+.mem2-period { display: inline-flex; align-items: center; gap: 4px; font-style: normal; font-size: 11.5px; color: var(--mem2-mid); }
+.mem2-period .ui-icon { width: 12px; height: 12px; }
+.mem2-reason.r-conflict { color: var(--mem2-mid); border-color: color-mix(in srgb, var(--mem2-mid) 40%, transparent); background: color-mix(in srgb, var(--mem2-mid) 10%, transparent); }
+.mem2-diary-head { display: flex; align-items: center; gap: 12px; padding: 12px 14px; margin-bottom: 12px; border-radius: var(--mem2-r);
+  border: 1px solid var(--mem2-line); background: var(--mem2-card); flex-wrap: wrap; }
+.mem2-diary-head-text { flex: 1 1 260px; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.mem2-diary-head-text b { font-size: 14px; font-weight: 600; }
+.mem2-diary-head-text span { color: var(--muted); font-size: 12.5px; line-height: 1.45; }
+.mem2-diary-day { font-size: 11.5px; font-weight: 600; letter-spacing: .02em; text-transform: uppercase; color: var(--muted); padding: 8px 2px 0; }
+.mem2-diary-day:first-child { padding-top: 0; }
+.mem2-diary-card .mem2-text { font-size: 13.8px; }
+.mem2-flag-soft { color: var(--muted); border-color: var(--mem2-line); }
+.mem2-soft-note { font-style: normal; color: var(--accent); white-space: nowrap; }
+.mem2-helper { width: 220px; max-width: 100%; }

@@ -1,0 +1,33 @@
+WEBVTT
+
+1
+00:00:00.000 --> 00:00:03.509 line:88%
+Example — OpenRouter: sign in on the service's site.
+
+2
+00:00:03.559 --> 00:00:06.362 line:88%
+Keys → Create API key → a name → Create.
+
+3
+00:00:06.412 --> 00:00:10.274 line:88%
+Copy the sk-or-v1-… key — the site shows it only once.
+
+4
+00:00:10.324 --> 00:00:13.597 line:88%
+In MemuAI Proxy: «Accounts» → «Add account».
+
+5
+00:00:13.647 --> 00:00:18.803 line:88%
+Ready-made connections: pick the service — the API address is already filled in.
+
+6
+00:00:18.853 --> 00:00:23.244 line:88%
+Paste the key. The prefix is how the models are named in the Proxy.
+
+7
+00:00:23.294 --> 00:00:28.626 line:88%
+«Add» — then «Check» on the account card: the Proxy loads the model list.
+
+8
+00:00:28.676 --> 00:00:38.070 line:88%
+Every service form has «Where to get a key» and «Docs» links.

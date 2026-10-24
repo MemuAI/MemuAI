@@ -1,0 +1,5 @@
+{
+  "google": {"client_id": "", "client_secret": ""},
+  "notion": {"client_id": "", "client_secret": ""},
+  "antigravity": {"client_id": "", "client_secret": ""}
+}

@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en" data-mode="install">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' file: data:; script-src 'self' file: 'unsafe-inline'; style-src 'self' file: 'unsafe-inline'; img-src 'self' file: data:; font-src 'self' file: data:; connect-src 'self'">
+<title>MemuAI Setup</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="bg" aria-hidden="true">
+  <div class="aurora a1"></div><div class="aurora a2"></div><div class="aurora a3"></div>
+  <div class="grid-floor"></div>
+  <div class="grain"></div>
+</div>
+<canvas id="scene" aria-hidden="true"></canvas>
+<div class="css-star" aria-hidden="true"><div class="ring"></div><div class="core"></div><img src="assets/logo.png" alt="">
+  <svg class="pring" viewBox="0 0 100 100"><defs><linearGradient id="pring-grad" x1="1" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#f6b49a"/><stop offset=".5" stop-color="#ec9fc4"/><stop offset="1" stop-color="#a99cff"/></linearGradient></defs>
+    <circle class="pring-track" cx="50" cy="50" r="48"/><circle class="pring-arc" id="pring-arc" cx="50" cy="50" r="48" pathLength="100"/></svg></div>
+
+<div class="stage" id="stage">
+<div class="panel-ghost" id="panel-ghost" aria-hidden="true"></div>
+<header class="titlebar drag-region" data-drag="1">
+  <div class="brand drag-region">
+    <img class="brand-mark" id="brand-mark" src="assets/logo.png" alt="">
+    <span class="brand-name" id="brand-title">MemuAI Setup</span>
+    <span class="brand-ver" id="brand-ver">3.8</span>
+  </div>
+  <div class="chrome no-drag">
+    <div class="seg" role="group" data-i18n-title="chrome.lang">
+      <button type="button" data-lang="ru">RU</button><button type="button" data-lang="en">EN</button>
+      <span class="seg-thumb"></span>
+    </div>
+    <button class="win-btn" id="btn-min" type="button" data-i18n-title="chrome.minimize" aria-label="Minimize">
+      <svg viewBox="0 0 12 12"><path d="M2.5 6h7"/></svg></button>
+    <button class="win-btn close" id="btn-close" type="button" data-i18n-title="chrome.close" aria-label="Close">
+      <svg viewBox="0 0 12 12"><path d="M3 3l6 6M9 3l-6 6"/></svg></button>
+  </div>
+</header>
+
+<div class="hero-caption" aria-hidden="true">
+  <div class="wordmark" id="wordmark">MemuAI</div>
+  <div class="tagline"><span data-i18n="tag.private">PRIVATE</span><i></i><span data-i18n="tag.local">LOCAL</span><i></i><span data-i18n="tag.yours">YOURS</span></div>
+</div>
+
+<main class="panel" id="panel">
+  <div class="panel-sheen" aria-hidden="true"></div>
+  <nav class="stepper" id="stepper" aria-label="Steps">
+    <ol class="steps" id="steps">
+      <li class="step" data-step="edition"><i class="step-dot"><b>1</b><svg class="step-check" viewBox="0 0 16 16"><path d="M4 8.5l2.6 2.6L12 5.5"/></svg></i><span data-i18n="step.edition"></span></li>
+      <li class="step" data-step="location"><i class="step-dot"><b>2</b><svg class="step-check" viewBox="0 0 16 16"><path d="M4 8.5l2.6 2.6L12 5.5"/></svg></i><span data-i18n="step.location"></span></li>
+      <li class="step" data-step="options"><i class="step-dot"><b>3</b><svg class="step-check" viewBox="0 0 16 16"><path d="M4 8.5l2.6 2.6L12 5.5"/></svg></i><span data-i18n="step.options"></span></li>
+      <li class="step" data-step="review"><i class="step-dot"><b>4</b><svg class="step-check" viewBox="0 0 16 16"><path d="M4 8.5l2.6 2.6L12 5.5"/></svg></i><span data-i18n="step.review"></span></li>
+      <li class="step" data-step="progress"><i class="step-dot"><b>5</b><svg class="step-check" viewBox="0 0 16 16"><path d="M4 8.5l2.6 2.6L12 5.5"/></svg></i><span data-i18n="step.install"></span></li>
+    </ol>
+  </nav>
+
+  <div class="screens">
+    <!-- ============================================================ welcome -->
+    <section class="screen" data-screen="welcome">
+      <div class="spacer top" aria-hidden="true"></div>
+      <div class="kicker"><span class="dot"></span><span id="welcome-kicker"></span></div>
+      <h1 class="display" id="welcome-title"></h1>
+      <div class="vt" id="vt" hidden aria-hidden="true">
+        <div class="vt-node from"><span class="vt-label" id="vt-from-label"></span><span class="vt-num" id="vt-from"></span></div>
+        <div class="vt-path"><i class="vt-line"></i><i class="vt-spark"></i>
+          <svg class="vt-head" viewBox="0 0 16 16"><path d="M4 3l6 5-6 5"/></svg>
+          <svg class="vt-same" viewBox="0 0 24 24"><path d="M20 12a8 8 0 01-13.7 5.6M4 12a8 8 0 0113.7-5.6"/><path d="M17.7 3.2v3.6h-3.6M6.3 20.8v-3.6h3.6"/></svg></div>
+        <div class="vt-node to"><span class="vt-label" id="vt-to-label"></span><span class="vt-num" id="vt-to"></span></div>
+      </div>
+      <p class="lead" id="welcome-lead"></p>
+      <ul class="keep-chips" id="keep-chips" hidden></ul>
+      <div class="note warn" id="downgrade-note" hidden><svg viewBox="0 0 24 24"><path d="M12 3l9.5 17h-19L12 3z"/><path d="M12 10v4.5M12 17.2v.3"/></svg><span id="downgrade-note-text"></span></div>
+      <div class="features" id="features"></div>
+      <div class="legacy-note note warn" id="legacy-welcome" hidden>
+        <svg viewBox="0 0 24 24"><path d="M12 3l9.5 17h-19L12 3z"/><path d="M12 10v4.5M12 17.2v.3"/></svg>
+        <span data-i18n="options.legacy"></span></div>
+      <div class="spacer"></div>
+      <p class="meta" id="welcome-note"></p>
+      <div class="actions">
+        <button class="btn text" type="button" id="btn-express"><span data-i18n="btn.express">Express setup</span></button>
+        <div class="buttons">
+          <button class="btn primary" type="button" id="btn-start"><span id="btn-start-label">Install</span><svg class="arrow" viewBox="0 0 16 16"><path d="M3 8h9M8.5 4l4 4-4 4"/></svg></button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ edition (step: components) -->
+    <section class="screen" data-screen="edition">
+      <h2 class="title" data-i18n="edition.title">Choose your MemuAI</h2>
+      <p class="lead small" data-i18n="edition.lead"></p>
+      <div class="cards">
+        <button type="button" class="card" data-edition="full" aria-pressed="true">
+          <div class="card-art full" aria-hidden="true">
+            <div class="mini-window"><i></i><i></i><i></i><div class="mw-side"></div><div class="mw-body"><span></span><span></span><span class="short"></span></div></div>
+            <div class="mini-orb"></div>
+          </div>
+          <span class="badge" data-i18n="edition.full.badge">Recommended</span>
+          <span class="card-t" data-i18n="edition.full.t">Complete MemuAI</span>
+          <span class="card-b" data-i18n="edition.full.b"></span>
+          <span class="card-size" id="size-full"></span>
+          <span class="check" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7"/></svg></span>
+        </button>
+        <button type="button" class="card" data-edition="proxy" aria-pressed="false">
+          <div class="card-art proxy" aria-hidden="true">
+            <div class="mini-tray"><span></span><span></span><span class="on"></span></div>
+            <div class="mini-api">/v1</div>
+          </div>
+          <span class="badge muted" data-i18n="edition.proxy.badge">For API clients</span>
+          <span class="card-t" data-i18n="edition.proxy.t">Proxy only</span>
+          <span class="card-b" data-i18n="edition.proxy.b"></span>
+          <span class="card-size" id="size-proxy"></span>
+          <span class="check" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7"/></svg></span>
+        </button>
+      </div>
+      <div class="toggle-pair">  <!-- Round 29/35: CLI + MemuNote + MemuFiles side by side, so the step fits 880×540 -->
+      <label class="row toggle-row" id="row-cli">
+        <span class="row-icon"><svg viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="15" rx="3"/><path d="M7 10l3 2.5L7 15M12.5 15.5H17"/></svg></span>
+        <span class="row-text"><b data-i18n="edition.cli.t">MemuCode CLI</b><small data-i18n="edition.cli.b" data-i18n-title="edition.cli.b"></small></span>
+        <input type="checkbox" class="switch" id="opt-memucode">
+      </label>
+      <label class="row toggle-row note-row" id="row-note">
+        <span class="row-icon"><svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg></span>
+        <span class="row-text"><b data-i18n="edition.note.t">MemuNote</b><small data-i18n="edition.note.b" data-i18n-title="edition.note.b"></small></span>
+        <input type="checkbox" class="switch" id="opt-memunote">
+      </label>
+      <label class="row toggle-row files-row" id="row-files">  <!-- Round 35: MemuFiles, the third optional app -->
+        <span class="row-icon"><svg viewBox="0 0 24 24"><path d="M3 7.5A1.5 1.5 0 014.5 6h4.6l1.9 2h8.5A1.5 1.5 0 0121 9.5v8a1.5 1.5 0 01-1.5 1.5h-15A1.5 1.5 0 013 17.5z"/><path d="M14.5 15.5l2 2M12 15.8a2.3 2.3 0 100-4.6 2.3 2.3 0 000 4.6z"/></svg></span>
+        <span class="row-text"><b data-i18n="edition.files.t">MemuFiles</b><small data-i18n="edition.files.b" data-i18n-title="edition.files.b"></small></span>
+        <input type="checkbox" class="switch" id="opt-memufiles">
+      </label>
+      </div>
+      <div class="spacer"></div>
+      <div class="actions">
+        <button class="btn text" type="button" data-back data-i18n="btn.back">Back</button>
+        <div class="buttons"><button class="btn primary" type="button" data-next id="btn-edition-next"><span class="next-label" data-i18n="btn.continue">Continue</span><svg class="arrow" viewBox="0 0 16 16"><path d="M3 8h9M8.5 4l4 4-4 4"/></svg></button></div>
+      </div>
+    </section>
+
+    <!-- ============================================================ location -->
+    <section class="screen" data-screen="location">
+      <h2 class="title" data-i18n="location.title">Where to install</h2>
+      <p class="lead small" id="location-lead" data-i18n="location.lead"></p>
+      <div class="field">
+        <span class="field-label" data-i18n="options.dir">Install location</span>
+        <div class="path-box" id="path-box">
+          <svg viewBox="0 0 24 24"><path d="M3 7.5A2.5 2.5 0 015.5 5H10l2 2.2h6.5A2.5 2.5 0 0121 9.7v7.8a2.5 2.5 0 01-2.5 2.5h-13A2.5 2.5 0 013 17.5z"/></svg>
+          <input id="opt-dir" spellcheck="false" autocomplete="off">
+          <button class="btn mini" type="button" id="btn-browse" data-i18n="btn.browse">Browse…</button>
+        </div>
+        <div class="space"><div class="space-bar"><i id="space-fill"></i></div><span id="space-text"></span>
+          <button class="btn link" type="button" id="btn-dir-reset" hidden data-i18n="location.reset">Default folder</button></div>
+        <div class="field-msg" id="dir-msg"></div>
+      </div>
+      <div class="note" id="data-note"><svg viewBox="0 0 24 24"><path d="M12 3l7.5 3v5.5c0 4.6-3.2 8.3-7.5 9.5-4.3-1.2-7.5-4.9-7.5-9.5V6z"/><path d="M9 12l2.2 2.2L15.5 10"/></svg><span id="data-note-text"></span></div>
+      <div class="note warn" id="legacy-options" hidden><svg viewBox="0 0 24 24"><path d="M12 3l9.5 17h-19L12 3z"/><path d="M12 10v4.5M12 17.2v.3"/></svg><span data-i18n="options.legacy"></span></div>
+      <div class="spacer"></div>
+      <div class="actions">
+        <button class="btn text" type="button" data-back data-i18n="btn.back">Back</button>
+        <div class="buttons"><button class="btn primary" type="button" data-next id="btn-location-next"><span class="next-label" data-i18n="btn.continue">Continue</span><svg class="arrow" viewBox="0 0 16 16"><path d="M3 8h9M8.5 4l4 4-4 4"/></svg></button></div>
+      </div>
+    </section>
+
+    <!-- ============================================================ options (shortcuts & startup) -->
+    <section class="screen" data-screen="options">
+      <h2 class="title" data-i18n="options.title">Shortcuts and startup</h2>
+      <p class="lead small" data-i18n="options.lead"></p>
+      <div class="toggles" id="toggles"></div>
+      <p class="meta options-foot" id="options-foot"></p>
+      <div class="spacer"></div>
+      <div class="actions">
+        <button class="btn text" type="button" data-back data-i18n="btn.back">Back</button>
+        <div class="buttons"><button class="btn primary" type="button" data-next id="btn-options-next"><span class="next-label" data-i18n="btn.continue">Continue</span><svg class="arrow" viewBox="0 0 16 16"><path d="M3 8h9M8.5 4l4 4-4 4"/></svg></button></div>
+      </div>
+    </section>
+
+    <!-- ============================================================ review (summary before anything is written) -->
+    <section class="screen" data-screen="review">
+      <h2 class="title" id="review-title"></h2>
+      <p class="lead small" id="review-lead"></p>
+      <ul class="summary" id="summary"></ul>
+      <div class="note warn" id="review-downgrade" hidden><svg viewBox="0 0 24 24"><path d="M12 3l9.5 17h-19L12 3z"/><path d="M12 10v4.5M12 17.2v.3"/></svg><span id="review-downgrade-text"></span></div>
+      <div class="spacer"></div>
+      <p class="meta" id="review-space"></p>
+      <div class="actions">
+        <button class="btn text" type="button" data-back data-i18n="btn.back">Back</button>
+        <div class="buttons"><button class="btn primary" type="button" id="btn-install"><span id="btn-install-label">Install</span><svg class="arrow" viewBox="0 0 16 16"><path d="M3 8h9M8.5 4l4 4-4 4"/></svg></button></div>
+      </div>
+    </section>
+
+    <!-- ============================================================ progress -->
+    <section class="screen center" data-screen="progress">
+      <div class="pct" id="pct"><span id="pct-num">0</span><small>%</small></div>
+      <h2 class="title tight" id="progress-title"></h2>
+      <p class="phase" id="phase"></p>
+      <div class="bar"><div class="bar-fill" id="bar-fill"><i class="bar-glint"></i></div></div>
+      <div class="bar-meta"><span class="file" id="file"></span><span class="bytes" id="bytes"></span></div>
+      <div class="actions solo"><button class="btn text" type="button" id="btn-stop" data-i18n="btn.cancel">Cancel</button></div>
+    </section>
+
+    <!-- ============================================================ done -->
+    <section class="screen center" data-screen="done">
+      <div class="success" aria-hidden="true"><svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="23"/><path d="M15.5 27l7 7 14-15"/></svg></div>
+      <div class="kicker centered"><span class="dot ok"></span><span data-i18n="done.kicker">All set</span></div>
+      <h1 class="display small" id="done-title"></h1>
+      <p class="lead center-text" id="done-lead" data-i18n="done.lead"></p>
+      <div class="note warn compact" id="done-warn" hidden><svg viewBox="0 0 24 24"><path d="M12 3l9.5 17h-19L12 3z"/><path d="M12 10v4.5M12 17.2v.3"/></svg><span id="done-warn-text"></span></div>
+      <div class="actions solo done-actions">
+        <button class="btn ghost" type="button" id="btn-done-close" data-i18n="btn.close">Close</button>
+        <button class="btn primary" type="button" id="btn-finish"><span id="launch-label">Open MemuAI</span><svg class="arrow" viewBox="0 0 16 16"><path d="M3 8h9M8.5 4l4 4-4 4"/></svg></button>
+      </div>
+      <div class="links" id="done-links">
+        <button class="btn link" type="button" id="btn-open-folder"><svg viewBox="0 0 24 24"><path d="M3 7.5A2.5 2.5 0 015.5 5H10l2 2.2h6.5A2.5 2.5 0 0121 9.7v7.8a2.5 2.5 0 01-2.5 2.5h-13A2.5 2.5 0 013 17.5z"/></svg><span data-i18n="done.folder">Open folder</span></button>
+      </div>
+    </section>
+
+    <!-- ============================================================ error -->
+    <section class="screen center" data-screen="error">
+      <div class="fail" aria-hidden="true"><svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="23"/><path d="M26 15v14M26 36v.5"/></svg></div>
+      <h2 class="title" id="error-title" data-i18n="error.title">Setup couldn’t finish</h2>
+      <p class="lead center-text" id="error-text"></p>
+      <code class="error-detail" id="error-detail"></code>
+      <p class="fine center-text error-log" id="error-log" hidden></p>
+      <div class="actions solo">
+        <button class="btn text" type="button" id="btn-log" data-i18n="btn.openLog">Open log</button>
+        <button class="btn ghost" type="button" id="btn-error-close" data-i18n="btn.close">Close</button>
+        <button class="btn primary" type="button" id="btn-retry" data-i18n="btn.retry">Try again</button>
+      </div>
+    </section>
+
+    <!-- ============================================================ uninstall -->
+    <section class="screen" data-screen="uninstall">
+      <div class="kicker danger"><span class="dot"></span><span id="un-kicker"></span></div>
+      <h1 class="display" id="un-title"></h1>
+      <p class="lead" data-i18n="un.lead"></p>
+      <div class="where"><span data-i18n="un.where">Installed in</span><code id="un-dir"></code></div>
+      <ul class="un-chips" id="un-chips" aria-live="polite"></ul>
+      <label class="row toggle-row keep" id="row-keep">
+        <span class="row-icon"><svg viewBox="0 0 24 24"><path d="M12 3l7.5 3v5.5c0 4.6-3.2 8.3-7.5 9.5-4.3-1.2-7.5-4.9-7.5-9.5V6z"/><path d="M9 12l2.2 2.2L15.5 10"/></svg></span>
+        <span class="row-text"><b data-i18n="un.keep.t"></b><small data-i18n="un.keep.b"></small></span>
+        <input type="checkbox" class="switch" id="opt-keep" checked>
+      </label>
+      <div class="note danger" id="un-warn" hidden><svg viewBox="0 0 24 24"><path d="M12 3l9.5 17h-19L12 3z"/><path d="M12 10v4.5M12 17.2v.3"/></svg><span id="un-warn-text"></span></div>
+      <div class="spacer"></div>
+      <div class="actions">
+        <span></span>
+        <div class="buttons">
+          <button class="btn ghost" type="button" id="btn-un-cancel" data-i18n="btn.cancel">Cancel</button>
+          <button class="btn danger" type="button" id="btn-un-go" data-i18n="btn.uninstall">Uninstall</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ uninstall done -->
+    <section class="screen center" data-screen="un-done">
+      <div class="success soft" aria-hidden="true"><svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="23"/><path d="M15.5 27l7 7 14-15"/></svg></div>
+      <h1 class="display small" id="un-done-title"></h1>
+      <p class="lead center-text" id="un-done-text"></p>
+      <p class="fine center-text" id="un-done-partial" hidden data-i18n="un.done.partial"></p>
+      <div class="actions solo"><button class="btn primary wide" type="button" id="btn-un-close" data-i18n="btn.close">Close</button></div>
+    </section>
+  </div>
+</main>
+
+<div class="modal" id="modal" hidden>
+  <div class="modal-card" id="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <h3 id="modal-title"></h3>
+    <p id="modal-text"></p>
+    <ul class="app-list" id="modal-list"></ul>
+    <div class="modal-actions" id="modal-actions"></div>
+  </div>
+</div>
+
+</div>
+
+<script src="i18n.js"></script>
+<script src="scene.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,125 @@
+/* Round 35 — «Поиск файлов на ПК» (fsearch.js). Built on the window's classes (.qa-row, .qa-view-head, .qa-search,
+   .qx-list/.qx-foot/.qx-keys from features.css) and tokens, so every design, accent and theme applies. */
+
+:root[data-fs-view] #qa-suggest, :root[data-fs-view] #qa-answer, :root[data-fs-view] #qa-actions,
+:root[data-fs-view] #qa-chats, :root[data-fs-view] #qa-menu, :root[data-fs-view] #qa-picker,
+:root[data-fs-view] .qa-plugin.qx, :root[data-fs-view] #qa-slot-bottom { display: none !important; }
+
+.qa-plugin.fs { display: flex; flex-direction: column; min-height: 0; flex: 1 1 auto; padding: 0 8px 8px;
+  animation: qa-view-in .2s var(--qa-ease-out) both; max-height: calc(var(--qa-max-h) - 110px); }
+/* the view shrinks with the card (a tall input, a short browser window) and only the list scrolls */
+:root[data-fs-view] #qa-slot-top { min-height: 0; }
+:root:not([data-native="1"]) .qa-plugin.fs { max-height: calc(min(var(--qa-max-h), 76vh) - 110px); }
+.fs-head { margin-bottom: 2px; }
+.fs-search input { font-size: 14px; }
+
+.fs-chips { display: flex; align-items: center; gap: 4px; padding: 4px 2px 2px; overflow-x: auto; scrollbar-width: none; flex: none; }
+.fs-chips::-webkit-scrollbar { display: none; }
+.fs-chip { flex: none; border: 1px solid transparent; background: var(--qa-chip); color: var(--muted); font: 600 12px/1 var(--sans);
+  padding: 6px 10px; border-radius: 999px; cursor: pointer; white-space: nowrap; transition: background .12s ease, color .12s ease; }
+.fs-chip:hover { color: var(--text); background: var(--qa-hover); }
+.fs-chip.on { color: var(--accent); background: var(--qa-active); border-color: color-mix(in srgb, var(--accent) 30%, transparent); }
+.fs-grow { flex: 1 1 auto; min-width: 6px; }
+.fs-sort select { border: 1px solid var(--qa-chip-line, transparent); background: var(--qa-chip); color: var(--text); font: 600 12px var(--sans);
+  height: 26px; border-radius: 8px; padding: 0 6px; cursor: pointer; outline: 0; }
+.fs-sort select:focus-visible { border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+
+.fs-status { display: flex; align-items: center; gap: 4px 12px; min-height: 30px; padding: 3px 4px 2px 6px; color: var(--qa-faint, var(--muted)); font-size: 11.5px; flex: none; }
+.fs-building { display: inline-flex; align-items: center; gap: 4px; color: var(--accent); }
+.fs-building svg { width: 12px; height: 12px; }
+
+.fs-list { flex: 1 1 auto; }
+.fs-row { min-height: 46px; gap: 10px; cursor: default; user-select: none; }
+.fs-row[draggable="true"] { cursor: grab; }
+.fs-row .fs-ic { width: 28px; height: 28px; border-radius: 7px; background: color-mix(in srgb, var(--fs-tint, var(--muted)) 13%, transparent); color: var(--fs-tint, var(--muted)); }
+.fs-row.active .fs-ic { color: var(--fs-tint, var(--accent)); }
+.fs-row .fs-ic svg { width: 16px; height: 16px; }
+.fs-row.k-folder { --fs-tint: #d39b22; } .fs-row.k-image { --fs-tint: #3f9d5a; } .fs-row.k-video { --fs-tint: #8a5bd4; }
+.fs-row.k-audio { --fs-tint: #d4517f; } .fs-row.k-doc { --fs-tint: #3f82d4; } .fs-row.k-text { --fs-tint: #6b7f99; }
+.fs-row.k-archive { --fs-tint: #a8743a; } .fs-row.k-exe { --fs-tint: #2c9c97; } .fs-row.k-code { --fs-tint: #1f9bd1; }
+.fs-main { flex: 1; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 1px; }
+.fs-main .tx { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13.5px; }
+.fs-main .tx mark { background: color-mix(in srgb, var(--accent) 22%, transparent); color: inherit; border-radius: 3px; padding: 0 1px; }
+.fs-main small { display: block; min-width: 0; color: var(--muted); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: ltr; }
+.fs-meta { flex: none; color: var(--qa-faint, var(--muted)); font-size: 11.5px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.fs-btns { flex: none; display: none; gap: 2px; }
+.fs-row:hover .fs-btns, .fs-row.active .fs-btns, .fs-btns:focus-within { display: inline-flex; }
+.fs-row:hover .fs-meta, .fs-row.active .fs-meta { display: none; }
+.fs-btns .qa-icon, .fs-ai-head .qa-icon { width: 26px; height: 26px; }
+.fs-btns .qa-icon svg, .fs-ai-head .qa-icon svg { width: 14px; height: 14px; }
+.fs-more { display: block; margin: 6px auto 2px; }
+
+.fs-empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 7px; padding: 20px 22px 16px; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.fs-empty b { color: var(--text); font-weight: 620; font-size: 14px; }
+.fs-empty span { max-width: 470px; }
+.fs-empty-ic { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--qa-active); color: var(--accent); }
+.fs-empty-ic svg { width: 20px; height: 20px; }
+.fs-empty-ic.spin svg { animation: fs-pulse 1.2s ease-in-out infinite; }
+@keyframes fs-pulse { 50% { opacity: .35; } }
+.fs-tips, .fs-recent { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; max-width: 520px; }
+.fs-recent { margin-top: 4px; align-items: center; }
+.fs-recent small { color: var(--qa-faint, var(--muted)); font-size: 11.5px; margin-right: 2px; }
+.fs-tip { border: 0; background: var(--qa-chip); color: var(--text); border-radius: 7px; padding: 4px 8px; cursor: pointer; font: 12px var(--sans); }
+.fs-tip code { font: 600 11.5px var(--mono); color: var(--accent); background: none; }
+.fs-tip:hover { background: var(--qa-hover); }
+.fs-wait { padding: 26px; }
+.fs-foot { flex: none; }
+
+/* the AI card under the answer */
+.qa-plugin.fs-ai { margin: 2px 10px 8px; padding: 6px; border-radius: 12px; background: var(--qa-chip); border: 1px solid var(--qa-line, transparent); }
+.fs-ai-head { display: flex; align-items: center; gap: 8px; padding: 2px 4px 4px 6px; font-size: 12px; color: var(--muted); }
+.fs-ai-head > svg { width: 14px; height: 14px; flex: none; color: var(--accent); }
+.fs-ai-head > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fs-ai-head code { font: 600 11.5px var(--mono); color: var(--text); }
+.fs-ai-list { display: flex; flex-direction: column; max-height: 260px; overflow: auto; scrollbar-width: thin; }
+.fs-ai .fs-row { min-height: 40px; }
+
+.fs-status-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 520px) {
+  .fs-meta, .fs-wide, .fs-building { display: none; }
+  .fs-chip { padding: 5px 8px; }
+}
+
+/* Round 36 — long lists stay light (the browser skips laying out rows out of sight), the right-click menu,
+   inline rename, the undo bar and the properties sheet */
+.qa-plugin.fs, .qa-plugin.fs-ai { position: relative; }
+.fs-chips-host, .fs-status-host, .fs-foot-host { flex: none; }
+.fs-body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.fs-list .fs-row { content-visibility: auto; contain-intrinsic-size: auto 46px; }
+.fs-btns .fs-btn[data-fs-act="menu"] { color: var(--muted); }
+.fs-row[aria-expanded="true"] { background: var(--qa-active); }
+.fs-row[aria-expanded="true"] .fs-btns { display: inline-flex; }
+.fs-row[aria-expanded="true"] .fs-meta { display: none; }
+.fs-renaming .fs-btns, .fs-renaming .fs-meta { display: none !important; }
+.fs-renaming .fs-main .tx { overflow: visible; padding-right: 8px; }
+.fs-rename { display: block; width: calc(100% + 7px); box-sizing: border-box; font: inherit; font-size: 13.5px; line-height: 20px; color: var(--text);
+  background: var(--panel, transparent); border: 1px solid var(--accent); border-radius: 6px; padding: 1px 6px; margin: -2px 0 -1px -7px; outline: 0;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); user-select: text; }
+.fs-menu .mcm-head-ico svg { width: 16px; height: 16px; }
+
+.fs-undo { display: flex; align-items: center; gap: 10px; margin: 4px 2px 0; padding: 6px 6px 6px 12px; border-radius: 10px;
+  background: var(--qa-chip); color: var(--text); font-size: 12.5px; animation: qa-view-in .18s var(--qa-ease-out) both; }
+.fs-undo > span { flex: 1; min-width: 0; display: inline-flex; align-items: center; gap: 8px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.fs-undo > span svg { width: 14px; height: 14px; flex: none; color: var(--muted); }
+.fs-undo .qx-link { font-weight: 650; }
+.fs-undo .qa-icon { width: 24px; height: 24px; }
+.fs-undo .qa-icon svg { width: 13px; height: 13px; }
+
+.fs-props { position: absolute; z-index: 5; right: 12px; left: 12px; bottom: 10px; max-height: calc(100% - 64px); overflow: auto; scrollbar-width: thin;
+  padding: 10px 12px 8px; border-radius: 12px; background: var(--panel-2, var(--panel)); color: var(--text);
+  border: 1px solid color-mix(in srgb, var(--border, #888) 70%, transparent); box-shadow: 0 14px 36px -16px rgba(0, 0, 0, .5); outline: 0;
+  animation: qa-view-in .16s var(--qa-ease-out) both; }
+.fs-props-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.fs-props-head b { flex: 1; min-width: 0; font-size: 13.5px; font-weight: 640; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fs-props-head .fs-ic { width: 28px; height: 28px; border-radius: 7px; display: grid; place-items: center; flex: none;
+  background: color-mix(in srgb, var(--fs-tint, var(--muted)) 13%, transparent); color: var(--fs-tint, var(--muted)); }
+.fs-props-head .fs-ic svg { width: 16px; height: 16px; }
+.fs-props-head .qa-icon { width: 26px; height: 26px; }
+.fs-props-head .qa-icon svg { width: 14px; height: 14px; }
+.fs-props .k-folder { --fs-tint: #d39b22; } .fs-props .k-image { --fs-tint: #3f9d5a; } .fs-props .k-video { --fs-tint: #8a5bd4; }
+.fs-props .k-audio { --fs-tint: #d4517f; } .fs-props .k-doc { --fs-tint: #3f82d4; } .fs-props .k-text { --fs-tint: #6b7f99; }
+.fs-props .k-archive { --fs-tint: #a8743a; } .fs-props .k-exe { --fs-tint: #2c9c97; } .fs-props .k-code { --fs-tint: #1f9bd1; }
+.fs-props dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 5px 14px; margin: 0; font-size: 12.5px; }
+.fs-props dt { color: var(--muted); }
+.fs-props dd { margin: 0; min-width: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.fs-props-foot { display: flex; gap: 14px; justify-content: flex-end; margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--qa-line, color-mix(in srgb, var(--border, #888) 50%, transparent)); }

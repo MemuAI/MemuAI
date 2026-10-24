@@ -1,0 +1,35 @@
+/* MemuAI — Round 31 (design-main): small fixes of the main window found by the full design audit
+   (changelog/round31/design-audit.md). Loaded after every design and section stylesheet; tokens only. */
+
+/* Sidebar folders: the grid column took the min-content width of a long nowrap title, so chats inside a folder
+   were wider than the sidebar — titles were cut without «…» and the active highlight ran into the edge. */
+.chat-folder-items { grid-template-columns: minmax(0, 1fr); }
+.chat-folder-items > div { min-width: 0; }
+
+/* The app menu (⋯) is taller than a 768–800 px window: «Справка» was below the screen with no way to reach it. */
+.app-menu-pop { max-height: calc(100vh - 64px); overflow-y: auto; overscroll-behavior: contain; }
+
+/* Markdown tables: numbers in right-aligned columns (|---:|) line up by digits. */
+:is(.md, .msg-content) :is(td, th)[style*="text-align:right"] { font-variant-numeric: tabular-nums; }
+
+/* File chips of a message: a line icon instead of the 📄 emoji (no emoji font → «▯»). */
+.file-pill .ui-icon { width: 14px; height: 14px; color: var(--muted); }
+.prev-dev .ui-icon { width: 16px; height: 16px; }
+
+/* MemuCode intro: three key points up front, the rest behind «Ещё…» (it was eight bullets and two paragraphs). */
+.code-intro-more { margin: -4px 0 12px; }
+.code-intro-more > summary { width: fit-content; cursor: pointer; color: var(--muted); font-size: 13px; padding: 4px 6px; margin-left: -6px; border-radius: var(--r-xs, 6px); }
+.code-intro-more > summary:hover { color: var(--text); background: var(--d-hover, var(--panel-2)); }
+.code-intro-more[open] > summary { color: var(--text); margin-bottom: 2px; }
+.code-intro-more .code-intro-list { margin-top: 6px; }
+
+/* Narrow window (~900 px): the model name was cut to «xkiro-qwen/qwen…» (180 px) while half of the bar stood empty. */
+@container (max-width: 850px) {
+  .topbar .dd-btn { max-width: min(300px, 46cqi); }
+}
+
+/* Safe-mode banner in a ~760–900 px window: the text column shrank to one letter per line («Р/с/т…») because
+   only the buttons kept their width. The text keeps a readable minimum and its second line goes first. */
+.memu-safe-banner .memu-safe-text { flex: 1 1 auto; min-width: 128px; }
+.memu-safe-banner .memu-safe-text b { white-space: nowrap; }
+@media (max-width: 920px) { .memu-safe-banner .memu-safe-text small { display: none; } }

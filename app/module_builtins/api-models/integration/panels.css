@@ -1,0 +1,9 @@
+/* Round 38: «Новые модели API» panel — on top of the shared panel kit (app/pgstatic/module-panel-kit.css). */
+.mk { --c: #22b8a6; }
+:root[data-theme="light"] .mk { --c: #0f8f80; }
+.am-live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.am-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--c); vertical-align: middle; margin-left: 2px;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 22%, transparent); }
+.am-price { display: inline-flex; gap: 4px; align-items: baseline; color: var(--text); font-weight: 600; font-size: 12px; }
+.am-price i { font-style: normal; color: var(--muted); font-weight: 400; }
+html[data-size="s"] .mk-head .mk-pill { display: none; }

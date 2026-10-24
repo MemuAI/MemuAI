@@ -1,0 +1,43 @@
+__pycache__/
+*.pyc
+.venv/
+data/
+build/
+dist/
+# Built Setup files land next to the installer sources (installer/ is source code).
+/installer/*.exe
+/installer/*.partial
+*.log
+work.txt
+
+# Local runtime/audit data (MEMUAI_DATA_DIR) may contain real cookies,
+# tokens and API keys: never commit it.
+.dev-data/
+.runtime*/
+.ui-*/
+.memuai-data*/
+
+# Round 30: owner's OAuth clients for the build and the file build.py writes from them.
+oauth_clients.local.json
+app/oauth_build.py
+# Round 33: test fixtures (round33_chat_test needs tests/data/round33_leak_samples.json)
+!tests/data/
+
+# Private development notes and generated audit artefacts.
+/UPDATE_*.md
+/SESSION_CHANGELOG*
+/README.md
+/README_FOR_AI*
+/MEMUAI_FEATURES*
+/AUDIT*
+/DEFENDER_AUDIT*
+/audit-results/
+/changelog/
+/importtime*.txt
+/PROOOOOOOMPTS.txt
+/prompts.json
+/tests/prompt_eval/results/
+/app/companion_kb/README.md
+/installer/README.md
+.pytest_cache/
+.ruff_cache/

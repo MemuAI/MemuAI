@@ -1,0 +1,67 @@
+{
+  "id": "studio",
+  "title": "MemuAI Studio",
+  "title_en": "MemuAI Studio",
+  "summary": "Изображения, видео, музыка с ИИ-продюсером, озвучка и расшифровка: все медиа в одной мастерской.",
+  "summary_en": "Images, video, music with an AI producer, speech and transcription in one workshop.",
+  "version": "1.0",
+  "icon": "icon.svg",
+  "enabled": false,
+  "launcher": {
+    "hidden": false,
+    "slot": "sidebar"
+  },
+  "window": {
+    "default_width": 1120,
+    "default_height": 740,
+    "min_width": 520,
+    "min_height": 420,
+    "max_width": 2400,
+    "max_height": 1600,
+    "fixed": false,
+    "resizable": true,
+    "size_mode": "user",
+    "center": true
+  },
+  "persist": [
+    "tab",
+    "prompt",
+    "video_prompt",
+    "speech",
+    "transcript",
+    "model",
+    "video_model",
+    "aspect",
+    "style",
+    "mood",
+    "negative",
+    "prefix",
+    "image_count",
+    "audio_rate",
+    "audio_chunk",
+    "video_aspect",
+    "video_motion",
+    "video_length",
+    "music_prompt",
+    "music_lyrics",
+    "music_style",
+    "music_duration",
+    "music_tempo",
+    "music_instrumental",
+    "music_model",
+    "music_producer_model"
+  ],
+  "permissions": [
+    "media",
+    "models",
+    "download",
+    "chat",
+    "clipboard",
+    "storage"
+  ],
+  "bridge": {
+    "model": "",
+    "keep_in_chat": false,
+    "instructions": "MemuAI Studio вызывает маршруты изображений, видео, озвучки и расшифровки через мост MemuAI. Никогда не подставляет медиа-заглушку, если провайдер вернул ошибку: показывается настоящий текст ошибки."
+  }
+}

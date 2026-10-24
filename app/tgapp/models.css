@@ -1,0 +1,18 @@
+/* Round 33 (r33c-models-lists): Mini App model rows like the unified MemuAI picker — readable name first,
+   the full id under it (muted, monospace), capability badges beside the name; the reasoning-level chip. */
+.model-item .cell-title { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.model-item .cell-title .mname { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.model-item .tag { display: block; margin-left: 0; padding: 0; background: none; color: var(--hint); font-weight: 500;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.model-item .tag .mid { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 11px; opacity: .85; }
+.mbadge { flex: none; display: inline-flex; align-items: center; gap: 3px; height: 18px; padding: 0 6px; border-radius: 9px;
+  font-size: 10.5px; font-weight: 650; line-height: 1; color: var(--hint); background: color-mix(in srgb, var(--hint) 14%, transparent); }
+.mbadge svg { width: 12px; height: 12px; }
+.mbadge.eye { color: var(--accent); background: color-mix(in srgb, var(--accent) 15%, transparent); }
+.mbadge.free { color: #16a34a; background: color-mix(in srgb, #16a34a 14%, transparent); }
+.mbadge.think { color: #a855f7; background: color-mix(in srgb, #a855f7 14%, transparent); padding: 0 5px; }
+.toggle-chip.effort span { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* r33d-shots: the model chip gives way so the reasoning chip (with the chosen level) stays visible on a phone. */
+.composer-tools .toggle-chip.model { flex: 0 1 auto; min-width: 132px; }
+.composer-tools .toggle-chip.model svg { flex: none; }
+.action-list .cell .check { margin-left: auto; align-self: center; }

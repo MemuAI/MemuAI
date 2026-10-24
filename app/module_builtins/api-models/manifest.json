@@ -1,0 +1,89 @@
+{
+  "id": "api-models",
+  "title": "Новые модели API",
+  "title_en": "New API models",
+  "summary": "Фоновое наблюдение за моделями API, выбор источников и семейств, история изменений и уведомления MemuAI и Telegram.",
+  "summary_en": "Background API model monitoring, source and family filters, change history and MemuAI / Telegram notifications.",
+  "version": "1.0",
+  "icon": "icon.svg",
+  "enabled": false,
+  "default_locale": "ru",
+  "launcher": {
+    "slot": "sidebar",
+    "hidden": false
+  },
+  "window": {
+    "default_width": 1080,
+    "default_height": 740,
+    "min_width": 480,
+    "min_height": 420,
+    "resizable": true
+  },
+  "permissions": [
+    "background",
+    "web",
+    "notify",
+    "storage",
+    "external"
+  ],
+  "persist": [
+    "query"
+  ],
+  "bridge": {
+    "instructions": "",
+    "keep_in_chat": false
+  },
+  "contributes": {
+    "panels": [
+      {
+        "id": "new-models",
+        "title": "Новые модели API",
+        "title_en": "New API models",
+        "icon": "bell",
+        "size": "m",
+        "height": 236,
+        "summary": "Свежие модели из API: провайдер, контекст и цена за 1M токенов",
+        "summary_en": "Fresh models from the APIs: provider, context and price per 1M tokens",
+        "data": "api-models.panel",
+        "entry": "integration/panel.html",
+        "scripts": [
+          "integration/panels.js"
+        ],
+        "styles": [
+          "integration/panels.css"
+        ]
+      }
+    ],
+    "commands": [
+      {
+        "id": "recent",
+        "title": "Новые модели",
+        "title_en": "New models",
+        "run": {
+          "handler": "api-models.recent"
+        },
+        "description": "Последние новые модели, найденные наблюдением (с ценами из каталога OpenRouter)",
+        "description_en": "The latest new models the monitor found (with OpenRouter catalogue prices)",
+        "args": {
+          "type": "object",
+          "properties": {
+            "limit": {
+              "type": "integer",
+              "description": "1-20"
+            }
+          }
+        },
+        "phrases": [
+          "какие новые модели вышли",
+          "новые модели api",
+          "что нового в api"
+        ],
+        "phrases_en": [
+          "what new models are out",
+          "new api models"
+        ]
+      }
+    ],
+    "skill": "integration/skill.md"
+  }
+}

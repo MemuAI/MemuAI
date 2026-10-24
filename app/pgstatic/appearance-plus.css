@@ -1,0 +1,139 @@
+/* MemuAI — Round 30 (r30-design): the extra appearance settings (appearance-plus.js, app/appearance_extra.py).
+   Loaded after design.css, designs/*.css and motion.css. Colours are tokens and color-mix() of tokens only.
+   Selectors start with `html:root[data-…]` (0,2,1): they beat a design's `:root[data-design="x"]` blocks even
+   when a component stylesheet that re-tunes its own variables loads later. */
+
+/* ================================================================ corners
+   Terminal, Brutal and Grid keep their identity (square / ink outlines): the setting does not touch them. */
+html:root[data-radius="sharp"]:not(:is([data-design="terminal"], [data-design="brutal"], [data-design="grid"])) {
+  --radius: 6px; --r-xs: 3px; --r-sm: 4px; --r-md: 6px; --r-lg: 8px; --r-xl: 10px; --r-2xl: 12px;
+  --sx-r: 8px; --sx-r-sm: 5px; --msx-r: 10px; --msx-r-sm: 6px; --msx-r-xs: 4px;
+  --au-r-lg: 10px; --au-r-xl: 14px; --f-r-pop: 10px;
+}
+html:root[data-radius="sharp"][data-design="glass"] { --g-r-xs: 4px; --g-r-sm: 6px; --g-r-md: 8px; --g-r-lg: 12px; }
+html:root[data-radius="round"]:not(:is([data-design="terminal"], [data-design="brutal"], [data-design="grid"])) {
+  --radius: 16px; --r-xs: 9px; --r-sm: 12px; --r-md: 16px; --r-lg: 20px; --r-xl: 28px; --r-2xl: 32px;
+  --sx-r: 20px; --sx-r-sm: 13px; --msx-r: 24px; --msx-r-sm: 14px; --msx-r-xs: 10px;
+  --au-r-lg: 26px; --au-r-xl: 34px; --f-r-pop: 22px;
+}
+html:root[data-radius="round"][data-design="glass"] { --g-r-xs: 10px; --g-r-sm: 16px; --g-r-md: 22px; --g-r-lg: 34px; }
+/* surfaces whose radius is written as a number */
+html:root[data-radius="sharp"]:not(:is([data-design="terminal"], [data-design="brutal"], [data-design="grid"])) :is(.panel, .pln-help, .pln-nl, .pln-block, .hk-group, .hk-hero) { border-radius: 10px; }
+html:root[data-radius="sharp"]:not(:is([data-design="terminal"], [data-design="brutal"], [data-design="grid"])) :is(.pbtn, .pinput, .ptexta, .pretty-select-button, .pln-card, .pln-row, .pln-kind) { border-radius: 6px; }
+html:root[data-radius="sharp"]:not(:is([data-design="terminal"], [data-design="brutal"], [data-design="grid"])) :is(.context-menu, .pretty-select-menu, .pln-pop, .msg-more-pop) { border-radius: 8px; }
+html:root[data-radius="sharp"]:not(:is([data-design="terminal"], [data-design="brutal"], [data-design="grid"])) .msg-user .bubble { border-radius: 10px 10px 4px 10px; }
+html:root[data-radius="round"]:not(:is([data-design="terminal"], [data-design="brutal"], [data-design="grid"])) :is(.panel, .pln-help, .pln-nl, .pln-block, .hk-group, .hk-hero) { border-radius: 28px; }
+html:root[data-radius="round"]:not(:is([data-design="terminal"], [data-design="brutal"], [data-design="grid"])) :is(.pbtn, .pinput, .ptexta, .pretty-select-button) { border-radius: 14px; }
+html:root[data-radius="round"]:not(:is([data-design="terminal"], [data-design="brutal"], [data-design="grid"])) :is(.pln-card, .pln-row, .pln-kind) { border-radius: 18px; }
+html:root[data-radius="round"]:not(:is([data-design="terminal"], [data-design="brutal"], [data-design="grid"])) :is(.context-menu, .pretty-select-menu, .pln-pop, .msg-more-pop) { border-radius: 18px; }
+html:root[data-radius="round"]:not(:is([data-design="terminal"], [data-design="brutal"], [data-design="grid"])) .msg-user .bubble { border-radius: 26px 26px 10px 26px; }
+
+/* ================================================================ message text size */
+html:root[data-msg-size="sm"] :is(.msg-assistant .body, .msg-user .bubble) { font-size: .92rem; }
+html:root[data-msg-size="lg"] :is(.msg-assistant .body, .msg-user .bubble) { font-size: 1.08rem; }
+html:root[data-msg-size="xl"] :is(.msg-assistant .body, .msg-user .bubble) { font-size: 1.18rem; }
+
+/* ================================================================ higher contrast (WCAG AAA-ish secondary text) */
+html:root[data-contrast="more"] {
+  --muted: color-mix(in srgb, var(--text) 80%, var(--bg));
+  --border: color-mix(in srgb, var(--text) 24%, var(--bg));
+  --control-border: color-mix(in srgb, var(--text) 58%, var(--bg));
+  --d-line: color-mix(in srgb, var(--text) 18%, transparent);
+  --d-line-soft: color-mix(in srgb, var(--text) 12%, transparent);
+  --sx-line: color-mix(in srgb, var(--text) 18%, transparent);
+  --msx-line: color-mix(in srgb, var(--text) 18%, transparent);
+  --msx-line-soft: color-mix(in srgb, var(--text) 12%, transparent);
+}
+
+/* ================================================================ frosted glass
+   Menus, dialogs and the sidebar become translucent and blur what is behind them. Glass already is. */
+html:root[data-glass]:not([data-design="glass"]) { --ap-glass-a: 84%; --ap-glass-blur: blur(18px) saturate(1.3); }
+html:root[data-glass="strong"]:not([data-design="glass"]) { --ap-glass-a: 70%; --ap-glass-blur: blur(30px) saturate(1.6); }
+html:root[data-glass]:not([data-design="glass"]) :is(.panel, .context-menu, .pretty-select-menu, .msg-more-pop, .dd-pop, .app-menu-pop,
+  .profile-menu-pop, .slash-menu, .plus-menu, .pln-pop, .memu-ctx, .msx-panel, .msx-pop) {
+  background: color-mix(in srgb, var(--panel) var(--ap-glass-a), transparent);
+  -webkit-backdrop-filter: var(--ap-glass-blur); backdrop-filter: var(--ap-glass-blur);
+}
+html:root[data-glass]:not([data-design="glass"]) .side {
+  background: color-mix(in srgb, var(--bg-deep) var(--ap-glass-a), transparent);
+  -webkit-backdrop-filter: var(--ap-glass-blur); backdrop-filter: var(--ap-glass-blur);
+}
+html:root[data-glass]:not([data-design="glass"]) .msx-backdrop { -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+
+/* ================================================================ Windows 11 material (data-backdrop is set only
+   while app/win_backdrop.py really has Mica / Acrylic / Tabbed behind the window) */
+html:root[data-backdrop], html:root[data-backdrop] body { background: transparent !important; }
+html:root[data-backdrop] .side { background: color-mix(in srgb, var(--bg-deep) 30%, transparent); }
+html:root[data-backdrop] .main { background: color-mix(in srgb, var(--bg) 78%, transparent); }
+html:root[data-backdrop][data-backdrop="acrylic"] .main { background: color-mix(in srgb, var(--bg) 70%, transparent); }
+html:root[data-backdrop] .titlebar, html:root[data-backdrop] #memu-titlebar { background: transparent; }
+
+/* ================================================================ motion: speed */
+html:root:not([data-motion="reduced"]):not([data-motion="off"])[data-motion-speed="slow"] {
+  --m-dur-1: 170ms; --m-dur-2: 250ms; --m-dur-3: 340ms; --m-dur-4: 460ms; --m-stagger: 34ms;
+}
+html:root:not([data-motion="reduced"]):not([data-motion="off"])[data-motion-speed="fast"] {
+  --m-dur-1: 80ms; --m-dur-2: 120ms; --m-dur-3: 160ms; --m-dur-4: 210ms; --m-stagger: 14ms;
+}
+
+/* ================================================================ motion: character */
+html:root:not([data-motion="reduced"]):not([data-motion="off"])[data-motion-feel="smooth"] {
+  --m-spring: cubic-bezier(.22, 1, .36, 1); --m-spring-soft: cubic-bezier(.22, 1, .36, 1); --m-pop: .98; --m-rise: 6px;
+}
+@supports (animation-timing-function: linear(0, 1)) {
+  html:root:not([data-motion="reduced"]):not([data-motion="off"])[data-motion-feel="springy"] {
+    /* a damped spring with an ~8 % overshoot (ζ 0.62) and a softer one (~2 %) for large surfaces */
+    --m-spring: linear(0, 0.067, 0.225, 0.417, 0.606, 0.771, 0.9, 0.99, 1.047, 1.076, 1.084, 1.078, 1.065, 1.049, 1.033, 1.019, 1.008, 1.001, 0.996, 0.994, 0.993, 0.993, 0.995, 0.996, 0.997, 0.998, 0.999, 1, 1, 1.001, 1);
+    --m-spring-soft: linear(0, 0.055, 0.182, 0.337, 0.491, 0.63, 0.745, 0.837, 0.904, 0.953, 0.984, 1.004, 1.015, 1.019, 1.02, 1.018, 1.015, 1.012, 1.009, 1.007, 1.004, 1.003, 1.002, 1.001, 1, 1, 1, 1, 1, 1, 1);
+    --m-pop: .9; --m-rise: 12px;
+  }
+}
+
+/* ================================================================ motion: how a new message appears */
+@keyframes ap-msg-pop { from { opacity: 0; scale: .9; translate: 0 6px; } }
+@keyframes ap-msg-slide-l { from { opacity: 0; translate: -18px 0; } }
+@keyframes ap-msg-slide-r { from { opacity: 0; translate: 18px 0; } }
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-motion="off"])[data-msg-anim="fade"] body:not(.reduce-motion) :is(.msg.msg-new, .msg.msg-user.msg-new),
+  :root:not([data-motion="off"])[data-msg-anim="fade"] .ap-demo.play .ap-demo-msg { animation: m-fade-in var(--m-dur-3) ease both; }
+  :root:not([data-motion="off"])[data-msg-anim="pop"] body:not(.reduce-motion) :is(.msg.msg-new, .msg.msg-user.msg-new),
+  :root:not([data-motion="off"])[data-msg-anim="pop"] .ap-demo.play .ap-demo-msg { animation: ap-msg-pop var(--m-dur-4) var(--m-spring) both; transform-origin: 0 100%; }
+  :root:not([data-motion="off"])[data-msg-anim="pop"] body:not(.reduce-motion) .msg.msg-user.msg-new,
+  :root:not([data-motion="off"])[data-msg-anim="pop"] .ap-demo.play .ap-demo-msg.user { transform-origin: 100% 100%; }
+  :root:not([data-motion="off"])[data-msg-anim="slide"] body:not(.reduce-motion) :is(.msg.msg-new, .msg.msg-user.msg-new),
+  :root:not([data-motion="off"])[data-msg-anim="slide"] .ap-demo.play .ap-demo-msg { animation: ap-msg-slide-l var(--m-dur-4) var(--m-spring-soft) both; }
+  :root:not([data-motion="off"])[data-msg-anim="slide"] body:not(.reduce-motion) .msg.msg-user.msg-new,
+  :root:not([data-motion="off"])[data-msg-anim="slide"] .ap-demo.play .ap-demo-msg.user { animation-name: ap-msg-slide-r; }
+  :root:not([data-motion="off"])[data-msg-anim="none"] body:not(.reduce-motion) :is(.msg.msg-new, .msg.msg-user.msg-new) { animation: none; }
+  /* the default («Подъём») in the settings preview, same curves as motion.css */
+  :root:not([data-motion="off"]):not([data-msg-anim]) .ap-demo.play .ap-demo-msg { animation: m-msg-in var(--m-dur-4) var(--m-spring-soft) both; }
+  :root:not([data-motion="off"]):not([data-msg-anim]) .ap-demo.play .ap-demo-msg.user { animation: m-msg-user-in var(--m-dur-4) var(--m-spring) both; transform-origin: 100% 100%; }
+  .ap-demo.play .ap-demo-msg.ai { animation-delay: calc(var(--m-dur-2) * .8); }
+}
+
+/* the small preview in Settings → Appearance → Motion */
+.ap-demo { position: relative; display: flex; flex-direction: column; gap: 8px; margin: 4px 16px 16px; padding: 14px 16px; min-height: 92px;
+  border-radius: var(--sx-r-sm, 10px); border: 1px solid var(--sx-line, var(--border)); background: var(--bg); overflow: hidden; }
+.ap-demo-msg { display: flex; flex-direction: column; gap: 6px; padding: 9px 12px; border-radius: 14px; max-width: 58%; }
+.ap-demo-msg i { display: block; height: 7px; border-radius: 4px; background: color-mix(in srgb, var(--text) 22%, transparent); }
+.ap-demo-msg i:nth-child(2) { width: 70%; }
+.ap-demo-msg i:nth-child(3) { width: 45%; }
+.ap-demo-msg.user { align-self: flex-end; width: 34%; background: color-mix(in srgb, var(--text) 8%, var(--bg)); border-bottom-right-radius: 5px; }
+.ap-demo-msg.ai { align-self: flex-start; width: 52%; padding-left: 0; }
+.ap-demo-play { position: absolute; right: 10px; bottom: 10px; }
+
+/* ================================================================ density (ui_density, appearance.js → html[data-density])
+   appearance.css spaces the conversation; here the same switch reaches the lists and panels the row promises:
+   sidebar chats, settings rows, search results, planning cards, hotkey rows. Heights stay on the 4px grid. */
+html:root[data-density="compact"] { --sx-row-pad: 9px 16px; }
+html:root[data-density="compact"] .chat-item { padding-block: 5px; }
+html:root[data-density="compact"] .sx-shell .sx-row { min-height: 46px; }
+html:root[data-density="compact"] .msx-item { min-height: 32px; padding-block: 4px; }
+html:root[data-density="compact"] :is(.pln-card, .pln-row) { padding-block: 8px; }
+html:root[data-density="compact"] .hk-row { min-height: 36px; padding-block: 4px; }
+html:root[data-density="spacious"] { --sx-row-pad: 18px 22px; }
+html:root[data-density="spacious"] .chat-item { padding-block: 11px; }
+html:root[data-density="spacious"] .sx-shell .sx-row { min-height: 66px; }
+html:root[data-density="spacious"] .msx-item { min-height: 48px; padding-block: 9px; }
+html:root[data-density="spacious"] :is(.pln-card, .pln-row) { padding-block: 16px; }
+html:root[data-density="spacious"] .hk-row { min-height: 52px; padding-block: 10px; }

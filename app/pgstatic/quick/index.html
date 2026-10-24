@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark" data-quick="1">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MemuAI Quick</title>
+<link rel="icon" href="/icon.png">
+<script src="/memu-keys.js?v=3.5-r33"></script>
+<script>
+// First paint from the main window's cache; /api/quick/config is authoritative.
+try {
+  const root = document.documentElement;
+  const params = new URLSearchParams(location.search);
+  root.dataset.native = params.get("native") === "1" ? "1" : "0";
+  const theme = localStorage.getItem("memu_theme") === "light" ? "light" : "dark";
+  root.dataset.theme = theme;
+  const accent = localStorage.getItem("memu_accent") || "";
+  root.dataset.accent = /^[a-z]{2,24}$/.test(accent) ? accent : "terracotta";
+  const design = localStorage.getItem("memu_design") || "";
+  root.dataset.design = /^(aurora|focus|grid|glass|soft|terminal|brutal)$/.test(design) ? design : "classic";
+  const surface = localStorage.getItem("memu_surface_" + theme) || "";
+  if (/^[a-z0-9-]{1,48}$/.test(surface)) root.dataset.surface = surface;
+  root.lang = localStorage.getItem("memu_lang") === "en" ? "en" : "ru";
+} catch (_) {}
+</script>
+<!-- Round 38: no light window before the stylesheets arrive (quick.css then sets the exact surface) -->
+<style>:root[data-native="1"]:not([data-backdrop])[data-theme="dark"]{background:#1b1c20}:root[data-native="1"]:not([data-backdrop])[data-theme="light"]{background:#f7f6f3}</style>
+<link rel="stylesheet" href="/themes.css">
+<!-- Round 26: quick-md.js renders $…$ / $$…$$ with KaTeX — without it math showed as raw TeX code. -->
+<link rel="stylesheet" href="/vendor/katex/katex.min.css?v=1.0-final">
+<link rel="stylesheet" href="/quick/quick.css?v=3.4-r38">
+<link rel="stylesheet" href="/tables.css?v=1.1-r30">
+<link rel="stylesheet" href="/diagrams.css?v=1.1-r30">
+<link rel="stylesheet" href="/cmd-highlight.css?v=1.0-r30">
+<link rel="stylesheet" href="/quick/quick-dfy.css?v=1.3-r34">
+<link rel="stylesheet" href="/askuser.css?v=3.5-r35">
+<link rel="stylesheet" href="/dfy-remote.css?v=1.0-r30">
+<link rel="stylesheet" href="/stuck.css?v=1.1-r34">
+<link rel="stylesheet" href="/quick/quick-selection.css?v=1.0-r27">
+<link rel="stylesheet" href="/quick/quick-copy.css?v=1.0-r30">
+<link rel="stylesheet" href="/quick/quick-computer.css?v=2.0-r32">
+<link rel="stylesheet" href="/quick/quick-ux.css?v=1.2-r34">
+<link rel="stylesheet" href="/quick/quick-models.css?v=3.6-r34"><!-- Round 33 (r33c-models-lists) -->
+<!-- Round 24 designs (soft / terminal / brutal) for the Quick Ask window; owned by the designs area. -->
+<link rel="stylesheet" href="/designs/quick-extra.css?v=1.0-r24">
+<!-- Round 30: Settings → Appearance extras (corners, glass, contrast, density, motion speed); after the designs. -->
+<link rel="stylesheet" href="/quick/quick-appearance.css?v=1.0-r30">
+<!-- Round 34 (r34-quick-design): overflow / contrast / narrow-window fixes from the screenshot matrix; must stay last. -->
+<link rel="stylesheet" href="/quick/quick-design.css?v=1.6-r34">
+<style id="memu-user-theme"></style>
+<script>
+try {
+  const css = localStorage.getItem("memu_user_theme_" + document.documentElement.dataset.theme);
+  if (css) document.getElementById("memu-user-theme").textContent = css;
+} catch (_) {}
+</script>
+</head>
+<body>
+<div class="qa-stage" id="qa-stage">
+  <div class="qa-desk" aria-hidden="true"><i></i><i></i><i></i><b></b></div>
+  <main class="qa-card qa-enter" id="qa-card" role="dialog" aria-modal="true" aria-labelledby="qa-title">
+    <h1 id="qa-title" hidden>MemuAI</h1>
+    <div class="qa-aura" aria-hidden="true"></div>
+    <div class="qa-drag" id="qa-drag" aria-hidden="true"></div>
+    <div class="qa-dock-hint" id="qa-dock-hint" aria-hidden="true"></div>
+    <div class="qa-edge left" data-edge="left" aria-hidden="true"></div>
+    <div class="qa-edge right" data-edge="right" aria-hidden="true"></div>
+    <div class="qa-inner" id="qa-inner">
+      <form class="qa-input-row" id="qa-form" autocomplete="off">
+        <span class="qa-orb" aria-hidden="true"></span>
+        <textarea class="qa-input" id="qa-input" rows="1" spellcheck="true" aria-label="Вопрос"></textarea>
+        <button type="button" class="qa-calc" id="qa-calc" hidden></button>
+        <button type="button" class="qa-icon qa-shot" id="qa-shot"></button>
+        <button type="submit" class="qa-send" id="qa-send" aria-label="Отправить">
+          <svg class="i-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+          <svg class="i-stop" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="2.2" fill="currentColor"/></svg>
+        </button>
+      </form>
+      <div class="qa-progress" aria-hidden="true"><i></i></div>
+      <div class="qa-attach" id="qa-attach" hidden></div>
+      <div class="qa-actions-sel" id="qa-sel-actions" hidden></div>
+      <div class="qa-slot" id="qa-slot-top" data-slot="top"></div>
+      <div class="qa-suggest" id="qa-suggest" role="listbox" hidden></div>
+      <section class="qa-picker" id="qa-picker" hidden></section>
+      <section class="qa-chats" id="qa-chats" hidden></section>
+      <section class="qa-menu" id="qa-menu" hidden></section>
+      <section class="qa-answer" id="qa-answer" hidden aria-live="polite"></section>
+      <div class="qa-actions" id="qa-actions" hidden></div>
+      <div class="qa-slot" id="qa-slot-bottom" data-slot="bottom"></div>
+      <footer class="qa-bar" id="qa-bar">
+        <button type="button" class="qa-model" id="qa-model"><i></i><span id="qa-model-name">…</span><span class="qa-tier" id="qa-tier" hidden></span><span class="qa-tier qa-effort" id="qa-effort" hidden></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m6 9 6 6 6-6"/></svg></button>
+        <span class="qa-grow" id="qa-grow"></span>
+        <button type="button" class="qa-icon qa-pin" id="qa-pin" aria-pressed="false" hidden></button>
+        <button type="button" class="qa-icon" id="qa-new" hidden></button>
+        <button type="button" class="qa-icon" id="qa-history" aria-pressed="false"></button>
+        <span class="qa-plugin-buttons" id="qa-plugin-buttons"></span>
+        <span class="qa-sep" aria-hidden="true"></span>
+        <button type="button" class="qa-more" id="qa-more" aria-haspopup="menu" aria-expanded="false"></button>
+        <input type="file" id="qa-file-input" accept="image/*,.pdf,.docx,.txt,.md,.json,.csv,.log,.yaml,.yml,.xml,.html,.js,.ts,.py,.sql,.srt" multiple hidden>
+      </footer>
+    </div>
+    <div class="qa-slot qa-slot-overlay" id="qa-slot-overlay" data-slot="overlay"></div>
+    <div class="qa-toast" id="qa-toast" role="status" aria-live="polite"></div>
+  </main>
+</div>
+<script src="/vendor/katex/katex.min.js?v=1.0-final" defer></script>
+<script src="/syntax.js?v=1.0-syntax"></script>
+<script src="/tables.js?v=1.0-r29"></script>
+<script src="/diagram-zoom.js?v=1.1-r36"></script>
+<script src="/diagrams.js?v=1.2-r36"></script>
+<script src="/quick/quick-md.js?v=1.3-r34"></script>
+<script src="/quick/quick-calc.js?v=34.1"></script>
+<!-- Round 28: the message bus between this window and its screen layer (quick/layer.html). -->
+<script src="/quick/quick-bus.js?v=1.0-r28"></script>
+<script src="/memu-live.js?v=1.0-r40"></script><!-- Round 40 (r40-lag): the player stream over a WebSocket -->
+<script src="/memu-model-names.js?v=3.5-r33"></script><!-- Round 33 (r33c-models-lists): shared readable model names -->
+<script src="/quick/quick.js?v=3.13-r40"></script>
+<!-- Round 30: /image and /video — chip in the field, opened in MemuAI (cmd-highlight.js, r30-misc). -->
+<script src="/cmd-highlight.js?v=1.0-r30"></script>
+<!-- Round 30: copy buttons / formats / selection bar / Ctrl+C (r30-quick-core). -->
+<script src="/quick/quick-copy.js?v=1.1-r34"></script>
+<!-- Round 30: Computer Use card — steps, thumbnails, approvals, compact strip, Stop (r30-quick-core). -->
+<script src="/quick/quick-computer.js?v=2.1-r34"></script>
+<!-- Round 24: Do For You. /dfy-client.js (dfy-core) is optional — quick-dfy.js speaks the same contract without it. -->
+<script src="/dfy-client.js?v=3.8-r46" onerror="this.remove()"></script>
+<!-- Round 30: DFY on machines — target picker under the input, command output (r30-dfy-remote). -->
+<script src="/dfy-remote.js?v=1.1-r30" onerror="this.remove()"></script>
+<script src="/stuck.js?v=1.0-r29"></script>
+<script src="/quick/quick-dfy.js?v=3.8-r46"></script>
+<script src="/askuser.js?v=3.5-r35"></script>
+<!-- Round 27: actions on the text selected in any program (app/quick_selection.py). -->
+<script src="/quick/quick-selection.js?v=1.2-r30"></script>
+</body>
+</html>

@@ -1,0 +1,142 @@
+/* MemuAI Proxy — Round 33 (r33-proxy): account selection & pointer drag (#19), the left-rail model
+   catalog page (#12) and the provider catalog of the add-account dialog (#24).
+   Loaded after style.css; only style.css tokens, so dark/light/glass follow the theme. */
+
+/* ---------- accounts: selection mode ---------- */
+#acc-select-mode { gap: 7px; }
+#acc-select-mode.active { color: var(--accent-text); border-color: var(--accent-line); background: var(--accent-soft); }
+#acc-bulk-bar.acc-bulk { gap: 6px; }
+#acc-bulk-bar.acc-bulk { padding-left: 8px; }
+#acc-bulk-bar.acc-bulk > #acc-bulk-count { min-width: 0; font-weight: 600; margin: 0 8px 0 4px; font-variant-numeric: tabular-nums; }
+#acc-bulk-bar.idle > #acc-bulk-count { font-weight: 400; color: var(--muted); }
+/* The idle bar (selection mode, nothing ticked) keeps «Select all» and «Cancel» clickable. */
+#acc-bulk-bar.idle #acc-select-all,
+#acc-bulk-bar.idle #acc-select-cancel { opacity: 1; pointer-events: auto; }
+#acc-bulk-bar.idle { background: color-mix(in srgb, var(--card) 92%, transparent); backdrop-filter: blur(10px); }
+.acc-select-cancel { gap: 6px; }
+.acc-select-cancel kbd {
+  font: 500 10.5px/1 var(--mono); padding: 2px 5px; margin-left: 2px; border-radius: 4px;
+  color: var(--muted); border: 1px solid var(--border); background: var(--bg-soft);
+}
+.acc-pick input { cursor: pointer; }
+
+/* ---------- accounts: pointer drag ---------- */
+#accounts-grid .acc-card[data-reorder="true"] { touch-action: pan-y; }
+body.acc-dragging, body.acc-dragging * { cursor: grabbing !important; user-select: none !important; }
+#accounts-grid .acc-card.dragging { opacity: .38; transform: scale(.985); }
+#accounts-grid .acc-card.drop-target { box-shadow: none; position: relative; }
+#accounts-grid .acc-card.drop-before::before,
+#accounts-grid .acc-card.drop-after::after {
+  content: ""; position: absolute; top: 6px; bottom: 6px; width: 3px; border-radius: 3px;
+  background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent), 0 0 14px color-mix(in srgb, var(--accent) 60%, transparent);
+  pointer-events: none;
+}
+#accounts-grid .acc-card.drop-before::before { left: -9px; }
+#accounts-grid .acc-card.drop-after::after { right: -9px; }
+.acc-drag-ghost {
+  position: fixed; left: 0; top: 0; z-index: 400; pointer-events: none;
+  display: inline-flex; align-items: center; gap: 9px; max-width: 280px;
+  padding: 8px 12px 8px 8px; border-radius: 11px;
+  background: color-mix(in srgb, var(--card-2) 96%, transparent); border: 1px solid var(--accent-line);
+  box-shadow: var(--shadow), 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+  backdrop-filter: blur(10px); color: var(--text); font-size: 13px; font-weight: 600;
+  will-change: transform;
+}
+.acc-drag-ghost .g-ico {
+  width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; flex: 0 0 auto;
+  background: var(--bg-soft); border: 1px solid var(--border-soft); color: var(--text-2);
+}
+.acc-drag-ghost .g-ico svg { width: 15px; height: 15px; }
+.acc-drag-ghost .g-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acc-drag-ghost .g-more {
+  flex: 0 0 auto; font-size: 11.5px; padding: 2px 7px; border-radius: 999px;
+  background: var(--accent); color: var(--on-accent);
+}
+
+/* ---------- model catalog: its own page in the left rail ---------- */
+#tab-models .tab-title .chip { vertical-align: middle; margin-left: 6px; font-size: 12px; }
+#tab-models .models-card #models-table { max-height: calc(100vh - var(--top-h) - 300px); min-height: 320px; }
+
+/* ---------- add-account dialog: provider catalog ---------- */
+.cat-wrap { margin-top: 18px; }
+.cat-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; }
+.cat-head .mini-title { margin: 0; }
+.cat-head .cat-count { color: var(--muted-2); font-size: 12px; }
+.cat-sub { margin: 0 0 10px; color: var(--muted); font-size: 12.5px; }
+.cat-grid { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(178px, 1fr)); }
+.cat-tile { align-items: flex-start; }
+.cat-tile .cat-mono { margin-top: 1px; }
+.cat-tile {
+  position: relative; display: flex; align-items: center; gap: 10px; min-width: 0; text-align: left;
+  padding: 10px 11px; border-radius: 11px; border: 1px solid var(--border); background: var(--card);
+  color: var(--text); cursor: pointer; font: inherit;
+  transition: border-color .15s var(--ease), background-color .15s var(--ease), transform .12s var(--ease);
+}
+.cat-tile:hover { border-color: var(--accent-line); background: var(--card-2); }
+.cat-tile:focus-visible { outline: none; box-shadow: var(--ring); border-color: var(--accent-line); }
+.cat-tile:active { transform: scale(.985); }
+.cat-tile.in-use { border-style: dashed; }
+.cat-mono {
+  width: 34px; height: 34px; border-radius: 9px; flex: 0 0 auto; display: grid; place-items: center;
+  font: 700 12.5px/1 var(--font-display); letter-spacing: -.02em; color: var(--mono-fg, #fff);
+  background: var(--mono-bg, var(--accent)); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .12);
+  text-transform: none;
+}
+.cat-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.cat-name { font-size: 13px; font-weight: 600; line-height: 1.25; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow-wrap: anywhere; }
+.cat-desc { font-size: 11.5px; color: var(--muted-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cat-tags { display: flex; gap: 4px; flex-wrap: wrap; }
+.cat-tag {
+  font-size: 10.5px; line-height: 1; padding: 3px 6px; border-radius: 999px; white-space: nowrap;
+  color: var(--muted); background: var(--bg-soft); border: 1px solid var(--border-soft);
+}
+.cat-tag.free { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 35%, transparent); background: color-mix(in srgb, var(--ok) 8%, transparent); }
+.cat-tag.used { color: var(--accent-text); border-color: var(--accent-line); background: var(--accent-soft); }
+
+.cat-toggle {
+  margin-top: 10px; width: 100%; justify-content: center; gap: 8px;
+  border-style: dashed;
+}
+.cat-toggle svg { transition: transform .2s var(--ease); }
+.cat-toggle[aria-expanded="true"] svg { transform: rotate(180deg); }
+.cat-all { margin-top: 12px; }
+.cat-all[hidden] { display: none; }
+.cat-tools { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+.cat-tools input[type="search"] { flex: 1 1 220px; min-width: 180px; }
+.cat-regions { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.cat-free-toggle { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--muted); cursor: pointer; white-space: nowrap; }
+.cat-free-toggle input { accent-color: var(--accent); }
+.cat-letter {
+  grid-column: 1 / -1; margin: 6px 0 -2px; font: 600 11px/1 var(--font-display); letter-spacing: .08em;
+  color: var(--muted-2); text-transform: uppercase;
+}
+.cat-letter:first-child { margin-top: 0; }
+.cat-empty { grid-column: 1 / -1; padding: 18px; text-align: center; color: var(--muted); font-size: 13px;
+  border: 1px dashed var(--border); border-radius: 11px; }
+.cat-list { padding: 2px 0; }
+/* search and region chips stay at the top of the dialog while the long list scrolls under them */
+.cat-sticky {
+  position: sticky; top: -24px; z-index: 3; margin: 0 -26px 4px; padding: 12px 26px 4px;
+  background: color-mix(in srgb, var(--card) 94%, transparent); backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border-soft);
+}
+
+/* preset form header */
+.cat-form-head { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+.cat-form-head h3 { margin: 0; }
+.cat-form-head .cat-mono { width: 40px; height: 40px; font-size: 14px; border-radius: 11px; }
+.cat-form-meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+.cat-form-links { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0 4px; }
+.cat-form-links a.btn { text-decoration: none; }
+.cat-auth-note { font-size: 12px; color: var(--muted); margin-top: 6px; line-height: 1.45; }
+.cat-auth-note code { font-size: 11.5px; }
+
+@media (max-width: 640px) {
+  .cat-grid { grid-template-columns: 1fr 1fr; }
+  .cat-desc { display: none; }
+}
+
+/* compact bulk bar: one line at the usual window width */
+#acc-bulk-bar.acc-bulk { gap: 5px; }
+#acc-bulk-bar.acc-bulk .btn.small { padding-left: 9px; padding-right: 9px; }
+#accounts-grid .acc-pick + .drag-handle { display: none; }

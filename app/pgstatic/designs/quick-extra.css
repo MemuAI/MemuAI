@@ -1,0 +1,57 @@
+/* =====================================================================
+   Round24: the Quick Ask window (/quick/) in the designs added in Round24
+   (Мягкий / soft, Терминал / terminal, Брутализм / brutal). quick.css
+   styles classic/aurora/focus/grid/glass itself; these rules follow the
+   same pattern (accents and shapes only, never the layout). Linked from
+   quick/index.html after quick.css.
+   ===================================================================== */
+
+/* --------------------------------------------------------- soft */
+:root[data-design="soft"] {
+  --qa-radius: 28px;
+  --qa-surface: color-mix(in srgb, var(--panel) 90%, var(--accent));
+  --qa-active: color-mix(in srgb, var(--accent) 22%, transparent);
+  --qa-chip: color-mix(in srgb, var(--accent) 10%, transparent);
+  --qa-chip-line: transparent;
+  --sans: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+}
+:root[data-design="soft"] :is(.qa-row, .qa-chip-page, .qa-chip-sel, .qa-model, .qa-more, .qa-btn, .qa-act, .qa-search, .qa-route, .qa-seg, .qa-icon) { border-radius: 999px; }
+:root[data-design="soft"] .qa-send { border-radius: 16px; background: var(--accent); color: var(--on-accent); }
+:root[data-design="soft"] .qa-send:disabled, :root[data-design="soft"] .qa-card[data-busy="1"] .qa-send { background: var(--qa-chip); color: var(--muted); }
+:root[data-design="soft"] .qa-orb { border-radius: 14px; }
+:root[data-design="soft"] :is(.qa-thumb, .qa-tip, .code-block-wrap) { border-radius: 18px; }
+
+/* ----------------------------------------------------- terminal */
+:root[data-design="terminal"] {
+  --qa-radius: 3px;
+  --qa-surface: color-mix(in srgb, color-mix(in srgb, var(--panel) 78%, #000) 93%, var(--accent));
+  --qa-line: color-mix(in srgb, var(--accent) 30%, transparent);
+  --qa-active: color-mix(in srgb, var(--accent) 18%, transparent);
+  --qa-chip: color-mix(in srgb, var(--accent) 8%, transparent);
+  --qa-chip-line: color-mix(in srgb, var(--accent) 22%, transparent);
+  --sans: "JetBrains Mono", "Cascadia Mono", Consolas, ui-monospace, monospace;
+}
+:root[data-design="terminal"][data-theme="light"] { --qa-surface: color-mix(in srgb, var(--panel) 94%, var(--accent)); }
+:root[data-design="terminal"] body, :root[data-design="terminal"] .qa-input { font-family: var(--mono); letter-spacing: 0; }
+:root[data-design="terminal"] :is(.qa-row, .qa-chip-page, .qa-chip-sel, .qa-model, .qa-more, .qa-btn, .qa-act, .qa-search, .qa-route, .qa-seg, .qa-icon, .qa-send, .qa-thumb, .qa-tip, .code-block-wrap, kbd) { border-radius: 2px; }
+:root[data-design="terminal"] .qa-orb { border-radius: 2px; box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 55%, transparent); background: var(--accent); }
+:root[data-design="terminal"] .qa-send { background: var(--accent); color: var(--on-accent); }
+:root[data-design="terminal"] .qa-send:disabled, :root[data-design="terminal"] .qa-card[data-busy="1"] .qa-send { background: var(--qa-chip); color: var(--muted); }
+:root[data-design="terminal"] .qa-row.active { box-shadow: inset 2px 0 0 var(--accent); }
+:root[data-design="terminal"] .qa-section { text-transform: uppercase; letter-spacing: .1em; font-size: 10.5px; }
+
+/* -------------------------------------------------------- brutal */
+:root[data-design="brutal"] {
+  --qa-radius: 14px;
+  --qa-line: color-mix(in srgb, var(--text) 92%, transparent);
+  --qa-active: color-mix(in srgb, var(--accent) 26%, transparent);
+  --qa-chip-line: color-mix(in srgb, var(--text) 70%, transparent);
+}
+:root[data-design="brutal"][data-theme="light"] { --qa-surface: color-mix(in srgb, var(--panel) 94%, #fff3d6); }
+:root[data-design="brutal"] .qa-aura::after { box-shadow: inset 0 0 0 2px var(--qa-line); }
+:root[data-design="brutal"] :is(.qa-row, .qa-chip-page, .qa-chip-sel, .qa-model, .qa-more, .qa-btn, .qa-act, .qa-search, .qa-route, .qa-seg, .qa-icon, .qa-thumb, .qa-tip) { border-radius: 8px; }
+:root[data-design="brutal"] .qa-send { border-radius: 10px; background: var(--accent); color: var(--on-accent); box-shadow: inset 0 0 0 2px var(--qa-line), 2px 2px 0 var(--qa-line); }
+:root[data-design="brutal"] .qa-send:disabled, :root[data-design="brutal"] .qa-card[data-busy="1"] .qa-send { background: var(--qa-chip); color: var(--muted); box-shadow: inset 0 0 0 2px var(--qa-chip-line); }
+:root[data-design="brutal"] .qa-orb { border-radius: 8px; box-shadow: inset 0 0 0 2px var(--qa-line); }
+:root[data-design="brutal"] .qa-row.active { box-shadow: inset 0 0 0 2px var(--qa-line); }
+:root[data-design="brutal"] .qa-input { font-weight: 600; }

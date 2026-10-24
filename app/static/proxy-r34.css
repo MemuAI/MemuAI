@@ -1,0 +1,34 @@
+/* Round 34 (r34-proxy): Proxy window design fixes. */
+
+/* Accounts: one hint at a time — reordering while cards can be dragged, mouse selection while selecting. */
+#tab-accounts .hint-strip[data-i18n="acc.pick.hintmouse"] { display: none; }
+#tab-accounts.acc-selecting .hint-strip[data-i18n="acc.pick.hintmouse"] { display: flex; }
+#tab-accounts.acc-selecting .hint-strip[data-i18n="acc.dnd.hint"],
+#tab-accounts.acc-sorted .hint-strip[data-i18n="acc.dnd.hint"] { display: none; }
+/* Empty list: the empty state has its own «Add account» — the toolbar copy above it was a duplicate. */
+#tab-accounts.is-empty .row:has(> #acc-add-btn) { display: none; }
+
+/* «Add account»: provider tiles share one height and start at the top (the icon no longer floats in a taller tile). */
+.pick-grid { grid-auto-rows: 1fr; }
+.pick-grid .pick-tile { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; }
+
+/* Model catalogue: the «Note» column was empty in almost every row — a real note sits under the name instead. */
+.pm-cell .pm-note { display: block; margin-top: 2px; font-size: 11.5px; color: var(--muted-2, var(--muted));
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Public access: step descriptions were unstyled (15px, full contrast) next to step 1's 13px muted text. */
+#public-root .pub-step .sub { color: var(--muted); font-size: 13px; line-height: 1.55; }
+#public-root .pub-step-head .sub { margin-top: 2px; }
+/* Step 3's model list: the readable name with the id under it, at list size. */
+#public-root .pub-models .pm-name { font-size: 13.5px; }
+
+/* Logs: «Per page» sits at the end of the switches row with a select as tall as the switches. */
+#logs-view-requests .inline-field:has(> #logs-limit) { margin-left: auto; }
+#logs-view-requests #logs-limit { min-height: 30px; height: 30px; padding-top: 0; padding-bottom: 0; font-size: 12.5px; }
+
+/* Narrow window: the floating ✦ covered toggles at the right edge — the assistant moves into the top bar. */
+.companion-top { display: none; }
+@media (max-width: 900px) {
+  body.app-ready .companion-top { display: inline-flex; color: var(--accent-text, var(--accent)); border-color: var(--accent-line, var(--border)); }
+  .companion-fab { display: none !important; }
+}

@@ -1,0 +1,1 @@
+mermaid 11.17.2 (MIT) — dist/mermaid.min.js from npm, lazy-loaded by diagrams.js

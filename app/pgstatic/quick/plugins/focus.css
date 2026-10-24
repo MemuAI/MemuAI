@@ -1,0 +1,24 @@
+/* Quick Ask plugin «Время и фокус» (focus.js, Round 27). Theme tokens of quick.css only. */
+.qf-host { padding: 0 var(--qa-pad, 18px) 10px; }
+.qf-card {
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 9%, var(--qa-surface, var(--panel)));
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--qa-line, var(--border)));
+  animation: qf-in .22s var(--qa-ease-out, ease-out);
+}
+.qf-icon { width: 28px; height: 28px; flex: none; display: grid; place-items: center; border-radius: 50%; color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.qf-icon svg { width: 15px; height: 15px; }
+.qf-body { flex: 1; min-width: 0; display: grid; gap: 1px; font-size: 12.75px; line-height: 1.4; }
+.qf-body b { font-size: 13px; color: var(--text); }
+.qf-body span { color: var(--muted); }
+.qf-actions { display: flex; gap: 6px; flex: none; }
+.qf-btn {
+  height: 28px; padding: 0 11px; border-radius: 8px; border: 1px solid var(--qa-chip-line, var(--border)); background: var(--qa-chip, transparent);
+  color: var(--text); font: 550 12.5px/1 var(--sans, system-ui); cursor: pointer; white-space: nowrap;
+}
+.qf-btn:hover { background: var(--qa-hover, rgba(127, 127, 127, .1)); }
+.qf-btn.primary { background: var(--accent); border-color: transparent; color: var(--on-accent, #fff); }
+.qf-btn:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: 2px; }
+@media (max-width: 520px) { .qf-card { flex-wrap: wrap; } .qf-actions { width: 100%; justify-content: flex-end; } }
+@keyframes qf-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .qf-card { animation: none; } }

@@ -1,0 +1,32 @@
+{
+  "ru": {
+    "model": "Модель",
+    "clear": "Очистить",
+    "system": "Инструкции для модели",
+    "system_hint": "Например: «Отвечай кратко и по-русски»",
+    "placeholder": "Сообщение… (Enter — отправить, Shift+Enter — новая строка)",
+    "send": "Отправить",
+    "stop": "Стоп",
+    "copy": "Копировать",
+    "copied": "Скопировано",
+    "empty": "Здесь появится разговор",
+    "empty_answer": "Модель вернула пустой ответ",
+    "choose_model": "Сначала выберите модель",
+    "no_models": "Нет текстовых моделей"
+  },
+  "en": {
+    "model": "Model",
+    "clear": "Clear",
+    "system": "Instructions for the model",
+    "system_hint": "For example: “Answer briefly”",
+    "placeholder": "Message… (Enter — send, Shift+Enter — new line)",
+    "send": "Send",
+    "stop": "Stop",
+    "copy": "Copy",
+    "copied": "Copied",
+    "empty": "The conversation appears here",
+    "empty_answer": "The model returned an empty answer",
+    "choose_model": "Choose a model first",
+    "no_models": "No text models"
+  }
+}

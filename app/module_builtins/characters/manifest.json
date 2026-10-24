@@ -1,0 +1,132 @@
+{
+  "id": "characters",
+  "title": "Персонажи",
+  "title_en": "Characters",
+  "summary": "Ролевые чаты с персонажами как в SillyTavern: карточки PNG/JSON (V2/V3), пресеты Chat Completion с менеджером промптов, лорбуки (World Info), персоны, свайпы, ветки, заметка автора и полная настройка вида.",
+  "summary_en": "SillyTavern-style roleplay chats: PNG/JSON character cards (V2/V3), Chat Completion presets with a prompt manager, lorebooks (World Info), personas, swipes, branches, Author's Note and full visual customisation.",
+  "version": "1.0",
+  "icon": "icon.svg",
+  "enabled": false,
+  "launcher": {
+    "hidden": false,
+    "slot": "sidebar"
+  },
+  "window": {
+    "default_width": 1280,
+    "default_height": 820,
+    "min_width": 560,
+    "min_height": 420,
+    "max_width": 3200,
+    "max_height": 2000,
+    "fixed": false,
+    "resizable": true,
+    "size_mode": "user",
+    "center": true
+  },
+  "persist": [],
+  "permissions": [
+    "chat",
+    "storage",
+    "models",
+    "download",
+    "clipboard",
+    "net-import",
+    "web",
+    "media"
+  ],
+  "bridge": {
+    "model": "",
+    "keep_in_chat": false,
+    "thinking": false,
+    "web_search": false,
+    "instructions": ""
+  },
+  "net_import": {
+    "sources": [
+      "chub",
+      "chub-lorebook",
+      "janitor",
+      "pygmalion",
+      "aicc",
+      "risu",
+      "perchance",
+      "generic"
+    ],
+    "hosts": [
+      "files.catbox.moe",
+      "cdn.discordapp.com",
+      "raw.githubusercontent.com"
+    ]
+  },
+  "contributes": {
+    "panels": [
+      {
+        "id": "recent",
+        "title": "Недавние чаты с персонажами",
+        "title_en": "Recent character chats",
+        "icon": "user",
+        "size": "m",
+        "height": 236,
+        "summary": "С кем вы говорили последним — одно нажатие, и чат продолжается",
+        "summary_en": "Who you talked to last — one click to continue the chat",
+        "data": "characters.panel",
+        "entry": "integration/panel.html",
+        "scripts": [
+          "integration/panels.js"
+        ],
+        "styles": [
+          "integration/panels.css"
+        ]
+      },
+      {
+        "id": "today",
+        "title": "Персонаж дня",
+        "title_en": "Character of the day",
+        "icon": "star",
+        "size": "m",
+        "height": 208,
+        "summary": "Каждый день — другой из ваших персонажей, с кнопкой «Продолжить»",
+        "summary_en": "A different one of your characters every day, with «Continue»",
+        "data": "characters.panel",
+        "entry": "integration/panel.html",
+        "scripts": [
+          "integration/panels.js"
+        ],
+        "styles": [
+          "integration/panels.css"
+        ]
+      }
+    ],
+    "commands": [
+      {
+        "id": "open",
+        "title": "Открыть чат с персонажем",
+        "title_en": "Open a character chat",
+        "run": {
+          "handler": "characters.open"
+        },
+        "description": "Открыть последний чат с персонажем по имени (без имени — самый свежий чат)",
+        "description_en": "Open the latest chat with a character by name (no name — the most recent chat)",
+        "args": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "character name"
+            }
+          }
+        },
+        "phrases": [
+          "открой чат с {name}",
+          "продолжи чат с {name}",
+          "открой персонажа {name}"
+        ],
+        "phrases_en": [
+          "open the chat with {name}",
+          "continue the chat with {name}"
+        ]
+      }
+    ],
+    "skill": "integration/skill.md"
+  }
+}

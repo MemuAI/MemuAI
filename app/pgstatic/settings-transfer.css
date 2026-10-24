@@ -1,0 +1,10 @@
+/* Round 37 (r37-extras): Settings → Data → «Settings» export / import — settings-transfer.js */
+.sxt-confirm {
+  display: grid; gap: 8px; margin-top: 12px; padding: 12px 14px; border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 7%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 26%, transparent);
+  font-size: 13px; line-height: 1.45;
+}
+.sxt-confirm[hidden] { display: none; }
+.sxt-keys { display: flex; flex-wrap: wrap; gap: 4px; color: var(--muted); font-size: 12px; }
+.sxt-keys code { padding: 1px 6px; border-radius: 5px; background: var(--d-hover, var(--panel-2)); font-size: 11.5px; overflow-wrap: anywhere; }
+.sxt-btns { display: flex; justify-content: flex-end; gap: 8px; }

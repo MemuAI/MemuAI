@@ -1,0 +1,26 @@
+/* Round 35 — the big-document strip of Quick Access (plugins/bigdocs.js). Quick Access theme tokens only. */
+.qbd-strip { display: flex; align-items: center; gap: 8px; min-width: 0; margin: 2px 12px 6px; padding: 6px 6px 6px 10px;
+  border: 1px solid var(--qa-chip-line, var(--qa-line, rgba(127,127,127,.25))); border-radius: 12px; background: var(--qa-chip, transparent);
+  font: 12.5px/1.3 var(--sans); color: var(--text); }
+.qbd-ico { flex: none; font-size: 14px; }
+.qbd-name { min-width: 0; flex: 0 1 auto; max-width: 42%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.qbd-meta { min-width: 0; flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-variant-numeric: tabular-nums; }
+.qbd-modes { flex: none; display: inline-flex; gap: 2px; padding: 2px; border-radius: 999px; border: 1px solid var(--qa-line, rgba(127,127,127,.25)); }
+.qbd-modes button, .qbd-btn { height: 24px; padding: 0 9px; border: 0; border-radius: 999px; background: transparent; color: var(--muted);
+  font: 500 12px/1 var(--sans); cursor: pointer; white-space: nowrap; }
+.qbd-modes button:hover, .qbd-btn:hover { color: var(--text); background: var(--qa-hover, rgba(127,127,127,.12)); }
+.qbd-modes button.on, .qbd-btn.primary { color: #fff; background: var(--accent); }
+.qbd-btn { border: 1px solid var(--qa-line, rgba(127,127,127,.25)); }
+.qbd-progress { flex: 0 0 90px; height: 5px; border-radius: 999px; background: var(--qa-line, rgba(127,127,127,.2)); overflow: hidden; }
+.qbd-progress i { display: block; height: 100%; background: var(--accent); transition: width .3s; }
+.qbd-x { flex: none; width: 24px; height: 24px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font-size: 16px; line-height: 1; cursor: pointer; }
+.qbd-x:hover { color: var(--text); background: var(--qa-hover, rgba(127,127,127,.12)); }
+.qbd-modes button:focus-visible, .qbd-btn:focus-visible, .qbd-x:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.qbd-cite { display: inline; margin: 0 1px; padding: 0 5px; border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); border-radius: 6px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); font: 600 .86em/1.5 var(--sans); cursor: help; white-space: nowrap; }
+.qbd-cite:hover, .qbd-cite:focus-visible { background: color-mix(in srgb, var(--accent) 22%, transparent); outline: none; }
+.qbd-tip { position: fixed; z-index: 10050; padding: 9px 11px; border-radius: 10px; font: 12.5px/1.45 var(--sans); color: var(--text);
+  background: var(--qa-panel, var(--panel, #fff)); border: 1px solid var(--qa-line, rgba(127,127,127,.25)); box-shadow: 0 10px 30px -12px rgba(0,0,0,.45); }
+.qbd-tip b { color: var(--accent); font-size: 12px; }
+.qbd-tip-name { color: var(--muted); font-size: 12px; }
+.qbd-tip-q { margin-top: 4px; }

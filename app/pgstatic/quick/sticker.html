@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="/icon.png">
+<script src="/memu-keys.js?v=3.5-r33"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MemuAI · sticker</title>
+<!-- Round 27 (quick features): a Quick Ask answer pinned as a small always-on-top window.
+     Native side: app/quick_features_win.py (one frameless tool window per open sticker). -->
+<script>
+try {
+  const root = document.documentElement;
+  root.dataset.native = new URLSearchParams(location.search).get("native") === "1" ? "1" : "0";
+  const theme = localStorage.getItem("memu_theme") === "light" ? "light" : "dark";
+  root.dataset.theme = theme;
+  const accent = localStorage.getItem("memu_accent") || "";
+  root.dataset.accent = /^[a-z]{2,24}$/.test(accent) ? accent : "terracotta";
+  root.lang = localStorage.getItem("memu_lang") === "en" ? "en" : "ru";
+} catch (_) {}
+</script>
+<link rel="stylesheet" href="/themes.css">
+<link rel="stylesheet" href="/vendor/katex/katex.min.css?v=1.0-final">
+<link rel="stylesheet" href="/quick/sticker.css?v=1.0-r27">
+</head>
+<body>
+<main class="st-card" id="st-card">
+  <header class="st-head" id="st-head">
+    <span class="st-dot" aria-hidden="true"></span>
+    <span class="st-title" id="st-title"></span>
+    <button type="button" class="st-btn" id="st-color" aria-haspopup="true" aria-expanded="false"></button>
+    <button type="button" class="st-btn" id="st-copy"></button>
+    <button type="button" class="st-btn" id="st-close"></button>
+  </header>
+  <div class="st-colors" id="st-colors" hidden></div>
+  <article class="st-body" id="st-body" tabindex="0"></article>
+  <textarea class="st-edit" id="st-edit" hidden spellcheck="true"></textarea>
+  <div class="st-grip" id="st-grip" aria-hidden="true"></div>
+  <div class="st-toast" id="st-toast" role="status" aria-live="polite"></div>
+</main>
+<script src="/vendor/katex/katex.min.js?v=1.0-final" defer></script>
+<script src="/syntax.js?v=1.0-syntax"></script>
+<script src="/quick/quick-md.js?v=1.3-r34"></script>
+<script src="/quick/sticker.js?v=1.0-r27"></script>
+</body>
+</html>

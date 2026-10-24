@@ -1,0 +1,76 @@
+/* MemuAI Mini App — MemuCode (Round 29: code.js). */
+.code-shell { flex: 1; min-height: 0; display: flex; }
+.code-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.code-side { display: none; }
+html[data-wide="1"] .code-side { display: block; width: 280px; flex: none; overflow-y: auto; border-left: .5px solid var(--sep); background: var(--bg2); padding: 14px 12px; }
+.side-section { margin-bottom: 16px; }
+.side-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--hint); margin: 0 4px 8px; }
+.side-row { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; padding: 4px 4px; }
+.side-row span { color: var(--hint); }
+.side-row b { font-weight: 600; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.side-path { font: 11.5px/1.4 var(--font-mono); color: var(--hint); padding: 6px 4px 0; overflow-wrap: anywhere; }
+.btn.block { width: 100%; justify-content: center; }
+
+/* The terminal's printed output (command results, notices). */
+.t-out pre { margin: 0; font: 12.5px/1.5 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; color: var(--code-text);
+  background: var(--code-bg); border-radius: 11px; padding: 9px 12px; border-left: 3px solid color-mix(in srgb, var(--accent) 55%, transparent); max-height: 420px; overflow: auto; }
+.t-stream { margin: 6px 0 0; max-height: 220px; overflow: auto; font: 11.5px/1.5 var(--font-mono); background: var(--code-bg); color: var(--code-text);
+  padding: 8px 10px; border-radius: 9px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.multi-opt { gap: 10px; background: var(--card2); border-radius: 10px; }
+.multi-opt input { width: 18px; height: 18px; accent-color: var(--accent); flex: none; }
+
+/* Slash-command menu above the input. */
+.code-composer .composer-inner { position: relative; }
+.slash-menu { position: absolute; left: 0; right: 0; bottom: calc(100% + 8px); max-height: min(46vh, 340px); overflow-y: auto; z-index: 20;
+  background: var(--card); border-radius: 14px; border: .5px solid var(--sep); box-shadow: 0 -10px 36px rgba(0,0,0,.28); padding: 5px; }
+.slash-item { display: grid; grid-template-columns: auto auto 1fr; gap: 4px 8px; align-items: baseline; width: 100%; text-align: left; padding: 8px 10px;
+  border-radius: 10px; font-size: 13.5px; }
+.slash-item code { font: 600 13.5px var(--font-mono); color: var(--accent); }
+.slash-hint { font: 12px var(--font-mono); color: var(--hint); }
+.slash-desc { color: var(--hint); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slash-item.active, html[data-hover="1"] .slash-item:hover { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+@media (max-width: 420px) { .slash-item { grid-template-columns: auto 1fr; } .slash-desc { grid-column: 1 / -1; } .slash-hint { display: none; } }
+.slash-glyph { font: 700 19px/1 var(--font-mono); color: var(--hint); }
+.mode-pill.warn { color: var(--danger); background: color-mix(in srgb, var(--danger) 14%, var(--card)); }
+.toggle-chip kbd { font-size: 10px; padding: 1px 4px; margin-left: 2px; }
+html[data-pointer="coarse"] .toggle-chip kbd { display: none; }
+
+/* Folder picker & file browser. */
+.crumbs { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 6px 16px 10px; }
+.crumbs .chip { max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+.crumb-sep { color: var(--hint); }
+.crumb-path { font: 12px/1.4 var(--font-mono); color: var(--hint); overflow-wrap: anywhere; }
+.file-row .cell-title { font-family: var(--font-mono); font-size: 13.5px; }
+.file-code { margin: 0; padding: 12px 14px 40px; font: 12.5px/1.55 var(--font-mono); background: var(--code-bg); color: var(--code-text); min-height: 100%;
+  white-space: pre; overflow-x: auto; display: flex; gap: 14px; tab-size: 4; }
+.file-code .ln { color: color-mix(in srgb, var(--hint) 70%, transparent); text-align: right; user-select: none; flex: none; white-space: pre; }
+.file-code code { flex: 1; min-width: 0; }
+.file-code.diff { display: block; }
+.file-image { display: grid; place-items: center; padding: 20px; min-height: 100%; background: repeating-conic-gradient(color-mix(in srgb, var(--hint) 12%, transparent) 0 25%, transparent 0 50%) 50% / 20px 20px; }
+.file-image img { max-width: 100%; max-height: 80vh; border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,.25); }
+.git-st { font: 700 11px/1 var(--font-mono); width: 26px; height: 22px; border-radius: 6px; display: grid; place-items: center; flex: none;
+  background: var(--card2); color: var(--hint); }
+.git-st.st-M { color: var(--warn); } .git-st.st-A, .git-st.st-uu { color: var(--ok); } .git-st.st-D { color: var(--danger); }
+
+/* r30: arguments, @files and folders in the same menu (code.js showSuggestions). */
+.slash-item.arg { grid-template-columns: 18px minmax(0, max-content) minmax(0, 1fr); align-items: center; }
+.slash-item.arg:not(:has(.slash-ico)) { grid-template-columns: minmax(0, max-content) minmax(0, 1fr); }
+.slash-item.arg code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 550; color: var(--text); }
+.slash-item.arg.active code { color: var(--accent); }
+.slash-ico { width: 18px; height: 18px; color: var(--hint); display: grid; place-items: center; }
+.slash-ico svg { width: 16px; height: 16px; }
+.slash-keys { font-size: 11.5px; color: var(--hint); padding: 6px 10px 3px; border-top: .5px solid var(--sep); margin-top: 4px; }
+html[data-pointer="coarse"] .slash-keys { display: none; }
+@media (max-width: 420px) { .slash-item.arg { grid-template-columns: 18px minmax(0, 1fr); } .slash-item.arg .slash-desc { grid-column: 2; }
+  .slash-item.arg:not(:has(.slash-ico)) { grid-template-columns: minmax(0, 1fr); } .slash-item.arg:not(:has(.slash-ico)) .slash-desc { grid-column: 1; } }
+.slash-keys { position: sticky; bottom: -5px; background: var(--card); }
+
+/* r30: commands of the chat composer (chatcmd.js) — /image, /video: the menu; the marked input is the main window's
+   chip (shared/cmd-highlight.css) on the Mini App's tokens. */
+.composer-inner.has-cmd-menu { position: relative; }
+.chat-cmd-menu .slash-item.arg { grid-template-columns: 18px auto auto minmax(0, 1fr); }
+.chat-cmd-menu .slash-item.arg code { color: var(--accent); }
+.composer { --muted: var(--hint); --accent-2: var(--accent2); }
+.composer .cmdhl-note { margin: 0 4px 8px; font-size: 12.5px; }
+@media (max-width: 420px) { .chat-cmd-menu .slash-item.arg { grid-template-columns: 18px auto minmax(0, 1fr); } .chat-cmd-menu .slash-hint { display: none; }
+  .chat-cmd-menu .slash-item.arg .slash-desc { grid-column: auto; } }

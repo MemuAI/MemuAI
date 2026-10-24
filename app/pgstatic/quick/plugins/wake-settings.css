@@ -1,0 +1,51 @@
+/* Settings → Quick Ask → «Слово-активатор» (Round 27). Built on the settings kit; only the pieces it lacks are here. */
+/* sections keep the kit's own spacing (26 px); the status card sits where a sub-page's first section would */
+.wks-hero { margin-top: 18px; }
+
+.wks-hero { --tone: var(--muted); display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--tone) 26%, var(--border)); background: color-mix(in srgb, var(--tone) 7%, var(--panel)); }
+.wks-hero[data-tone="ok"] { --tone: var(--ok, #2fb170); }
+.wks-hero[data-tone="info"] { --tone: var(--accent); }
+.wks-hero[data-tone="warn"] { --tone: var(--sx-warn, #d99a1e); }
+.wks-hero[data-tone="err"] { --tone: var(--danger, #e5484d); }
+.wks-hero-ic { flex: none; display: grid; place-items: center; width: 38px; height: 38px; border-radius: 12px; color: var(--tone);
+  background: color-mix(in srgb, var(--tone) 14%, transparent); }
+.wks-hero-ic svg { width: 21px; height: 21px; }
+.wks-hero[data-tone="ok"] .wks-hero-ic { animation: wks-breathe 2.4s ease-in-out infinite; }
+.wks-hero-text { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.wks-hero-text b { color: var(--text); font-weight: 600; overflow-wrap: anywhere; }
+.wks-hero-text small { color: var(--muted); line-height: 1.4; }
+
+.wks-inline { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.wks-phrase-line { width: 100%; justify-content: flex-start; flex-wrap: nowrap; }
+.wks-phrase-line .sx-input { flex: 1 1 auto; min-width: 0; max-width: 360px; }
+.wks-phrase-line [hidden] { display: none; }
+.wks-words { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.wks-word { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px; font-size: 12px; line-height: 18px;
+  color: var(--text); border: 1px solid color-mix(in srgb, var(--ok, #2fb170) 36%, var(--border));
+  background: color-mix(in srgb, var(--ok, #2fb170) 10%, transparent); }
+.wks-word[data-tone="warn"] { border-color: color-mix(in srgb, var(--sx-warn, #d99a1e) 45%, var(--border));
+  background: color-mix(in srgb, var(--sx-warn, #d99a1e) 12%, transparent); }
+.wks-warn { margin-top: 6px; color: var(--muted); }
+.wks-err { color: var(--danger, #e5484d); }
+.wks-note-actions { margin-top: 8px; }
+.wks-model-ok { color: var(--ok, #2fb170); font-size: 13px; font-weight: 600; }
+.wks-progress { position: relative; display: inline-block; width: 120px; height: 6px; border-radius: 999px; overflow: hidden;
+  background: color-mix(in srgb, var(--text) 10%, transparent); }
+.wks-progress i { position: absolute; inset: 0 auto 0 0; border-radius: inherit; background: var(--accent); transition: width .4s ease; }
+.wks-pct { min-width: 64px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+
+.wks-meter-wrap { padding: 4px 16px 14px; }
+.wks-meter-wrap[hidden] { display: none; }
+.wks-meter { position: relative; height: 10px; border-radius: 999px; overflow: hidden; background: color-mix(in srgb, var(--text) 9%, transparent); }
+.wks-meter i { position: absolute; inset: 0 auto 0 0; width: 0; border-radius: inherit; transition: width .12s linear;
+  background: linear-gradient(90deg, var(--ok, #2fb170), var(--accent) 70%, var(--danger, #e5484d)); }
+.wks-heard { margin-top: 8px; min-height: 20px; color: var(--muted); font-size: 13px; }
+.wks-heard[data-tone="ok"] { color: var(--ok, #2fb170); font-weight: 600; }
+.wks-heard[data-tone="err"] { color: var(--danger, #e5484d); }
+
+@keyframes wks-breathe { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--tone) 0%, transparent); }
+  50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--tone) 16%, transparent); } }
+:root[data-motion="off"] .wks-hero-ic, :root[data-motion="reduced"] .wks-hero-ic { animation: none; }
+@media (prefers-reduced-motion: reduce) { .wks-hero-ic { animation: none !important; } }
+@media (max-width: 560px) { .wks-phrase-line { flex-wrap: wrap; } }

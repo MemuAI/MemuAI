@@ -1,0 +1,31 @@
+/* MemuAI 3.1 · Round 30 · /image and /video in the message box (cmd-highlight.js): chip behind the textarea,
+   ghost hint for the argument, a status line. Theme tokens only — main window and Quick Access, dark and light. */
+.cmdhl-host { position: relative; }
+.cmdhl-field.cmdhl-on { position: relative; z-index: 1; background-color: transparent; }
+.cmdhl-chip {
+  position: absolute; z-index: 0; pointer-events: none; box-sizing: border-box;
+  border-radius: 7px; background: color-mix(in srgb, var(--accent) 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 38%, transparent);
+  animation: cmdhl-in .14s ease-out;
+}
+.cmdhl-chip[hidden] { display: none; }
+.cmdhl-chip[data-kind="video"] { background: color-mix(in srgb, var(--accent-2, var(--accent)) 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-2, var(--accent)) 40%, transparent); }
+.cmdhl-chip .cmdhl-ic { position: absolute; left: 5px; top: 50%; transform: translateY(-50%); display: grid; place-items: center;
+  width: var(--cmdhl-icon, 14px); height: var(--cmdhl-icon, 14px); color: var(--accent); }
+.cmdhl-chip[data-kind="video"] .cmdhl-ic { color: var(--accent-2, var(--accent)); }
+.cmdhl-ic svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.cmdhl-ghost { position: absolute; z-index: 0; pointer-events: none; color: var(--muted, var(--qa-faint)); opacity: .75;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cmdhl-ghost[hidden] { display: none; }
+.cmdhl-note { display: flex; align-items: center; gap: 7px; min-width: 0; margin: 2px 4px 4px; font-size: 12px; line-height: 1.4; color: var(--muted); }
+.cmdhl-note[hidden] { display: none; }
+.cmdhl-note .cmdhl-ic { flex: none; width: 14px; height: 14px; color: var(--accent); }
+.cmdhl-note[data-kind="video"] .cmdhl-ic { color: var(--accent-2, var(--accent)); }
+.cmdhl-note b { flex: none; font-weight: 600; color: var(--text); }
+.cmdhl-note span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Quick Access: the line sits under the input row, aligned with the text */
+#qa-card .cmdhl-note { margin: -6px 14px 8px var(--qa-pad, 18px); color: var(--qa-faint, var(--muted)); }
+@keyframes cmdhl-in { from { opacity: 0; transform: scale(.96); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .cmdhl-chip { animation: none; } }
+:root[data-motion="off"] .cmdhl-chip { animation: none; }

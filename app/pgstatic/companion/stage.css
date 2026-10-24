@@ -1,0 +1,41 @@
+/* Companion stage: a transparent page with one WebGL canvas. */
+:root { color-scheme: normal; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; }
+body { font: 13px/1.4 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; color: #f2f2f5; user-select: none; -webkit-user-select: none; }
+#stage-canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+body.loading #stage-canvas { opacity: 0; }
+#stage-canvas { transition: opacity .35s ease; }
+.stage-status { position: fixed; left: 50%; bottom: 10px; transform: translateX(-50%); max-width: 92%; padding: 6px 10px;
+  border-radius: 10px; background: rgba(20, 20, 26, .78); color: #f4f4f7; font-size: 12px; text-align: center; pointer-events: none; }
+.stage-drag { position: fixed; background: transparent; cursor: grab; }
+.stage-tools { position: fixed; top: 6px; right: 6px; display: flex; gap: 4px; opacity: 0; transition: opacity .2s; }
+body:hover .stage-tools { opacity: 1; }
+.stage-tools button { width: 24px; height: 24px; border-radius: 8px; border: 1px solid rgba(255,255,255,.18);
+  background: rgba(24, 24, 30, .72); color: #fff; font: 600 14px/1 system-ui, sans-serif; cursor: pointer; padding: 0; }
+.stage-tools button:hover { background: rgba(60, 60, 72, .9); }
+/* The bubble lives here only in the desktop window; embedded stages let the host draw it. */
+.stage-bubble { position: fixed; left: 8px; right: 8px; top: 8px; max-height: 19%; overflow: hidden; padding: 8px 11px;
+  border-radius: 14px; background: rgba(22, 22, 28, .86); color: #f5f5f8; font-size: 13px; line-height: 1.4;
+  box-shadow: 0 6px 22px rgba(0,0,0,.28); pointer-events: none;
+  /* Overflow trims the oldest words (top), never the words being spoken now. */
+  display: flex; flex-direction: column; justify-content: flex-end; }
+.stage-bubble[hidden] { display: none; }
+@media (prefers-reduced-motion: reduce) { #stage-canvas, .stage-tools { transition: none; } }
+/* Round 23: pin / back-into-the-window buttons (svg) */
+.stage-tools button { display: grid; place-items: center; }
+.stage-tools button svg { width: 13px; height: 13px; }
+.stage-tools button[aria-pressed="true"] { background: rgba(120, 120, 255, .55); border-color: rgba(255, 255, 255, .4); }
+.stage-drag.dragging { cursor: grabbing; }
+/* Round 23 (r23-quick pass 2): [hidden] must win over display:flex — the desktop tools (pin/dock/±/×) used to show
+   on hover inside every embedded stage (Quick Ask, settings preview, Live). */
+.stage-tools[hidden], .stage-status[hidden], .stage-drag[hidden] { display: none !important; }
+/* Round 24: the desktop bubble wraps long words, never leaves the window and never hides the face. */
+.stage-bubble { overflow-wrap: anywhere; word-break: break-word; max-width: calc(100% - 16px); box-sizing: border-box; }
+/* Round 34 (r34-quick-agentic-2): the tool buttons (pin / dock / − / + / ×) appeared on hover ON TOP of the bubble's
+   text (both sat in the top strip). In the desktop window the tools are a column at the right edge and the bubble
+   leaves that column free; a bubble trimmed at the top keeps whole lines (stage.js sets its height). */
+body[data-surface="desktop"] .stage-tools { flex-direction: column; }
+body[data-surface="desktop"] .stage-bubble { right: 38px; max-width: none; }
+/* the top 8 px are a transparent border (the background shows through it) instead of padding: overflow is clipped at
+   the padding box, so the trimmed line no longer peeks out in the top padding */
+.stage-bubble { padding-top: 0; border-top: 8px solid transparent; }

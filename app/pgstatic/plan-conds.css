@@ -1,0 +1,74 @@
+/* MemuAI — Round 37: conditions, sun / monthly triggers, options and «Проверить сейчас» of «Планирование»
+   (plan-conds.js). Theme tokens only; 4/8 px grid. */
+
+/* «НЕ» toggle in a condition head */
+.pcx-not { border: 1px solid var(--border); background: none; color: var(--muted); border-radius: 6px; padding: 2px 8px;
+  font-size: 11px; font-weight: 700; letter-spacing: .06em; cursor: pointer; line-height: 16px;
+  transition: color var(--m-dur-1, 120ms) ease, background var(--m-dur-1, 120ms) ease, border-color var(--m-dur-1, 120ms) ease; }
+.pcx-not:hover { color: var(--text); border-color: color-mix(in srgb, var(--c, var(--accent)) 45%, var(--border)); }
+.pcx-not.on { color: var(--danger, #e06c5a); border-color: color-mix(in srgb, var(--danger, #e06c5a) 55%, var(--border));
+  background: color-mix(in srgb, var(--danger, #e06c5a) 10%, transparent); }
+.pcx-not:focus-visible, .pcx-geo-list button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* a group: nested conditions on a soft rail */
+.pcx-group { display: flex; flex-direction: column; gap: 8px; padding-left: 12px; border-left: 2px solid color-mix(in srgb, var(--c, var(--accent)) 35%, var(--border)); }
+.pcx-group > .pln-add-sm { align-self: flex-start; }
+.pcx-group > .pln-or { align-self: flex-start; padding: 0; }
+.pcx-sub { display: flex; flex-direction: column; gap: 8px; padding: 8px 12px; border-radius: 10px; background: var(--panel-2); border: 1px solid var(--border); }
+
+/* month chips reuse .pln-days */
+.pcx-months button { min-width: 44px; }
+.pln-line .pinput.pcx-days { width: 184px; }
+.pln-line .pinput.pcx-dm { width: 72px; text-align: center; }
+
+/* place (city) search */
+.pcx-place { position: relative; display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.pcx-place > .ui-icon { width: 14px; height: 14px; color: var(--muted); flex: none; }
+.pcx-place > .pinput { width: 200px; }
+.pcx-geo-list { position: absolute; top: calc(100% + 4px); left: 22px; z-index: 30; width: 300px; max-width: 70vw; display: flex; flex-direction: column;
+  padding: 4px; border-radius: 12px; background: var(--panel); border: 1px solid var(--border); box-shadow: 0 12px 32px rgba(0, 0, 0, .28); }
+.pcx-geo-list button { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 10px; border: 0; border-radius: 8px;
+  background: none; color: var(--text); text-align: left; cursor: pointer; }
+.pcx-geo-list button:hover { background: var(--panel-2); }
+.pcx-geo-list b { font-size: 13px; font-weight: 600; }
+.pcx-geo-list small { font-size: 12px; color: var(--muted); }
+.pcx-geo-list p { margin: 0; padding: 8px 10px; font-size: 12.5px; color: var(--muted); }
+
+/* options inside «Тонкая настройка» */
+.pcx-opts { display: flex; flex-direction: column; gap: 8px; padding-top: 8px; border-top: 1px dashed var(--border); }
+
+/* «Проверить сейчас» */
+.pcx-check { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.pcx-check-host { width: 100%; }
+.pcx-check-host:empty { display: none; }
+.pcx-check-box { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--panel-2); }
+.pcx-check-box.ok { border-color: color-mix(in srgb, var(--ok, #2fb37f) 45%, var(--border)); }
+.pcx-verdict { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.pcx-verdict b { font-weight: 600; overflow-wrap: anywhere; }
+.pcx-check-box ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.pcx-check-box li { display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; }
+.pcx-check-box li.d1 { padding-left: 24px; }
+.pcx-check-box li > span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pcx-check-box li b { font-weight: 500; color: var(--text); overflow-wrap: anywhere; }
+.pcx-check-box li small { color: var(--muted); font-size: 12px; }
+.pcx-dot { flex: none; width: 16px; height: 16px; border-radius: 50%; display: inline-grid; place-items: center; font-style: normal;
+  font-size: 10px; font-weight: 700; line-height: 1; color: #fff; }
+.pcx-dot.ok { background: var(--ok, #2fb37f); }
+.pcx-dot.bad { background: var(--danger, #e06c5a); }
+.pcx-dot.unk { background: color-mix(in srgb, var(--muted) 70%, transparent); }
+
+@media (max-width: 720px) {
+  .pcx-place > .pinput { width: 150px; }
+  .pcx-group { padding-left: 8px; }
+}
+
+/* Round 37 (plan-2): a switched-off condition («выкл») stays in the rule, dimmed */
+.pcx-off { border: 1px solid var(--border); background: none; color: var(--muted); border-radius: 6px; padding: 2px 8px;
+  font-size: 11px; font-weight: 600; cursor: pointer; line-height: 16px; }
+.pcx-off:hover { color: var(--text); }
+.pcx-off.on { color: var(--text); background: var(--panel-2); border-style: dashed; }
+.pcx-off:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.pln-row:has(> .pln-row-head > .pcx-off.on) > .pln-row-body,
+.pcx-sub:has(> .pln-row-head > .pcx-off.on) > .pln-row-body { opacity: .45; }
+.pln-row:has(> .pln-row-head > .pcx-off.on) > .pln-row-head > b,
+.pcx-sub:has(> .pln-row-head > .pcx-off.on) > .pln-row-head > b { text-decoration: line-through; color: var(--muted); }

@@ -1,0 +1,51 @@
+{
+ "default": "universal",
+ "presets": [
+  {
+   "id": "universal",
+   "recommended": {"temperature": 1},
+   "name_ru": "Универсальный",
+   "name_en": "Universal",
+   "summary_ru": "Проверенный универсальный пресет: работает с большинством моделей.",
+   "summary_en": "A tested universal preset that works with most models.",
+   "prompts": 44,
+   "bytes": 20252
+  },
+  {
+   "id": "storyteller",
+   "name_ru": "Рассказчик",
+   "name_en": "Storyteller",
+   "summary_ru": "Живое повествование, стиль и темп сцены, переключатели жанров.",
+   "summary_en": "Vivid narration, scene pacing and genre toggles.",
+   "prompts": 80,
+   "bytes": 38567
+  },
+  {
+   "id": "engine",
+   "name_ru": "Движок",
+   "name_en": "Engine",
+   "summary_ru": "Огромный конструктор: сотни переключателей стиля, трекеров и правил.",
+   "summary_en": "A huge toolkit: hundreds of style, tracker and rule toggles.",
+   "prompts": 323,
+   "bytes": 760448
+  },
+  {
+   "id": "classic",
+   "name_ru": "Классика",
+   "name_en": "Classic",
+   "summary_ru": "Компактный пресет с ясными правилами ролевой игры.",
+   "summary_en": "A compact preset with clear roleplay rules.",
+   "prompts": 30,
+   "bytes": 43161
+  },
+  {
+   "id": "megumin",
+   "name_ru": "Megumin",
+   "name_en": "Megumin",
+   "summary_ru": "Многослойный пресет с режимами мышления и стилями.",
+   "summary_en": "A layered preset with thinking modes and styles.",
+   "prompts": 129,
+   "bytes": 107543
+  }
+ ]
+}

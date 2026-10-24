@@ -1,0 +1,57 @@
+/* Round 37 (r37-extras-2): «;сниппеты» and template blanks in the main composer — composer-snippets.js.
+   The menu and the fill-in form reuse .slash-menu (position above the composer, panel look from design.css). */
+.snip-menu, .snip-form { max-height: min(380px, 52vh); }
+.snip-head {
+  display: flex; align-items: center; gap: 4px; padding: 6px 10px 6px; color: var(--muted);
+  font-size: 11.5px; font-weight: 600; letter-spacing: .02em;
+}
+.snip-head span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.snip-head kbd {
+  font: 500 10.5px var(--mono); padding: 1px 5px; border-radius: 5px; border: 1px solid var(--border); color: var(--muted); background: var(--panel-2);
+}
+.snip-menu button > b { width: 92px; flex: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.snip-menu button > span { flex: 1; }
+.snip-menu small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.snip-ai, .snip-tpl {
+  display: inline-block; margin-left: 4px; padding: 0 5px; border-radius: 5px; font: 600 10px/16px var(--sans, inherit); font-style: normal;
+  vertical-align: 1px; background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent);
+}
+.snip-tpl { background: var(--panel-2); color: var(--muted); }
+.snip-empty { padding: 10px 12px; color: var(--muted); font-size: 12.5px; }
+.slash-menu button.snip-foot {
+  margin-top: 4px; border-top: 1px solid var(--border); border-radius: 0 0 10px 10px; padding: 9px 11px; color: var(--muted); font-size: 12.5px;
+}
+.slash-menu button.snip-foot > i { flex: none; width: 16px; text-align: center; color: var(--accent); font: 700 15px/1 var(--sans, inherit); font-style: normal; }
+.slash-menu button.snip-foot:hover { color: var(--text); }
+
+/* fill-in form */
+.snip-form { padding: 6px 10px 10px; overflow-y: auto; }
+.snip-field { display: grid; grid-template-columns: minmax(72px, 160px) 1fr; align-items: center; gap: 10px; padding: 4px 0; }
+.snip-field > span { color: var(--text); font-size: 13px; font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.snip-field input {
+  height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel-2); color: var(--text); font: inherit; font-size: 13px; outline: none; min-width: 0;
+}
+.snip-field input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
+.snip-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+
+/* «Сниппеты и шаблоны» dialog */
+.panel.snip-panel { width: min(640px, 94vw); }
+.snip-list { display: grid; gap: 2px; max-height: min(52vh, 460px); overflow-y: auto; margin: 10px 0 4px; padding: 4px; border: 1px solid var(--border); border-radius: 12px; scrollbar-width: thin; }
+.snip-row { display: grid; grid-template-columns: 96px 1fr auto auto; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 9px; }
+.snip-row:hover { background: var(--panel-2); }
+.snip-row code { color: var(--accent); font: 600 12.5px var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.snip-row span { display: grid; gap: 2px; min-width: 0; }
+.snip-row b { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.snip-row small { color: var(--muted); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.snip-edit { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; margin-top: 8px; }
+.snip-edit label { display: grid; gap: 5px; font-size: 12px; color: var(--muted); }
+.snip-edit .snip-wide, .snip-edit .snip-kind, .snip-chips { grid-column: 1 / -1; }
+.snip-edit .snip-kind { display: flex; align-items: center; gap: 8px; color: var(--text); font-size: 13px; }
+.snip-edit textarea { resize: vertical; min-height: 120px; font: 13px/1.5 var(--sans, inherit); }
+.snip-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.snip-chips button {
+  padding: 3px 8px; border-radius: 7px; border: 1px solid var(--border); background: var(--panel-2); color: var(--muted); font: 500 11.5px var(--mono); cursor: pointer;
+}
+.snip-chips button:hover { color: var(--text); border-color: var(--accent); }
+@media (max-width: 560px) { .snip-edit { grid-template-columns: 1fr; } .snip-row { grid-template-columns: 70px 1fr auto auto; } }
+.snip-form .snip-actions button { width: auto; display: inline-flex; padding: 0 12px; }

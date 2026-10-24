@@ -1,0 +1,97 @@
+/* MemuAI 3.1 · Round 29 · diagrams (diagrams.js): charts (memuai-chart) and schemes (mermaid).
+   Dialogs, menus and buttons reuse the kit of tables.css (.mt-modal, .mt-menu, .mt-tb, .mt-btn). */
+.memu-diagram { position: relative; margin: 14px 0; border: 1px solid var(--border); border-radius: 14px; background: var(--panel); }
+.memu-diagram.failed { padding: 12px 14px; color: var(--muted); font-size: 13px; }
+.memu-diagram .md-stage { padding: 10px 12px 8px; overflow-x: auto; display: flex; justify-content: center; }
+.memu-diagram .md-stage.md-loading { padding: 0; display: block; min-height: 120px; }
+.memu-diagram .md-stage svg { display: block; max-width: 100%; }
+.memu-diagram .md-scheme { padding: 16px; }
+.memu-diagram .md-scheme:not(.mdz) svg { max-height: 760px; }
+.md-svg .md-mark { transition: opacity .12s ease; }
+.md-svg .md-mark:hover { opacity: .82; }
+.md-svg .md-pt:hover { r: 5; }
+.md-svg .md-leg:hover text { text-decoration: underline; }
+.md-bar { position: absolute; top: -13px; right: 8px; z-index: 3; display: flex; gap: 2px; padding: 3px; border: 1px solid var(--border);
+  border-radius: 10px; background: var(--panel); box-shadow: 0 6px 18px rgba(0,0,0,.14); opacity: 0; transform: translateY(3px);
+  pointer-events: none; transition: opacity .14s ease, transform .14s ease; }
+.memu-diagram:hover > .md-bar, .memu-diagram:focus-within > .md-bar { opacity: 1; transform: none; pointer-events: auto; }
+@media (hover: none) { .md-bar { opacity: 1; transform: none; pointer-events: auto; position: static; justify-content: flex-end; border: 0; box-shadow: none; background: none; } }
+.md-code { position: relative; margin: 0; padding: 12px 14px; max-height: 340px; overflow: auto; border-top: 1px solid var(--border);
+  font: 12.5px/1.5 var(--mono, Consolas, monospace); color: var(--text); background: color-mix(in srgb, var(--text) 3%, transparent); border-radius: 0 0 14px 14px; white-space: pre; }
+.md-code[hidden] { display: none; }
+.md-code-copy { position: sticky; float: right; top: 0; }
+
+/* streaming / loading placeholder */
+.memu-diagram-pending { display: flex; align-items: center; gap: 14px; margin: 14px 0; padding: 16px 18px; border: 1px dashed var(--border);
+  border-radius: 14px; background: color-mix(in srgb, var(--panel) 70%, transparent); color: var(--muted); font-size: 13px; }
+.memu-diagram .memu-diagram-pending { margin: 0; border: 0; height: 100%; min-height: 120px; justify-content: center; }
+.mdp-art { display: flex; align-items: flex-end; gap: 4px; height: 34px; width: 54px; }
+.mdp-art i { flex: 1; height: var(--h, 50%); border-radius: 3px 3px 1px 1px; background: color-mix(in srgb, var(--accent) 55%, transparent);
+  animation: md-grow 1.4s ease-in-out infinite; transform-origin: bottom; }
+.mdp-art i:nth-child(2) { animation-delay: .12s; } .mdp-art i:nth-child(3) { animation-delay: .24s; }
+.mdp-art i:nth-child(4) { animation-delay: .36s; } .mdp-art i:nth-child(5) { animation-delay: .48s; }
+@keyframes md-grow { 0%, 100% { transform: scaleY(.45); opacity: .55; } 50% { transform: scaleY(1); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .mdp-art i { animation: none; } }
+:root[data-motion="off"] .mdp-art i { animation: none; }
+
+/* friendly error */
+.md-error { padding: 14px 16px; }
+.md-error-head { display: flex; align-items: center; gap: 8px; color: var(--text); font-size: 14px; }
+.md-error-head .mt-ic { color: #e5534b; }
+.md-error-msg { margin: 6px 0 10px; color: var(--muted); font-size: 13px; line-height: 1.45; word-break: break-word; }
+.md-error-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.memu-diagram.md-failed { border-color: color-mix(in srgb, #e5534b 40%, var(--border)); }
+
+/* Round 30: schemes are a viewport — readable size, pan and zoom inside the card (diagram-zoom.js) */
+.memu-diagram .md-stage.mdz { position: relative; display: block; padding: 0; overflow: hidden; border-radius: inherit; }
+.mdz-scroll { overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--text) 22%, transparent) transparent;
+  border-radius: inherit; outline: none; }
+.mdz-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+.mdz-scroll::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--text) 20%, transparent); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
+.mdz-scroll::-webkit-scrollbar-track, .mdz-scroll::-webkit-scrollbar-corner { background: transparent; }
+.mdz-scroll:focus-visible { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 60%, transparent); }
+.mdz-canvas { display: grid; place-items: center; box-sizing: border-box; min-width: 100%; min-height: 100%; width: max-content; padding: 8px; }
+.memu-diagram .mdz-canvas svg { display: block; max-width: none; max-height: none; }
+.mdz-pannable .mdz-scroll { cursor: grab; }
+.mdz-dragging .mdz-scroll { cursor: grabbing; }
+.mdz-dragging .mdz-scroll svg { user-select: none; pointer-events: none; }
+.mdz-ctl { position: absolute; right: 8px; bottom: 8px; z-index: 2; display: flex; align-items: center; gap: 1px; padding: 2px;
+  border: 1px solid var(--border); border-radius: 9px; background: color-mix(in srgb, var(--panel) 92%, transparent);
+  box-shadow: 0 4px 14px rgba(0,0,0,.10); backdrop-filter: blur(6px);
+  opacity: 0; transform: translateY(2px); pointer-events: none; transition: opacity .14s ease, transform .14s ease; }
+/* A scheme larger than its card shows the zoom (it says "there is more here"); a small one only on hover. */
+.memu-diagram:hover .mdz-ctl, .md-stage.mdz:focus-within .mdz-ctl, .md-full-stage .mdz-ctl, .mdz-pannable .mdz-ctl { opacity: 1; transform: none; pointer-events: auto; }
+@media (hover: none) { .mdz-ctl { opacity: 1; transform: none; pointer-events: auto; } }
+.mdz-ctl button { display: inline-grid; place-items: center; min-width: 26px; height: 26px; padding: 0 6px; border: 0; border-radius: 7px;
+  background: transparent; color: var(--muted); font-family: inherit; font-size: 11.5px; font-weight: 600; line-height: 1;
+  font-variant-numeric: tabular-nums; cursor: pointer; }
+.mdz-ctl button:hover:not(:disabled) { background: color-mix(in srgb, var(--text) 8%, transparent); color: var(--text); }
+.mdz-ctl button:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
+.mdz-ctl button:disabled { opacity: .35; cursor: default; }
+.mdz-ctl button svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.mdz-ctl .mdz-pct { min-width: 44px; color: var(--text); }
+.mdz-ctl i { width: 1px; height: 14px; margin: 0 3px; background: var(--border); }
+@media (prefers-reduced-motion: reduce) { .mdz-ctl { transition: none; } }
+
+/* fullscreen */
+.md-full .mt-modal { height: calc(100vh - 48px); }
+.md-full .mt-modal-body { padding: 0; overflow: hidden; }
+.md-full-stage { overflow: auto; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.md-full-stage .memu-diagram { margin: 0; border: 0; border-radius: 0; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.md-full-stage .md-stage.mdz { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.md-full-stage .mdz-scroll { flex: 1; min-height: 0; }
+.md-full-stage .mdz-ctl { right: 14px; bottom: 14px; }
+.md-full-stage .md-scheme svg { max-height: none; }
+.md-full-stage .md-bar { display: none; }
+
+/* studio */
+.md-pal-preview { display: flex; gap: 4px; }
+.md-pal-preview i { flex: 1; height: 10px; border-radius: 3px; }
+.md-studio .md-types { width: 100%; }
+.md-studio .md-types button { flex: 1 1 30%; }
+.mt-dg-side input[type=number] { width: 100%; }
+
+/* Quick Access window: compact */
+.qa-md .memu-diagram { margin: .4em 0 .9em; border-radius: 10px; }
+.qa-md .memu-diagram .md-stage { padding: 8px; }
+.qa-md .memu-diagram-pending { padding: 12px 14px; }

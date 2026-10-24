@@ -1,0 +1,110 @@
+/* MemuAI — мини-плеер MemuMusic в боковой панели (Round 37, r37-music-ui-2; грузится лениво из music-dock.js).
+   Без backdrop-filter и без анимаций на прокручиваемых элементах; движение — только у полосы прогресса (transform)
+   и у трёх столбиков «играет» (стоят на паузе, когда музыка не идёт). */
+.mmd {
+  --mmd-a: #a78bfa; --mmd-b: #f472b6;
+  position: relative; isolation: isolate; overflow: hidden;
+  margin: 0 0 6px; padding: 8px 8px 10px; border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--mmd-a) 26%, var(--border, rgba(127,127,127,.2)));
+  background:
+    radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--mmd-a) 22%, transparent), transparent 62%),
+    radial-gradient(120% 140% at 100% 100%, color-mix(in srgb, var(--mmd-b) 16%, transparent), transparent 60%),
+    var(--panel, #16161c);
+  color: var(--text, #eee);
+  box-shadow: 0 1px 0 rgba(255,255,255,.04) inset, 0 10px 26px -18px color-mix(in srgb, var(--mmd-a) 70%, transparent);
+  animation: mmd-in .32s cubic-bezier(.2,.8,.2,1) both;
+  transition: border-color .3s, box-shadow .3s;
+}
+.mmd[hidden] { display: none; }
+@keyframes mmd-in { from { opacity: 0; transform: translateY(6px) scale(.98); } }
+.mmd-glow {
+  position: absolute; z-index: -1; left: -10px; top: -14px; width: 84px; height: 84px; border-radius: 50%;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--mmd-a) 55%, transparent), transparent);
+  opacity: .45; transition: opacity .4s;
+}
+.mmd.is-playing .mmd-glow { opacity: .8; }
+.mmd button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+.mmd button:focus-visible, .mmd-seek:focus-visible { outline: 2px solid var(--accent, var(--mmd-a)); outline-offset: 2px; border-radius: 8px; }
+.mmd svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; display: block; }
+
+.mmd-row { display: grid; grid-template-columns: 40px minmax(0, 1fr) 32px 28px; align-items: center; gap: 8px; }
+.mmd-art {
+  position: relative; width: 40px; height: 40px; border-radius: 10px; overflow: hidden;
+  box-shadow: 0 6px 16px -8px color-mix(in srgb, var(--mmd-a) 90%, #000);
+}
+.mmd-art-fb, .mmd-art img { position: absolute; inset: 0; width: 100%; height: 100%; }
+.mmd-art-fb {
+  background:
+    radial-gradient(70% 70% at 25% 20%, color-mix(in srgb, #fff 35%, var(--mmd-a)), transparent 60%),
+    radial-gradient(90% 90% at 90% 100%, var(--mmd-b), transparent 70%),
+    linear-gradient(140deg, var(--mmd-a), color-mix(in srgb, var(--mmd-b) 60%, #120d1c));
+}
+.mmd-art img { object-fit: cover; opacity: 0; transition: opacity .3s; }
+.mmd.has-art .mmd-art img { opacity: 1; }
+.mmd-eq {
+  position: absolute; inset: auto 0 0 0; height: 18px; display: flex; align-items: flex-end; justify-content: center; gap: 2px;
+  padding-bottom: 5px; background: linear-gradient(transparent, rgba(0,0,0,.45)); opacity: 0; transition: opacity .25s;
+}
+.mmd-eq i { width: 3px; height: 9px; border-radius: 2px; background: #fff; transform-origin: bottom; animation: mmd-eq 1s ease-in-out infinite; animation-play-state: paused; }
+.mmd-eq i:nth-child(2) { animation-delay: -.35s; animation-duration: .8s; }
+.mmd-eq i:nth-child(3) { animation-delay: -.6s; animation-duration: 1.15s; }
+.mmd.is-playing .mmd-eq { opacity: 1; }
+.mmd.is-playing .mmd-eq i { animation-play-state: running; }
+@keyframes mmd-eq { 0%, 100% { transform: scaleY(.35); } 50% { transform: scaleY(1); } }
+
+.mmd-text { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; text-align: left; gap: 1px; }
+.mmd-title, .mmd-sub { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mmd-title { font-size: 13px; font-weight: 650; letter-spacing: -.005em; }
+.mmd-sub { font-size: 11.5px; color: var(--muted, #999); }
+.mmd.is-phone .mmd-sub { color: color-mix(in srgb, var(--mmd-a) 70%, var(--text, #fff)); }
+
+.mmd-btn { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; color: var(--text, #eee); transition: background .15s, transform .12s; }
+.mmd-btn:hover { background: color-mix(in srgb, var(--text, #fff) 9%, transparent); }
+.mmd-btn:active { transform: scale(.92); }
+.mmd .mmd-play { width: 32px; height: 32px; background: var(--text, #f5f5f7); color: var(--panel, #111); box-shadow: 0 4px 14px -6px color-mix(in srgb, var(--mmd-a) 80%, #000); }
+.mmd .mmd-play:hover { background: var(--text, #fff); transform: scale(1.05); }
+.mmd-play svg, .mmd-big svg { width: 16px; height: 16px; }
+.mmd.is-wait .mmd-play { animation: mmd-pulse 1s ease-in-out infinite; }
+@keyframes mmd-pulse { 50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--mmd-a) 25%, transparent); } }
+
+/* тонкая полоса прогресса внизу карточки: доля в --k, бег — CSS-анимация до конца трека */
+.mmd-bar { position: absolute; left: 12px; right: 12px; bottom: 4px; height: 2px; border-radius: 2px; background: color-mix(in srgb, var(--text, #fff) 10%, transparent); overflow: hidden; }
+.mmd-prog, .mmd-fill { position: absolute; inset: 0; transform-origin: left; transform: scaleX(var(--k, 0)); background: linear-gradient(90deg, var(--mmd-a), var(--mmd-b)); border-radius: inherit; }
+@keyframes mmd-progress { from { transform: scaleX(var(--k, 0)); } to { transform: scaleX(1); } }
+.mmd.open .mmd-bar { opacity: 0; }
+
+/* развёрнутый вид */
+.mmd-more { display: none; }
+.mmd.open .mmd-more { display: block; animation: mmd-more .26s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes mmd-more { from { opacity: 0; transform: translateY(-4px); } }
+.mmd-seek { position: relative; height: 16px; margin: 10px 2px 0; cursor: pointer; touch-action: none; }
+.mmd-seek::before { content: ""; position: absolute; left: 0; right: 0; top: 7px; height: 3px; border-radius: 3px; background: color-mix(in srgb, var(--text, #fff) 14%, transparent); }
+.mmd-fill { top: 7px; bottom: auto; height: 3px; }
+.mmd-seek:hover .mmd-fill { filter: brightness(1.15); }
+.mmd-times { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--muted, #999); font-variant-numeric: tabular-nums; padding: 0 2px; }
+.mmd-ctl { display: flex; align-items: center; justify-content: space-between; padding: 4px 0 2px; }
+.mmd .mmd-big { width: 38px; height: 38px; background: var(--text, #f5f5f7); color: var(--panel, #111); }
+.mmd .mmd-big:hover { background: var(--text, #fff); }
+.mmd.open .mmd-row .mmd-play, .mmd.open .mmd-row .mmd-next { visibility: hidden; }
+
+.mmd-chev {
+  position: absolute; top: 14px; right: 10px; width: 28px; height: 28px; border-radius: 50%; display: none; place-items: center;
+  color: var(--muted, #999); transition: background .15s, color .15s;
+}
+.mmd-chev:hover { color: var(--text, #fff); background: color-mix(in srgb, var(--text, #fff) 9%, transparent); }
+.mmd-chev svg { width: 15px; height: 15px; transform: rotate(180deg); }
+.mmd.open .mmd-chev { display: grid; }
+
+[data-theme="light"] .mmd { box-shadow: 0 10px 24px -18px color-mix(in srgb, var(--mmd-a) 80%, transparent); }
+[data-theme="light"] .mmd .mmd-play, [data-theme="light"] .mmd .mmd-big { background: #17161c; color: #fff; }
+
+/* узкое окно: боковая панель уезжает — мини-плеер плавает в углу */
+@media (max-width: 800px) {
+  body > .mmd { position: fixed; left: 12px; bottom: 12px; z-index: 80; width: min(300px, calc(100vw - 24px)); margin: 0;
+    box-shadow: 0 18px 40px -16px rgba(0,0,0,.55), 0 1px 0 rgba(255,255,255,.05) inset; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mmd, .mmd.open .mmd-more, .mmd-chev { animation: none; transition: none; }
+  .mmd-eq i { animation: none; }
+}
+html[data-calm] .mmd-eq i, html[data-lite-effects] .mmd-eq i { animation: none; }

@@ -1,0 +1,33 @@
+WEBVTT
+
+1
+00:00:00.000 --> 00:00:03.450 line:88%
+The Notion Developer portal → Internal connections.
+
+2
+00:00:03.500 --> 00:00:08.126 line:88%
+Create a new connection: a name (e.g. MemuAI) and the workspace.
+
+3
+00:00:08.176 --> 00:00:12.568 line:88%
+The Configuration tab → API token → copy it (it starts with ntn_).
+
+4
+00:00:12.618 --> 00:00:17.715 line:88%
+The Content access tab → Edit access: tick the pages MemuAI may see.
+
+5
+00:00:17.765 --> 00:00:22.097 line:88%
+In MemuAI: Settings → Integrations → Notion → «Integration token».
+
+6
+00:00:22.147 --> 00:00:27.792 line:88%
+Paste the token and press «Connect».
+
+7
+00:00:27.842 --> 00:00:31.821 line:88%
+Or in Notion itself: «•••» → Connections → + Add connection.
+
+8
+00:00:31.871 --> 00:00:39.510 line:88%
+Sharing a parent page shares everything inside it.

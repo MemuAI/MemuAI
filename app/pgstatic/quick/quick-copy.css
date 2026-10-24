@@ -1,0 +1,78 @@
+/* MemuAI Quick Ask · copying (Round 30, quick-copy.js). Tokens only — every theme, accent and design applies. */
+
+/* The actions row of the last answer: «Копировать ▾» and «Вставить» carry a label (the rest stay icons with tooltips). */
+.qa-act.lbl span { display: inline; }
+.qa-split { display: inline-flex; align-items: center; flex: none; border-radius: 7px; }
+.qa-split .qa-act:first-child { border-top-right-radius: 0; border-bottom-right-radius: 0; padding-right: 6px; }
+.qa-act.qa-act-caret { min-width: 20px; width: 20px; padding: 0; border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.qa-act.qa-act-caret svg { width: 13px; height: 13px; }
+.qa-split:hover { background: var(--qa-hover); }
+.qa-split:hover .qa-act { background: transparent; }
+.qa-act.lbl.done, .qa-tcopy.done { color: var(--ok); }
+/* narrow window (quick.js fitActions): labels go, icons stay */
+.qa-actions.qa-actions-tight .qa-act.lbl:not(.done) span { display: none; }
+
+/* An earlier answer: «Копировать ▾» at the end of its «who answered» line — quiet until the turn is hovered/focused. */
+.qa-turn-tools { display: inline-flex; align-items: center; margin-left: auto; opacity: 0; transition: opacity .15s; }
+.qa-turn:hover .qa-turn-tools, .qa-turn-tools:focus-within, .qa-turn-tools:has(.done), .qa-turn-tools:has([aria-expanded="true"]) { opacity: 1; }
+.qa-tcopy { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 7px; border: 0; border-radius: 6px; background: transparent;
+  color: var(--muted); font-size: 11.5px; font-weight: 600; cursor: pointer; }
+.qa-tcopy svg { width: 13px; height: 13px; }
+.qa-tcopy.qa-tcopy-more { width: 20px; padding: 0; justify-content: center; }
+.qa-tcopy:hover, .qa-tcopy:focus-visible { color: var(--text); background: var(--qa-hover); outline: none; }
+.qa-tcopy:focus-visible { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent); }
+@media (hover: none) { .qa-turn-tools { opacity: 1; } }
+
+/* «Копировать как…» */
+.qc-menu { position: absolute; z-index: 40; min-width: 236px; padding: 6px; border-radius: 11px; background: var(--panel-2, var(--panel));
+  border: 1px solid var(--qa-line); box-shadow: 0 16px 40px rgba(0, 0, 0, .34), 0 2px 8px rgba(0, 0, 0, .18); animation: qc-pop .14s var(--qa-ease-out) both; }
+:root[data-theme="light"] .qc-menu { box-shadow: 0 16px 40px rgba(40, 32, 20, .16), 0 2px 8px rgba(40, 32, 20, .08); }
+.qc-menu-head { padding: 4px 8px 6px; color: var(--qa-faint); font-size: 11px; font-weight: 600; letter-spacing: .02em; }
+.qc-menu button { display: grid; grid-template-columns: 14px 1fr; column-gap: 8px; align-items: center; width: 100%; padding: 7px 8px; border: 0; border-radius: 7px;
+  background: transparent; text-align: left; cursor: pointer; color: var(--text); }
+.qc-menu:not(.qc-menu-radio) button { grid-template-columns: 16px 1fr auto; }
+.qc-menu-ic { display: inline-flex; color: var(--muted); }
+.qc-menu-ic svg { width: 15px; height: 15px; }
+.qc-menu-keys { display: inline-flex; gap: 3px; margin-left: 12px; }
+.qc-menu button small { grid-column: 2; color: var(--muted); font-size: 11px; line-height: 1.3; }
+.qc-menu-label { font-size: 13px; font-weight: 600; }
+.qc-menu-dot { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid var(--qa-faint); }
+.qc-menu button[aria-checked="true"] .qc-menu-dot { border-color: var(--accent); background: var(--accent); }
+.qc-menu button:hover, .qc-menu button:focus-visible { background: var(--qa-hover); outline: none; }
+
+/* The bar over a selected part of an answer */
+.qc-selbar { position: absolute; z-index: 35; display: inline-flex; gap: 2px; padding: 3px; border-radius: 9px; background: var(--panel-2, var(--panel));
+  border: 1px solid var(--qa-line); box-shadow: 0 10px 28px rgba(0, 0, 0, .32); animation: qc-pop .12s var(--qa-ease-out) both; }
+:root[data-theme="light"] .qc-selbar { box-shadow: 0 10px 28px rgba(40, 32, 20, .16); }
+.qc-selbar button { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent;
+  color: var(--text); font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.qc-selbar button svg { width: 14px; height: 14px; color: var(--muted); }
+.qc-selbar button:hover { background: var(--qa-hover); }
+
+@keyframes qc-pop { from { opacity: 0; transform: translateY(3px) scale(.98); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .qc-menu, .qc-selbar { animation: none; } }
+:root[data-motion="off"] :is(.qc-menu, .qc-selbar) { animation: none; }
+:root[data-design="terminal"] :is(.qc-menu, .qc-selbar, .qc-menu button, .qc-selbar button, .qa-tcopy, .qa-split) { border-radius: 2px; }
+:root[data-design="brutal"] :is(.qc-menu, .qc-selbar) { border-width: 2px; border-color: var(--text); box-shadow: 4px 4px 0 var(--text); }
+
+/* Round 31 (r31-quick): selectable everywhere + a quiet copy button on every block (question, errors, cards, steps) */
+.qa-answer, .qa-slot, .qa-q, .qa-error, .qa-instant { -webkit-user-select: text; user-select: text; }
+#qa-answer th, #qa-answer th.mt-sortable { -webkit-user-select: text; user-select: text; }   /* tables.css sets none on sortable headers (.mt-host th.mt-sortable — an id wins) */
+.qc-blk { position: relative; }
+.qc-blk-copy { position: absolute; top: 6px; right: 6px; z-index: 3; display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; padding: 0; border: 0; border-radius: 6px; background: color-mix(in srgb, var(--panel-2, var(--panel)) 88%, transparent);
+  color: var(--muted); cursor: pointer; opacity: 0; transition: opacity .15s, color .15s, background .15s; }
+.qc-blk-copy svg { width: 13px; height: 13px; }
+.qc-blk:hover > .qc-blk-copy, .qc-blk-copy:focus-visible, .qc-blk-copy.done { opacity: 1; }
+.qc-blk-copy:hover { color: var(--text); background: var(--qa-hover); }
+.qc-blk-copy:focus-visible { outline: none; box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent); }
+.qc-blk-copy.done { color: var(--ok); }
+/* blocks that already have something in their top right corner */
+.qa-q.qc-blk { padding-right: 30px; }
+.qa-error.qc-blk, .qa-instant.qc-blk { padding-right: 34px; }   /* the button never covers the end of the line */
+.qa-q > .qc-blk-copy { top: 50%; transform: translateY(-50%); }
+.mqc-card > .qc-blk-copy, .qdfy-card > .qc-blk-copy, .qe-card > .qc-blk-copy { top: auto; bottom: 8px; right: 8px; }
+.qcu-steps > .qc-blk-copy, .qcu-task > .qc-blk-copy { top: 0; right: 0; }
+@media (hover: none) { .qc-blk-copy { opacity: .7; } }
+.qc-ctx { min-width: 220px; }
+:root[data-design="terminal"] .qc-blk-copy { border-radius: 2px; }

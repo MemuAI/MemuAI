@@ -1,0 +1,115 @@
+/* Round 32 — the editor of a panel's text template (panel-text-editor.js). Used in the Quick Access window (a panel in
+   its top slot) and in Settings → Quick Access → «Вид панелей и встраивание» (a dialog). Theme tokens only. */
+.pte {
+  --pte-line: color-mix(in srgb, var(--text) 13%, transparent);
+  --pte-soft: color-mix(in srgb, var(--text) 5%, transparent);
+  display: flex; flex-direction: column; gap: 10px; min-width: 0; color: var(--text);
+  font: 400 13px/1.4 var(--sx-font, var(--mp-text, system-ui, sans-serif));
+}
+.pte button { font: inherit; color: inherit; cursor: pointer; }
+.pte button:disabled { opacity: .4; cursor: default; }
+.pte :is(button, select, input, textarea):focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: 1px; }
+.pte-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.pte-title { flex: 1 1 140px; min-width: 0; display: flex; flex-direction: column; }
+.pte-title b { font-weight: 650; font-size: 14px; }
+.pte-title span { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pte-seg { display: inline-flex; padding: 2px; gap: 2px; border-radius: 9px; background: var(--pte-soft); border: 1px solid var(--pte-line); flex: none; }
+.pte-seg > button { border: 0; background: none; padding: 4px 10px; border-radius: 7px; font-size: 12px; line-height: 1.3; white-space: nowrap; }
+.pte-seg > button[aria-pressed="true"] { background: var(--panel, #fff); box-shadow: 0 1px 2px rgba(0, 0, 0, .14); font-weight: 600; }
+.pte-seg svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; display: block; }
+.pte-align > button { padding: 4px 7px; }
+
+/* the stage: the panel at its real width over what it will sit on (the window / a wallpaper) */
+.pte-stage-wrap { position: relative; display: flex; justify-content: center; padding: 16px 12px 20px; border-radius: 12px;
+  border: 1px solid var(--pte-line); background: var(--qa-surface, var(--panel, transparent)); overflow: auto; }
+.pte-stage-wrap[data-bg="wallpaper"] { background: linear-gradient(135deg, #3a4f7a 0%, #6b5a8e 45%, #c7866b 100%); border-color: transparent; }
+:root[data-theme="light"] .pte-stage-wrap[data-bg="wallpaper"] { background: linear-gradient(135deg, #cfdcf3 0%, #e4d9f0 45%, #f6d8c6 100%); }
+:root[data-theme="light"] .pte-stage-wrap[data-bg="wallpaper"] .pte-cell::before { border-color: rgba(0, 0, 0, .28); }
+.pte-cell { position: relative; max-width: 100%; flex: none; }
+.pte-cell::before { content: ""; position: absolute; inset: -4px; border: 1px dashed color-mix(in srgb, var(--text) 26%, transparent); border-radius: 8px; pointer-events: none; }
+.pte-stage-wrap[data-bg="wallpaper"] .pte-cell::before { border-color: rgba(255, 255, 255, .45); }
+.pte-stage { min-height: 28px; cursor: default; user-select: none; touch-action: none; }
+.pte-stage .pt-b { cursor: grab; border-radius: 4px; outline: 1px solid transparent; outline-offset: 1px; transition: outline-color .12s; }
+.pte-stage .pt-b:hover { outline-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.pte-stage .pt-b.pte-on { outline: 1.5px solid var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.pte-stage .pt-b:focus-visible { outline: 2px solid var(--accent); }
+.pte-dragging .pte-stage .pt-b { cursor: grabbing; transition: none; }
+.pte-rs { position: absolute; top: 50%; right: -5px; width: 8px; height: 22px; margin-top: -11px; border-radius: 4px; background: var(--accent);
+  border: 2px solid var(--panel, #fff); cursor: ew-resize; box-sizing: border-box; }
+.pte-hh { position: absolute; left: 50%; bottom: -12px; width: 34px; height: 8px; margin-left: -17px; border-radius: 4px; cursor: ns-resize;
+  background: color-mix(in srgb, var(--text) 30%, transparent); }
+.pte-hh:hover { background: var(--accent); }
+.pte-hh[hidden] { display: none; }
+.pte-guide { position: absolute; pointer-events: none; background: var(--accent); opacity: .8; }
+.pte-guide[data-ax="x"] { top: 0; bottom: 0; width: 1px; }
+.pte-guide[data-ax="y"] { left: 0; right: 0; height: 1px; }
+.pte-hint { margin: -2px 2px 0; color: var(--muted); font-size: 12px; }
+
+.pte-blocks { display: flex; gap: 6px; flex-wrap: wrap; }
+.pte-blocks > button { display: inline-flex; align-items: center; gap: 6px; max-width: 220px; padding: 4px 10px 4px 6px; border-radius: 8px;
+  border: 1px solid var(--pte-line); background: none; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pte-blocks > button small { display: inline-grid; place-items: center; min-width: 18px; height: 18px; border-radius: 5px; background: var(--pte-soft); font-size: 11px; color: var(--muted); }
+.pte-blocks > button[aria-selected="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+
+.pte-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 12px; align-items: start; }
+.pte-edit, .pte-picker { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.pte-lbl { font-size: 12px; font-weight: 600; color: var(--muted); }
+.pte-lbl small { font-weight: 400; }
+.pte-tpl { width: 100%; box-sizing: border-box; min-height: 74px; resize: vertical; padding: 8px 10px; border-radius: 9px; border: 1px solid var(--pte-line);
+  background: var(--pte-soft); color: var(--text); font: 13px/1.45 ui-monospace, "Cascadia Mono", Consolas, monospace; }
+.pte-lint { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: var(--mp-down, #d0553f); min-height: 0; }
+.pte-lint:empty { display: none; }
+.pte-props { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+.pte-prop { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); min-width: 0; }
+.pte-prop > span { white-space: nowrap; }
+.pte-prop input[type="range"] { width: 92px; accent-color: var(--accent); }
+.pte-prop output { min-width: 40px; color: var(--text); font-variant-numeric: tabular-nums; }
+.pte select, .pte .pte-find { height: 28px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--pte-line); background: var(--panel, transparent); color: var(--text); font: inherit; font-size: 12px; min-width: 0; }
+.pte input[type="color"] { width: 30px; height: 26px; padding: 1px; border: 1px solid var(--pte-line); border-radius: 7px; background: none; }
+.pte input[type="color"][hidden] { display: none; }
+.pte-ital { width: 30px; height: 28px; border-radius: 8px; border: 1px solid var(--pte-line); background: none; font-family: Georgia, serif !important; font-size: 14px !important; }
+.pte-ital[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 16%, transparent); border-color: var(--accent); }
+.pte-bact { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.pte-bact > button { height: 28px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--pte-line); background: none; font-size: 12px; }
+.pte-bact > button.pte-danger { color: var(--mp-down, #d0553f); }
+.pte-halo { margin-left: auto; }
+
+.pte-find { width: 100%; box-sizing: border-box; }
+.pte-list { display: flex; flex-direction: column; gap: 1px; max-height: 196px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin;
+  border: 1px solid var(--pte-line); border-radius: 9px; padding: 3px; }
+.pte-list > button { display: flex; align-items: baseline; gap: 8px; width: 100%; text-align: left; border: 0; background: none; padding: 5px 7px; border-radius: 6px; min-width: 0; }
+.pte-list > button:hover, .pte-list > button:focus-visible { background: var(--pte-soft); }
+.pte-list code, .pte-flist code { font: 12px/1.35 ui-monospace, "Cascadia Mono", Consolas, monospace; color: var(--accent); flex: none; max-width: 58%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pte-list span, .pte-flist span { flex: 1 1 auto; min-width: 0; color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: right; }
+.pte-list > button[data-kind="list"] code { color: var(--text); }
+.pte-empty { margin: 6px; color: var(--muted); font-size: 12px; }
+.pte-filters summary { cursor: pointer; font-size: 12px; font-weight: 600; color: var(--muted); padding: 2px 0; }
+.pte-flist { display: flex; flex-direction: column; gap: 1px; margin-top: 4px; max-height: 170px; overflow-y: auto; scrollbar-width: thin; }
+.pte-flist > button { display: flex; align-items: baseline; gap: 8px; border: 0; background: none; padding: 4px 6px; border-radius: 6px; text-align: left; }
+.pte-flist > button:hover { background: var(--pte-soft); }
+.pte-syntax { margin: 6px 2px 0; font-size: 11.5px; color: var(--muted); line-height: 1.45; overflow-wrap: anywhere; }
+
+.pte-foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding-top: 2px; }
+.pte-grow { flex: 1 1 auto; }
+.pte-btn { height: 30px; padding: 0 14px; border-radius: 9px; border: 1px solid var(--pte-line); background: none; font-size: 13px; white-space: nowrap; }
+.pte-btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent, #fff) !important; font-weight: 600; }
+.pte-btn.ghost:hover, .pte-bact > button:hover:not(:disabled), .pte-blocks > button:hover { background: var(--pte-soft); }
+
+/* narrow (the 420 px window, the side of a small dialog): one column */
+@container pte (max-width: 520px) { .pte-grid { grid-template-columns: minmax(0, 1fr); } .pte-halo { margin-left: 0; } }
+.pte-host { container: pte / inline-size; }
+@media (max-width: 560px) { .pte-grid { grid-template-columns: minmax(0, 1fr); } }
+
+/* Settings: the editor in a dialog over the page */
+.pte-modal { position: fixed; inset: 0; z-index: 5000; display: grid; place-items: center; padding: 24px; background: rgba(10, 10, 12, .42); }
+.pte-modal > .pte-host { width: min(820px, 100%); max-height: calc(100vh - 48px); overflow: auto; box-sizing: border-box; padding: 16px 18px;
+  border-radius: 16px; background: var(--panel, #fff); border: 1px solid var(--border, rgba(0, 0, 0, .12)); box-shadow: 0 24px 60px -20px rgba(0, 0, 0, .55); }
+/* Quick Access: the editor as a panel of the window's top slot */
+.qa-plugin.qpt-host { padding: 6px var(--qa-pad, 14px) 10px; max-height: calc(var(--qa-max-h, 760px) - 150px); overflow-y: auto;
+  overscroll-behavior: contain; scrollbar-width: thin; border-top: 1px solid color-mix(in srgb, var(--qa-line, var(--border)) 70%, transparent); }
+.qpt-host .pte { gap: 8px; }
+.qpt-host .pte-list { max-height: 132px; }
+.qpt-host .pte-tpl { min-height: 58px; }
+.qpt-host .pte-stage-wrap { padding: 12px 10px 18px; }
+.qpt-host .pte-foot { position: sticky; bottom: -10px; padding: 8px 0 10px; margin-bottom: -10px; background: var(--qa-surface, var(--panel)); z-index: 1; }
+@media (prefers-reduced-motion: reduce) { .pte-stage .pt-b { transition: none; } }

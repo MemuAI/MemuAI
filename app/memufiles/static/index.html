@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>MemuFiles</title>
+<link rel="icon" href="memufiles-small.svg" type="image/svg+xml">
+<link rel="stylesheet" href="memufiles.css">
+<link rel="stylesheet" href="panels.css">
+<link rel="stylesheet" href="extras.css">
+<link rel="stylesheet" href="feat40.css">
+<link rel="stylesheet" href="ops.css"><!-- r40-files-core: operations, conflicts, drop hint -->
+<link rel="stylesheet" href="feat41.css"><!-- r41-files: tiles, settings, archives -->
+<script type="module" src="js/app.js"></script>
+<!-- Round 39 (r39-files-perf): the whole module graph is fetched in parallel with app.js, not level by level -->
+<link rel="modulepreload" href="js/i18n.js">
+<link rel="modulepreload" href="js/core.js">
+<link rel="modulepreload" href="js/pane.js">
+<link rel="modulepreload" href="js/dialogs.js">
+<link rel="modulepreload" href="js/preview.js">
+<link rel="modulepreload" href="js/ai.js">
+<link rel="modulepreload" href="js/tools.js">
+<link rel="modulepreload" href="js/titlebar.js">
+<link rel="modulepreload" href="js/defaultshell.js">
+<link rel="modulepreload" href="js/extras.js">
+<link rel="modulepreload" href="js/feat40.js">
+<link rel="modulepreload" href="js/ops.js">
+<link rel="modulepreload" href="js/dnd.js">
+<link rel="modulepreload" href="js/feat41.js">
+</head>
+<body class="booting">
+<!-- Round 39: the window shows its frame at once (tabs, address bar, sidebar, rows) instead of a logo splash -->
+<div class="boot-splash boot-skel" aria-hidden="true">
+  <div class="sk-tabs"><img class="logo" src="memufiles-small.svg" alt=""><i class="sk-tab"></i></div>
+  <div class="sk-nav"><i class="sk-addr"></i><i class="sk-search"></i></div>
+  <div class="sk-cmd"></div>
+  <div class="sk-body"><div class="sk-side"><i></i><i></i><i></i><i></i><i></i></div>
+    <div class="sk-rows"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
+  <div class="sk-status"></div>
+</div>
+<noscript>MemuFiles needs JavaScript (WebView2).</noscript>
+</body>
+</html>

@@ -1,0 +1,32 @@
+/* Round 30 — Settings → Quick Ask → «Вид панелей и встраивание» (canvas-look-settings.js). */
+/* the preview is the card's top edge: no second frame or inset inside the card (it used to sit 4 px in with its own 14 px corners) */
+.qls-preview {
+  display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; padding: 16px 18px; margin: 0;
+  border-radius: calc(var(--sx-r, 14px) - 1px) calc(var(--sx-r, 14px) - 1px) 0 0;
+  background: linear-gradient(135deg, #3a4f7a 0%, #6b5a8e 45%, #c7866b 100%);   /* a desktop wallpaper: opacity and «text» show */
+  min-height: 132px; box-sizing: border-box;
+}
+.qls-preview-empty { align-items: center; justify-content: center; color: #fff; font-size: 13px; opacity: .9; }
+.qls-tile { position: relative; min-width: 0; }
+.qls-tile[data-pl-style="card"] { width: 176px; height: 128px; }
+.qls-tile[data-pl-style="card"] > .mp-card { width: 100%; height: 100%; min-height: 0; margin: 0; padding: 10px 11px 8px; gap: 5px; box-sizing: border-box; }
+.qls-tile[data-pl-style="card"] > .mp-card .mp-foot, .qls-tile .mp-menu-btn { display: none; }
+.qls-tile[data-pl-style="compact"] { width: 220px; }
+.qls-tile[data-pl-style="text"] { width: 190px; }
+.qls-tile[data-pl-style="icon"] { width: 104px; height: 104px; }
+.qls-accent { display: inline-flex; align-items: center; gap: 8px; }
+.qls-accent input[type="color"], .qls-own-color { width: 34px; height: 30px; padding: 2px; border: 1px solid var(--border); border-radius: 8px; background: none; cursor: pointer; }
+/* rows of the card line up with the settings rows (--sx-row-pad: 18 px from the card edge) */
+.qls-actions { display: flex; justify-content: flex-end; padding: 10px 18px 12px; border-top: 1px solid var(--sx-line-soft, var(--border)); }
+.qls-list { display: flex; flex-direction: column; gap: 2px; padding: 6px 10px; }
+.sx-card > .qls-list { border-top: 1px solid var(--sx-line-soft, var(--border)); }
+.sx-card > .qls-list:first-child { border-top: 0; }
+.qls-item { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 6px 8px; border-radius: 10px; min-width: 0; flex-wrap: wrap; }
+.qls-item:hover { background: var(--hover); }
+.qls-name { flex: 1 1 160px; min-width: 0; display: flex; flex-direction: column; }
+.qls-name b { font: 550 14px/1.4 var(--sx-font, inherit); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qls-name small { color: var(--muted); font-size: 12px; }
+.qls-check { flex: 1 1 200px; display: flex; align-items: center; gap: 10px; min-width: 0; cursor: pointer; }
+.qls-check input { width: 16px; height: 16px; accent-color: var(--accent); flex: none; }
+.qls-mv { min-width: 32px; padding: 0 8px; }
+.qls-mv:disabled { opacity: .35; }

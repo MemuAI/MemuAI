@@ -1,0 +1,10 @@
+/* Round 35 — Settings → Quick Access → «Поиск файлов на ПК» (fsearch-settings.js); rows/notes from the settings kit. */
+.fss { display: flex; flex-direction: column; gap: 4px; }
+.fss-drives { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 8px; }
+.fss-drive { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; cursor: pointer; }
+.fss-drive input { margin: 0; accent-color: var(--accent); }
+.fss-drive small { color: var(--muted); font-size: 11.5px; margin-left: 2px; }
+.fss-add { display: flex; gap: 8px; margin-top: 8px; max-width: 520px; }
+.fss-add .sx-input { flex: 1; min-width: 0; }
+.fss-exclude { width: 100%; margin-top: 8px; font-family: var(--mono, monospace); font-size: 12.5px; }
+.fss-row { display: flex; justify-content: space-between; gap: 12px; padding: 8px 14px; }

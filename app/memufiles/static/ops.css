@@ -1,0 +1,147 @@
+/* MemuFiles · operations flyout, status-bar indicator, conflict dialog, drop hint (Round 40, r40-files-core).
+ * Windows 11 Fluent: soft cards on the panel colour, one accent, 4/8 px grid; no blur on anything that scrolls. */
+
+/* ---------------------------------------------------------------- status bar indicator */
+.ops-ind { position: relative; display: inline-flex; align-items: center; gap: 7px; height: 22px; padding: 0 10px; border: 0; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 12px; overflow: hidden; max-width: 340px; flex: 0 1 auto; min-width: 0; transition: background .15s, color .15s; }
+.ops-ind > span:not(.ic) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.ops-ind .oi-short { display: none; font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) { .ops-ind .oi-long { display: none; } .ops-ind .oi-short { display: inline; } }   /* r40-files-2 */
+.ops-ind:hover { background: color-mix(in srgb, var(--accent) 20%, transparent); }
+.ops-ind.idle { background: transparent; color: var(--muted); }
+.ops-ind.idle:hover { background: var(--hover); color: var(--text); }
+.ops-ind.warn { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); }
+.ops-ind.paused { background: color-mix(in srgb, var(--warn) 12%, transparent); color: var(--warn); }
+.ops-ind.flash.ok { background: color-mix(in srgb, var(--ok) 14%, transparent); color: var(--ok); }
+.ops-ind.flash.err { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); }
+.ops-ind .ring { flex: none; }
+.ops-ind .ring.spin { animation: ops-spin 1s linear infinite; }
+.ops-ind .ops-ind-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: currentColor; opacity: .55; transform-origin: left; transition: transform .3s ease; pointer-events: none; }
+@keyframes ops-spin { from { transform: rotate(-90deg); } to { transform: rotate(270deg); } }
+
+/* ---------------------------------------------------------------- flyout */
+.ops-fly { position: fixed; right: 10px; bottom: 34px; z-index: 90; width: min(440px, calc(100vw - 20px)); max-height: min(72vh, 640px); display: flex; flex-direction: column; border-radius: 12px; background: var(--panel); border: 1px solid var(--border); box-shadow: var(--shadow); animation: pop .14s ease; overflow: hidden; }
+.ops-fly .of-head { display: flex; align-items: center; gap: 6px; padding: 12px 10px 10px 16px; border-bottom: 1px solid var(--border); }
+.ops-fly .of-titles { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.ops-fly .of-titles b { font-size: 14px; font-weight: 650; }
+.ops-fly .of-titles span { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ops-fly .of-list { overflow: auto; padding: 8px; display: flex; flex-direction: column; gap: 8px; overscroll-behavior: contain; }
+.ops-fly .of-empty { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 26px 24px 30px; color: var(--muted); text-align: center; font-size: 12.5px; line-height: 1.45; }
+.ops-fly .of-empty .ic { width: 26px; height: 26px; opacity: .6; }
+
+/* ---------------------------------------------------------------- operation card */
+.opc { position: relative; display: flex; flex-direction: column; gap: 8px; padding: 12px 12px 10px; border-radius: 10px; background: var(--bg); border: 1px solid color-mix(in srgb, var(--border) 85%, transparent); contain: layout paint; }
+.opc.fin { padding: 9px 10px 9px 12px; gap: 4px; background: transparent; }
+.opc.conflict { border-color: color-mix(in srgb, var(--warn) 55%, var(--border)); }
+.opc-head { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.opc-ico { flex: none; width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); }
+.opc-ico .ic { width: 16px; height: 16px; }
+.opc.fin .opc-ico { width: 26px; height: 26px; border-radius: 8px; }
+.opc.done .opc-ico { background: color-mix(in srgb, var(--ok) 14%, transparent); color: var(--ok); }
+.opc.error .opc-ico, .opc.k-delete:not(.fin) .opc-ico { background: color-mix(in srgb, var(--danger) 13%, transparent); color: var(--danger); }
+.opc.cancelled .opc-ico { background: var(--panel-2); color: var(--muted); }
+.opc.paused .opc-ico, .opc.conflict .opc-ico { background: color-mix(in srgb, var(--warn) 15%, transparent); color: var(--warn); }
+.opc-titles { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.opc-title { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.opc-route { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.opc-route a { color: var(--accent); text-decoration: none; }
+.opc-route a:hover { text-decoration: underline; }
+.opc-btns { flex: none; display: flex; align-items: center; gap: 2px; }
+.opc-btns .btn.sm { height: 24px; padding: 0 8px; }
+.opc-body { display: flex; flex-direction: column; gap: 6px; }
+.opc-body[hidden], .opc-sum[hidden], .opc [hidden] { display: none !important; }
+.opc-line { display: flex; align-items: baseline; gap: 10px; font-size: 12px; color: var(--muted); min-width: 0; }
+.opc-pct { font-size: 18px; font-weight: 650; color: var(--text); font-variant-numeric: tabular-nums; letter-spacing: -.01em; min-width: 44px; }
+.opc-left { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.opc-speed { flex: none; font-variant-numeric: tabular-nums; }
+.opc-bar { position: relative; height: 6px; border-radius: 3px; background: var(--panel-2); overflow: hidden; }
+.opc-bar i { position: absolute; inset: 0; border-radius: 3px; background: var(--accent); transform-origin: left; transform: scaleX(0); transition: transform .3s ease; }
+.opc.paused .opc-bar i, .opc.conflict .opc-bar i { background: var(--warn); }
+.opc-bar.indet i { width: 38%; transform: none; animation: bar 1.15s ease-in-out infinite; }
+.opc-graph { position: relative; height: 56px; border-radius: 7px; background: color-mix(in srgb, var(--panel-2) 55%, transparent); overflow: hidden; }
+.opc-graph canvas { display: block; width: 100%; height: 100%; }
+.opc-meta { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.opc-file { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 12px; padding: 6px 6px 6px 8px; border-radius: 7px; background: color-mix(in srgb, var(--panel-2) 45%, transparent); }
+.opc-file-name { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; }
+.opc-file-name .lbl { color: var(--muted); flex: none; }
+.opc-file-name .fi { width: 16px; height: 16px; flex: none; display: inline-grid; }
+.opc-file-name .fi svg { width: 16px; height: 16px; }
+.opc-file-name .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.opc-file-bar { flex: none; width: 54px; height: 4px; border-radius: 2px; background: var(--panel-2); overflow: hidden; }
+.opc-file-bar i { display: block; height: 100%; background: var(--accent); transform-origin: left; transform: scaleX(0); transition: transform .3s; }
+.btn.xs { height: 24px; padding: 0 8px; font-size: 12px; gap: 5px; border-radius: 6px; }
+.btn.xs .ic { width: 13px; height: 13px; }
+.opc-file .btn.xs { flex: none; }
+.opc-conf { display: flex; flex-direction: column; gap: 8px; padding: 8px 10px; border-radius: 8px; background: color-mix(in srgb, var(--warn) 10%, transparent); font-size: 12px; }
+.opc-conf-text { display: flex; align-items: center; gap: 7px; color: var(--text); min-width: 0; }
+.opc-conf-text .ic { color: var(--warn); flex: none; width: 15px; height: 15px; }
+.opc-conf-text span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.opc-conf-btns { display: flex; flex-wrap: wrap; gap: 6px; }
+.opc-errs { font-size: 12px; }
+.opc-errs-head { display: flex; align-items: center; gap: 6px; width: 100%; padding: 4px 0; border: 0; background: transparent; color: var(--danger); font: inherit; text-align: left; cursor: pointer; }
+.opc-errs-head .ic { width: 14px; height: 14px; flex: none; }
+.opc-errs-head span:not(.ic) { flex: 1; }
+.opc-errs-head .ic:last-child { transition: transform .15s; color: var(--muted); }
+.opc-errs.open .opc-errs-head .ic:last-child { transform: rotate(180deg); }
+.opc-errs ul { display: none; margin: 2px 0 0; padding: 0; list-style: none; max-height: 140px; overflow: auto; border-radius: 7px; background: color-mix(in srgb, var(--danger) 6%, transparent); }
+.opc-errs.open ul { display: block; }
+.opc-errs li { display: flex; gap: 10px; padding: 5px 8px; min-width: 0; }
+.opc-errs li + li { border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent); }
+.opc-errs li .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.opc-errs li .why { flex: none; max-width: 55%; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.opc.fin .opc-errs { padding-left: 36px; }
+.opc-sum { display: flex; align-items: center; gap: 10px; padding-left: 36px; font-size: 12px; color: var(--muted); min-width: 0; }
+.opc-sum span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.opc-sum .opc-open { flex: none; color: var(--accent); text-decoration: none; }
+.opc-sum .opc-open:hover { text-decoration: underline; }
+.opc-more { align-self: flex-start; display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 6px 0 4px; margin: -2px 0 -4px -4px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font: 12px var(--sans); cursor: pointer; }
+.opc-more:hover { background: var(--hover); color: var(--text); }
+.opc-more .ic { width: 14px; height: 14px; transition: transform .15s; }
+.opc.expanded .opc-more .ic { transform: rotate(180deg); }
+.opc.fin .opc-more { display: none; }
+
+/* ---------------------------------------------------------------- conflict dialog */
+.modal.cfx-modal { width: min(640px, 100%); }   /* r40-files-2: .modal.wide (860 px) used to win */
+.cfx-text { margin: 0 0 12px; line-height: 1.45; word-break: break-word; }
+.cfx-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.cfx-card { display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font: inherit; text-align: left; cursor: pointer; min-width: 0; transition: border-color .12s, background .12s, box-shadow .12s; }
+.cfx-card:hover { border-color: var(--sel-line); background: color-mix(in srgb, var(--accent) 6%, var(--bg)); }
+.cfx-card:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 40%, transparent); border-color: var(--accent); }
+.cfx-card-title { font-size: 12.5px; font-weight: 650; color: var(--accent); }
+.cfx-card[data-choice="skip"] .cfx-card-title { color: var(--text); }
+.cfx-card-main { display: flex; gap: 10px; align-items: flex-start; min-width: 0; }
+.cfx-thumb { width: 52px; height: 52px; object-fit: cover; border-radius: 7px; flex: none; background: var(--panel-2); }
+.cfx-icon { flex: none; width: 52px; height: 52px; display: grid; place-items: center; }
+.cfx-icon .fi, .cfx-icon svg { width: 44px; height: 44px; }
+.cfx-card-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); }
+.cfx-card-info .nm { font-size: 13px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cfx-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-variant-numeric: tabular-nums; }
+.cfx-badge { height: 18px; padding: 0 6px; border-radius: 5px; font-size: 11px; font-weight: 600; line-height: 18px; background: var(--accent-soft); color: var(--accent); }
+.cfx-badge.ok { background: color-mix(in srgb, var(--ok) 15%, transparent); color: var(--ok); }
+.cfx-badge.dim { background: var(--panel-2); color: var(--muted); }
+.cfx-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.cfx-actions .btn { height: 32px; flex: none; }
+.cfx-actions .btn small { color: var(--muted); font-weight: 400; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cfx-actions .btn[data-choice="keep_both"] { flex: 1 1 100%; min-width: 0; justify-content: flex-start; }   /* r40-files-2: a row of its own — the new name is readable */
+.cfx-rename { display: flex; gap: 6px; margin-top: 8px; }
+.cfx-rename .input { flex: 1; min-width: 0; }
+.cfx-compare { margin-top: 10px; padding: 10px 12px; border-radius: 9px; background: var(--bg); border: 1px solid var(--border); font-size: 12px; }
+.cfx-compare table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.cfx-compare th { text-align: left; font-weight: 600; color: var(--muted); padding: 0 6px 6px 0; }
+.cfx-compare th:first-child, .cfx-compare td:first-child { width: 112px; color: var(--muted); white-space: nowrap; }
+.cfx-compare td { padding: 3px 6px 3px 0; vertical-align: top; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.cfx-compare td.path { font-size: 11.5px; color: var(--muted); }
+.cfx-verdict { margin-top: 6px; color: var(--text); }
+.cfx-verdict:empty { display: none; }
+.cfx-keys { margin-top: 10px; }
+@media (max-width: 560px) { .cfx-cards { grid-template-columns: 1fr; } }
+
+/* ---------------------------------------------------------------- drop hint (a Fluent pill at the cursor) */
+.drop-hint { position: fixed; left: 0; top: 0; z-index: 150; display: inline-flex; align-items: center; gap: 6px; max-width: 360px; height: 28px; padding: 0 10px 0 4px; border-radius: 8px; background: var(--panel); color: var(--text); border: 1px solid var(--border); box-shadow: var(--shadow-sm); font-size: 12px; pointer-events: none; white-space: nowrap; will-change: transform; }
+.drop-hint .dh-ico { width: 20px; height: 20px; border-radius: 6px; display: grid; place-items: center; background: var(--accent); color: var(--on-accent); flex: none; }
+.drop-hint .dh-ico .ic { width: 13px; height: 13px; }
+.drop-hint b { color: var(--accent); font-weight: 650; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .opc-bar i, .opc-file-bar i, .ops-ind .ops-ind-bar, .ops-ind .ring .fg { transition: none; }
+  .ops-ind .ring.spin, .opc-bar.indet i { animation: none; }
+}

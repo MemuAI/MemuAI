@@ -1,0 +1,16 @@
+<div class="mu-page mu-col chat">
+  <div class="mu-toolbar">
+    <select class="mu-select chat-model" id="model" data-i18n-aria-label="model"></select>
+    <span class="mu-grow"></span>
+    <button class="mu-btn ghost small" id="clear" data-i18n="clear"></button>
+  </div>
+  <details class="chat-system">
+    <summary data-i18n="system"></summary>
+    <textarea class="mu-textarea" id="system" rows="2" data-i18n-placeholder="system_hint"></textarea>
+  </details>
+  <div class="mu-scroll mu-log chat-log" id="log" aria-live="polite"></div>
+  <div class="mu-composer">
+    <textarea class="mu-textarea" id="text" rows="1" data-i18n-placeholder="placeholder" data-i18n-aria-label="placeholder"></textarea>
+    <button class="mu-btn primary" id="send" data-i18n="send"></button>
+  </div>
+</div>

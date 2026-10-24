@@ -1,0 +1,154 @@
+<div class="tr" id="app" data-drawer="">
+  <header class="tr-bar">
+    <div class="tr-langs">
+      <select class="mu-select tr-lang" id="from" data-i18n-aria-label="from.aria"></select>
+      <button type="button" class="tr-icon-btn tr-swap" id="swap" data-i18n-aria-label="swap.aria" data-i18n-title="swap.title">
+        <svg viewBox="0 0 24 24"><path d="M7 7h13M16 3l4 4-4 4M17 17H4M8 13l-4 4 4 4"/></svg>
+      </button>
+      <select class="mu-select tr-lang" id="to" data-i18n-aria-label="to.aria"></select>
+    </div>
+    <span class="tr-grow"></span>
+    <div class="tr-seg" role="radiogroup" data-i18n-aria-label="mode.label" id="mode-seg">
+      <button type="button" data-mode="exact" role="radio" aria-checked="true" data-i18n="mode.exact" data-i18n-title="mode.exact.hint"></button>
+      <button type="button" data-mode="natural" role="radio" aria-checked="false" data-i18n="mode.natural" data-i18n-title="mode.natural.hint"></button>
+      <button type="button" data-mode="formal" role="radio" aria-checked="false" data-i18n="mode.formal" data-i18n-title="mode.formal.hint"></button>
+      <button type="button" data-mode="summary" role="radio" aria-checked="false" data-i18n="mode.summary" data-i18n-title="mode.summary.hint"></button>
+    </div>
+    <button type="button" class="tr-icon-btn" id="settings" aria-pressed="false" aria-controls="panel" data-i18n-aria-label="settings.title" data-i18n-title="settings.title">
+      <svg viewBox="0 0 24 24"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>
+    </button>
+  </header>
+
+  <div class="tr-panes">
+    <section class="tr-pane" aria-labelledby="from-label">
+      <div class="tr-pane-head">
+        <b id="from-label" data-i18n="source.title"></b>
+        <span class="tr-count" id="source-count">0</span>
+        <span class="tr-grow"></span>
+        <button type="button" class="tr-icon-btn small" id="clear" data-i18n-aria-label="clear.title" data-i18n-title="clear.title">
+          <svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg>
+        </button>
+      </div>
+      <textarea class="tr-area" id="source" data-i18n-placeholder="source.placeholder" spellcheck="false"></textarea>
+      <div class="tr-files" id="files"></div>
+      <div class="tr-tools">
+        <button type="button" class="tr-tool" id="attach-image" data-i18n-title="image.hint">
+          <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="9.5" r="1.6"/><path d="m4 18 5-5 4 4 3-3 4 4"/></svg><span data-i18n="image"></span>
+        </button>
+        <button type="button" class="tr-tool" id="attach-doc" data-i18n-title="document.hint">
+          <svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg><span data-i18n="document"></span>
+        </button>
+        <button type="button" class="tr-tool" id="dictate" aria-pressed="false" data-i18n-title="dictate.hint">
+          <svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg><span id="dictate-label" data-i18n="dictate"></span>
+        </button>
+        <span class="tr-grow"></span>
+        <button type="button" class="mu-btn primary tr-go" id="go" title="Ctrl + Enter" data-i18n="translate"></button>
+      </div>
+    </section>
+
+    <section class="tr-pane tr-pane-result" aria-labelledby="to-label">
+      <div class="tr-pane-head">
+        <b id="to-label" data-i18n="result.title"></b>
+        <span class="tr-count" id="result-count">0</span>
+        <span class="tr-grow"></span>
+        <span class="tr-live" id="live" hidden><i></i><span data-i18n="live"></span></span>
+      </div>
+      <textarea class="tr-area" id="result" data-i18n-placeholder="result.placeholder" spellcheck="false"></textarea>
+      <div class="tr-tools">
+        <button type="button" class="tr-tool" id="copy" data-i18n-title="copy.hint">
+          <svg viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg><span data-i18n="copy"></span>
+        </button>
+        <button type="button" class="tr-tool" id="speak" data-i18n-title="speak.hint">
+          <svg viewBox="0 0 24 24"><path d="M5 10v4h4l5 4V6L9 10zM18 9a4 4 0 0 1 0 6"/></svg><span id="speak-label" data-i18n="speak"></span>
+        </button>
+        <button type="button" class="tr-tool" id="use-as-source" data-i18n-title="reuse.hint">
+          <svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg><span data-i18n="reuse"></span>
+        </button>
+        <button type="button" class="tr-tool" id="save" data-i18n-title="save.hint">
+          <svg viewBox="0 0 24 24"><path d="M12 4v12M7 11l5 5 5-5M5 20h14"/></svg><span data-i18n="save"></span>
+        </button>
+        <span class="tr-grow"></span>
+        <button type="button" class="mu-btn ghost small" id="stop" hidden data-i18n="stop"></button>
+      </div>
+    </section>
+  </div>
+
+  <footer class="tr-foot">
+    <span class="tr-status" id="status" role="status" aria-live="polite"></span>
+    <span class="tr-grow"></span>
+    <span class="tr-model" id="model-label"></span>
+    <button type="button" class="tr-history-toggle" id="history-toggle" aria-expanded="false" aria-controls="history">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span data-i18n="history"></span> <span id="history-count">0</span>
+    </button>
+  </footer>
+
+  <!-- --------------------------------- настройки -------------------------------- -->
+  <aside class="tr-drawer" id="panel" data-i18n-aria-label="settings.title" hidden>
+    <div class="tr-drawer-head">
+      <b data-i18n="settings.title"></b>
+      <button type="button" class="tr-icon-btn" data-close-drawer data-i18n-aria-label="settings.close"><svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+    </div>
+    <div class="tr-drawer-body">
+      <label class="tr-field">
+        <span class="tr-label" data-i18n="model.label"></span>
+        <select class="mu-select" id="model"><option value="" data-i18n="model.loading"></option></select>
+      </label>
+      <label class="tr-field">
+        <span class="tr-label" data-i18n="mode.label"></span>
+        <select class="mu-select" id="mode">
+          <option value="exact" data-i18n="mode.exact.option"></option>
+          <option value="natural" data-i18n="mode.natural.option"></option>
+          <option value="formal" data-i18n="mode.formal.option"></option>
+          <option value="summary" data-i18n="mode.summary.option"></option>
+        </select>
+      </label>
+      <label class="tr-field">
+        <span class="tr-label" data-i18n="tone.label"></span>
+        <select class="mu-select" id="tone">
+          <option value="auto" data-i18n="tone.auto"></option>
+          <option value="neutral" data-i18n="tone.neutral"></option>
+          <option value="formal" data-i18n="tone.formal"></option>
+          <option value="casual" data-i18n="tone.casual"></option>
+        </select>
+      </label>
+      <label class="tr-field">
+        <span class="tr-label" data-i18n="output.label"></span>
+        <select class="mu-select" id="output">
+          <option value="only" data-i18n="output.only"></option>
+          <option value="both" data-i18n="output.both"></option>
+          <option value="notes" data-i18n="output.notes"></option>
+        </select>
+      </label>
+      <label class="tr-field">
+        <span class="tr-label" data-i18n="glossary.label"></span>
+        <textarea class="mu-textarea tr-mono" id="glossary" rows="4" data-i18n-placeholder="glossary.placeholder" spellcheck="false"></textarea>
+      </label>
+      <label class="tr-switch"><input type="checkbox" id="keep"><i></i><span data-i18n="keep"></span></label>
+      <details class="tr-details">
+        <summary data-i18n="instructions.title"></summary>
+        <textarea class="mu-textarea tr-mono" id="instructions" rows="7" spellcheck="false"></textarea>
+        <div class="tr-row">
+          <span class="tr-hint" data-i18n="instructions.hint"></span>
+          <span class="tr-grow"></span>
+          <button type="button" class="mu-btn ghost small" id="reset-instructions" data-i18n="instructions.reset"></button>
+        </div>
+      </details>
+    </div>
+  </aside>
+
+  <!-- ---------------------------------- история --------------------------------- -->
+  <aside class="tr-drawer tr-drawer-history" id="history" data-i18n-aria-label="history.aria" hidden>
+    <div class="tr-drawer-head">
+      <b data-i18n="history.title"></b>
+      <span class="tr-grow"></span>
+      <button type="button" class="mu-btn ghost small" id="history-clear" data-i18n="history.clear"></button>
+      <button type="button" class="tr-icon-btn" data-close-drawer data-i18n-aria-label="history.close"><svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+    </div>
+    <div class="tr-history-list" id="history-list"></div>
+  </aside>
+  <div class="tr-backdrop" data-close-drawer></div>
+
+  <input id="file-image" type="file" accept="image/*" hidden>
+  <input id="file-doc" type="file" hidden
+         accept=".txt,.md,.json,.jsonl,.csv,.tsv,.js,.jsx,.ts,.tsx,.py,.java,.c,.cpp,.h,.cs,.go,.rs,.rb,.php,.html,.css,.xml,.yaml,.yml,.toml,.ini,.log,.sql,.srt,.vtt,.pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+</div>

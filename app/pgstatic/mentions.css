@@ -1,0 +1,70 @@
+/* Round 35 — @-mentions (mentions.js): the menu over the composer, chips in the composer and in sent messages. */
+.mention-menu { max-height: min(430px, 56vh); padding: 6px; }
+.mention-menu.mn-down { bottom: auto; top: calc(100% + 9px); }
+.mention-menu .mn-section { padding: 8px 10px 3px; color: var(--muted); font: 600 10.5px var(--sans, inherit); letter-spacing: .04em; text-transform: uppercase; }
+.mention-menu .mn-row { width: 100%; display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 10px; text-align: left; color: var(--text); }
+.mention-menu .mn-row.active, .mention-menu .mn-row:hover { background: var(--panel-2); }
+.mention-menu .mn-row.disabled { cursor: default; }
+.mention-menu .mn-row.disabled .mn-text, .mention-menu .mn-row.disabled > .mn-ic { opacity: .62; }
+.mention-menu .mn-row.disabled:hover { background: transparent; }
+.mention-menu .mn-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
+.mention-menu .mn-text strong { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mention-menu .mn-text small { color: var(--muted); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mention-menu .mn-badge { color: var(--accent); font: 600 12px var(--mono, monospace); white-space: nowrap; }
+.mention-menu .mn-kind { color: var(--muted); font-size: 10.5px; font-weight: 500; white-space: nowrap; padding: 1px 6px; border: 1px solid var(--border); border-radius: 6px; }
+.mn-ic { width: 16px; height: 16px; flex: 0 0 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; color: var(--accent); }
+.mention-menu .mn-row.disabled .mn-ic { color: var(--muted); }
+.mn-connect, .mn-cat em { font-style: normal; font-size: 11px; font-weight: 600; color: var(--accent); padding: 2px 7px; border-radius: 6px; background: var(--accent-soft, color-mix(in srgb, var(--accent) 14%, transparent)); cursor: pointer; white-space: nowrap; }
+.mn-connect:hover, .mn-cat em:hover { text-decoration: underline; }
+.mention-menu .mn-head { display: flex; align-items: center; gap: 8px; padding: 6px 10px 6px; border-bottom: 1px solid var(--border); margin-bottom: 4px; font-weight: 600; font-size: 13px; }
+.mention-menu .mn-head small { margin-left: auto; color: var(--muted); font-weight: 400; font-size: 11px; }
+.mention-menu .mn-foot { padding: 6px 10px 2px; color: var(--muted); font-size: 11px; border-top: 1px solid var(--border); margin-top: 4px; }
+.mn-cats { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 3px; padding: 2px 4px 4px; }
+.mention-menu .mn-cat { width: auto; display: flex; align-items: center; gap: 7px; padding: 5px 8px; border-radius: 9px; border: 1px solid var(--border); background: transparent; color: var(--text); font-size: 12.5px; text-align: left; min-width: 0; }
+.mn-cat span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+.mn-cat:hover { border-color: var(--accent); background: var(--panel-2); }
+.mn-off { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 6px 8px 4px; color: var(--muted); font-size: 12px; }
+.mn-off-l { font-weight: 600; }
+.mention-menu .mn-off-i { width: auto; display: inline-flex; align-items: center; gap: 5px; color: var(--muted); background: none; border: 0; padding: 2px 0; font-size: 12px; opacity: .75; }
+.mn-off-i .mn-ic { color: var(--muted); width: 14px; height: 14px; flex-basis: 14px; }
+.mn-off-i:hover { opacity: 1; color: var(--text); text-decoration: underline; }
+.mention-menu .mn-off .mn-connect { width: auto; margin-left: auto; border: 0; padding: 3px 9px; }
+
+.mention-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 2px 2px 6px; align-items: center; }
+.mention-chips[hidden] { display: none; }
+.mn-chip { display: inline-flex; align-items: center; gap: 5px; max-width: 280px; padding: 3px 4px 3px 7px; border-radius: 8px; cursor: pointer;
+  border: 1px solid color-mix(in srgb, var(--accent) 36%, transparent); background: var(--accent-soft, color-mix(in srgb, var(--accent) 12%, transparent));
+  color: var(--text); font-size: 12px; line-height: 1.3; vertical-align: middle; }
+.mn-chip-t { color: var(--text); }
+.mn-chip:hover, .mn-chip:focus-visible { border-color: var(--accent); outline: none; }
+.mn-chip .mn-ic { width: 13px; height: 13px; flex-basis: 13px; }
+.mn-chip-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; font-weight: 600; }
+.mn-chip small { color: var(--muted); font-size: 10.5px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.mn-chip.mn-st-loading small { animation: mnPulse 1s ease-in-out infinite; }
+.mn-chip.mn-st-error { border-color: color-mix(in srgb, var(--danger, #d44) 60%, transparent); background: color-mix(in srgb, var(--danger, #d44) 10%, transparent); }
+.mn-chip.mn-st-error small { color: var(--danger, #d44); font-weight: 700; }
+.mn-chip.model { border-style: dashed; }
+.mn-x { width: 18px; height: 18px; border-radius: 5px; display: inline-grid; place-items: center; color: var(--muted); font-size: 14px; line-height: 1; padding: 0; background: transparent; border: 0; }
+.mn-x:hover { background: color-mix(in srgb, var(--text) 10%, transparent); color: var(--text); }
+.mn-total { color: var(--muted); font-size: 11px; margin-left: 2px; }
+.mn-msg-chips { display: flex; flex-wrap: wrap; gap: 5px; margin: 0 0 6px; justify-content: flex-end; }
+.msg-user .mn-msg-chips .mn-chip { padding-right: 7px; }
+@keyframes mnPulse { 50% { opacity: .35; } }
+
+.mention-preview .mn-pv-title { display: flex; align-items: center; gap: 8px; }
+.mention-preview .mn-pv-title .mn-ic { width: 20px; height: 20px; flex-basis: 20px; }
+.mn-pv-meta { display: flex; flex-wrap: wrap; gap: 6px 12px; color: var(--muted); font-size: 12px; margin: 2px 0 8px; }
+.mn-trunc { color: var(--warn, #c80); }
+.mn-pv-text { max-height: 46vh; overflow: auto; white-space: pre-wrap; word-break: break-word; font: 12.5px/1.5 var(--mono, monospace); background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin: 0 0 10px; }
+.mn-err { color: var(--danger, #d44); }
+.mn-range { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 0 0 10px; font-size: 12.5px; color: var(--muted); }
+.mn-range input { width: 64px; padding: 5px 7px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel); color: var(--text); }
+@media (max-width: 640px) {
+  .mn-cats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .mn-chip { max-width: 190px; }
+  .mention-menu .mn-head small, .mention-menu .mn-foot { display: none; }
+}
+/* Designs that paint the active row with the accent (terminal): icon and hint follow the row's own text colour. */
+.mention-menu .mn-row.active .mn-ic { color: inherit; }
+.mention-menu .mn-row.active .mn-text small, .mention-menu .mn-row.active .mn-kind { color: inherit; opacity: .75; }
+.mention-menu .mn-row.active .mn-badge { color: inherit; }

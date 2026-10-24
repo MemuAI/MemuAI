@@ -1,0 +1,61 @@
+/* Round 29 — Quick Access helpers (extras.js): currency under the input, eyedropper, OCR, notes, downloads. */
+
+:root[data-qxx-view] #qa-suggest, :root[data-qxx-view] #qa-answer, :root[data-qxx-view] #qa-actions,
+:root[data-qxx-view] #qa-chats, :root[data-qxx-view] #qa-menu, :root[data-qxx-view] #qa-picker,
+:root[data-qxx-view] .qa-plugin.qe { display: none !important; }
+
+.qa-plugin.qxx[data-mode="inline"] { padding: 0 14px 4px var(--qa-pad, 18px); display: flex; flex-wrap: wrap; gap: 6px; }
+.qa-plugin.qxx[data-mode="view"] { padding: 0 8px 8px; display: flex; flex-direction: column; min-height: 0; flex: 1 1 auto;
+  max-height: calc(var(--qa-max-h) - 110px); animation: qa-view-in .2s var(--qa-ease-out) both; }
+
+.qxx-conv { display: flex; align-items: center; gap: 9px; width: 100%; min-height: 34px; padding: 4px 8px 4px 10px; border-radius: 9px; cursor: pointer;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--qa-chip-line)); background: var(--qa-active); color: var(--text); font: 13px var(--sans); text-align: left; }
+.qxx-conv > svg { width: 16px; height: 16px; flex: none; color: var(--accent); }
+.qxx-conv b { font-weight: 650; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qxx-conv small { flex: 1; min-width: 0; color: var(--muted); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qxx-conv .cp { flex: none; display: grid; place-items: center; color: var(--muted); opacity: .7; }
+.qxx-conv .cp svg { width: 14px; height: 14px; }
+.qxx-conv:hover .cp { opacity: 1; color: var(--accent); }
+.qxx-conv.err { cursor: default; border-color: var(--qa-chip-line); background: var(--qa-chip); color: var(--muted); }
+
+.qxx-pill { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px 0 9px; border-radius: 999px; cursor: pointer;
+  border: 1px solid color-mix(in srgb, var(--danger) 40%, var(--qa-chip-line)); background: color-mix(in srgb, var(--danger) 8%, transparent);
+  color: var(--text); font: 500 12.5px var(--sans); }
+.qxx-pill svg { width: 14px; height: 14px; color: var(--danger); }
+.qxx-pill:hover { background: color-mix(in srgb, var(--danger) 14%, transparent); }
+
+.qxx-head .qxx-title { flex: 1; min-width: 0; font-weight: 640; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qxx-foot { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 8px 4px 0; margin-top: 6px; border-top: 1px solid var(--qa-line); color: var(--qa-faint); font-size: 12px; }
+.qxx-foot > span { flex: 1 1 140px; min-width: 0; }
+/* r29d: the buttons stay one group (a lone «Copy» used to wrap under the hint) and go right when they wrap. */
+.qxx-foot > .qxx-btns { flex: 0 0 auto; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-left: auto; }
+.qxx-foot .err, .qxx-empty.err { color: var(--danger); }
+.qxx-foot .qa-btn svg { width: 14px; height: 14px; margin-right: 4px; vertical-align: -2px; }
+.qxx-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 22px 20px; color: var(--muted); font-size: 13px; text-align: center; }
+.qxx-spin { width: 16px; height: 16px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--accent) 25%, transparent); border-top-color: var(--accent); animation: qxx-spin .8s linear infinite; }
+
+.qxx-color { display: flex; gap: 12px; padding: 6px 4px 2px; align-items: stretch; }
+.qxx-swatch { flex: none; width: 112px; min-height: 112px; border-radius: 12px; border: 1px solid var(--qa-chip-line); display: grid; place-items: center;
+  color: var(--muted); font-size: 12px; box-shadow: inset 0 0 0 1px color-mix(in srgb, #fff 18%, transparent); transition: background .08s linear; }
+.qxx-crows { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.qxx-crow { display: flex; align-items: center; gap: 10px; min-height: 26px; padding: 0 8px; border: 0; border-radius: 7px; background: none; color: var(--text); cursor: pointer; font: 13px var(--sans); text-align: left; }
+.qxx-crow span { flex: none; width: 40px; font-size: 11px; font-weight: 650; color: var(--qa-faint); }
+.qxx-crow b { flex: 1; min-width: 0; font: 500 12.5px var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qxx-crow svg { width: 13px; height: 13px; color: var(--muted); opacity: 0; }
+.qxx-crow:hover { background: var(--qa-hover); }
+.qxx-crow:hover svg { opacity: 1; }
+
+.qxx-text { width: 100%; min-height: 150px; max-height: 320px; resize: vertical; margin-top: 4px; border: 1px solid var(--qa-chip-line); outline: 0; border-radius: 9px;
+  background: var(--qa-chip); color: var(--text); font: 13px/1.5 var(--sans); padding: 9px 11px; }
+.qxx-text:focus { border-color: color-mix(in srgb, var(--accent) 55%, var(--qa-chip-line)); }
+.qxx-list { overflow: auto; min-height: 0; padding: 2px 0; scrollbar-width: thin; }
+.qxx-row { min-height: 42px; cursor: pointer; }
+.qxx-main { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.qxx-main .tx { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qxx-main small { color: var(--muted); font-size: 12px; }
+
+@keyframes qxx-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .qxx-spin { animation: none; } .qa-plugin.qxx[data-mode="view"] { animation: none; } }
+
+/* r29d: «Ctrl ↵» inside the accent «Save» button was a faint grey key on the accent fill (as in explorer.css). */
+.qxx-foot .qa-btn.accent kbd { color: inherit; opacity: .72; background: rgba(0, 0, 0, .1); border-color: rgba(0, 0, 0, .14); }

@@ -1,0 +1,92 @@
+/* DFY на машинах (Раунд 30, dfy-remote.js): цель задачи, вывод команд, подтверждение шага,
+   раздел настроек «Удалённые машины». Только токены темы — работает в чате, быстром доступе и
+   настройках, в тёмной и светлой теме. */
+
+/* ---- чип цели и вывод команды в карточке задачи ---- */
+.dfy-chip.dfy-chip--target { display: inline-flex; align-items: center; gap: 4px; max-width: 180px; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; font-size: 11.5px; padding: 2px 8px; border-radius: 999px; color: var(--text);
+  background: color-mix(in srgb, var(--text) 7%, transparent); flex: none; }
+.dfy-ico { width: 13px; height: 13px; flex: none; opacity: .75; }
+.dfy-machine-name { display: inline-flex; align-items: center; gap: 7px; }
+.dfy-machine-name .dfy-ico { width: 15px; height: 15px; color: var(--muted); opacity: 1; }
+.dfy-card--machine .dfy-steps { max-height: none; overflow: visible; }
+.dfy-out, .dfy-steps li.dfy-out { list-style: none; display: block; margin: 2px 0 6px 28px; padding: 0; min-width: 0; opacity: 1; }
+.qdfy-card .dfy-out { margin: 6px 0 0; }
+.dfy-out pre, .dfy-cmd { margin: 0; padding: 8px 10px; max-height: 168px; overflow: auto; border-radius: 8px; white-space: pre-wrap; overflow-wrap: anywhere;
+  font: 12px/1.45 var(--mono, ui-monospace, "Cascadia Mono", Consolas, monospace); color: var(--text);
+  background: color-mix(in srgb, var(--text) 6%, transparent); scrollbar-width: thin; }
+.qdfy-card .dfy-out pre { max-height: 110px; font-size: 11.5px; }
+.dfy-out.live pre { box-shadow: inset 2px 0 0 var(--accent); }
+.dfy-out-foot { display: flex; align-items: center; gap: 10px; margin-top: 2px; font-size: 11.5px; color: var(--muted); }
+.dfy-out-foot .bad { color: var(--danger, #e06c5a); }
+.dfy-out-foot .dfy-more { font-size: 11.5px; opacity: 1; color: var(--muted); text-decoration: none; background: none; border: 0; padding: 0; cursor: pointer; font-family: inherit; }
+.dfy-out-foot .dfy-more:hover { color: var(--text); text-decoration: underline; }
+
+/* ---- подтверждение шага на машине ---- */
+.dfy-q.dfy-q--machine { background: color-mix(in srgb, var(--text) 4%, transparent); border-color: color-mix(in srgb, var(--text) 14%, transparent); }
+.dfy-q.dfy-q--machine.danger { background: color-mix(in srgb, var(--danger, #e06c5a) 8%, transparent); border-color: color-mix(in srgb, var(--danger, #e06c5a) 40%, transparent); }
+.dfy-q-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; min-width: 0; }
+.dfy-q-head b { flex: 1 1 auto; min-width: 0; font-weight: 600; }
+.dfy-q .dfy-cmd { margin-bottom: 8px; max-height: 120px; }
+.dfy-cmd-plain { margin: 0 0 8px; font-family: var(--mono, ui-monospace, Consolas, monospace); font-size: 12px; overflow-wrap: anywhere; }
+.dfy-q p.dfy-q-why { margin: 0 0 8px; color: var(--muted); }
+.qdfy-machine-q .dfy-q-head { margin-bottom: 6px; }
+.qdfy-machine-q .dfy-cmd { margin-bottom: 6px; font-size: 11.5px; }
+.qdfy-machine-q p { margin: 0; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+
+/* ---- выбор цели: рядом с полем ввода чата и в быстром доступе ---- */
+.dfy-target { display: inline-flex; align-items: center; gap: 4px; min-height: 32px; padding: 0 4px 0 10px; border-radius: 999px;
+  border: 1px solid var(--d-line, var(--border, color-mix(in srgb, var(--text) 14%, transparent))); color: var(--muted); font-size: 12.5px; }
+.dfy-target[hidden] { display: none; }
+.dfy-target-label { font-weight: 600; letter-spacing: .02em; }
+.dfy-target select, .qdfy-target select { appearance: none; -webkit-appearance: none; border: 0; background-color: transparent; color: var(--text); font: inherit; font-weight: 600;
+  cursor: pointer; text-overflow: ellipsis;
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-size: 4px 4px; background-repeat: no-repeat; }
+.dfy-target select { height: 26px; max-width: 200px; padding: 0 18px 0 2px; border-radius: 999px; background-position: calc(100% - 9px) 55%, calc(100% - 5px) 55%; }
+.dfy-target select:focus-visible, .qdfy-target select:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: 1px; }
+.dfy-target select option, .qdfy-target select option { color: var(--text); background: var(--panel, #1c1c20); }
+.qa-plugin.qdfy-target { display: flex; align-items: center; gap: 2px; padding: 0 14px 2px var(--qa-pad, 18px); }
+.qa-plugin.qdfy-target:empty { display: none; }
+.qdfy-target .dfy-target-label { color: var(--muted); font-size: 11.5px; }
+.qdfy-target select { font-size: 12px; height: 24px; max-width: 220px; padding: 0 16px 0 4px; border-radius: 7px; background-position: calc(100% - 8px) 55%, calc(100% - 4px) 55%; }
+.qdfy-target select:hover { background-color: color-mix(in srgb, var(--text) 6%, transparent); }
+
+/* ---- настройки: удалённые машины ---- */
+.dfy-machines { display: flex; flex-direction: column; }
+.dfy-machine { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; padding: 10px 0;
+  border-top: 1px solid var(--sx-line-soft, color-mix(in srgb, var(--text) 6%, transparent)); }
+.dfy-machine:first-child { border-top: 0; padding-top: 2px; }
+.dfy-machine-main { min-width: 0; }
+.dfy-machine-main .sx-label { gap: 8px; }
+.dfy-machine-main .sx-desc { overflow-wrap: anywhere; }
+.dfy-machine-err { margin-top: 3px; font-size: 12px; color: var(--danger, #e06c5a); overflow-wrap: anywhere; }
+.dfy-machine-acts { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.dfy-machine-acts .pbtn, .dfy-add .pbtn, .dfy-proxy .pbtn { min-height: 32px; padding: 6px 12px; font-size: 12.5px; }
+.dfy-machine-panel { grid-column: 1 / -1; }
+.dfy-machines-foot { display: flex; flex-wrap: wrap; gap: 8px; }
+.dfy-machines-foot .pbtn { min-height: 32px; padding: 6px 14px; font-size: 12.5px; }
+.dfy-machine-panel[hidden] { display: none; }
+.dfy-add { width: 100%; box-sizing: border-box; display: grid; gap: 10px; margin-top: 4px; padding: 14px; border-radius: var(--sx-r-sm, 9px);
+  background: color-mix(in srgb, var(--text) 3%, transparent); border: 1px solid var(--sx-line-soft, color-mix(in srgb, var(--text) 8%, transparent)); }
+.dfy-add[hidden] { display: none; }
+.dfy-add-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.dfy-add-tabs .pbtn.active { background: var(--sx-sel, color-mix(in srgb, var(--accent) 13%, transparent)); border-color: transparent; color: var(--text); }
+.dfy-add-pane { display: grid; gap: 10px; min-width: 0; }
+.dfy-add-pane[hidden] { display: none; }
+.dfy-add .td, .dfy-proxy .td { font-size: 12.5px; line-height: 1.5; color: var(--muted); overflow-wrap: anywhere; }
+.dfy-steps-help { margin: 0; padding-left: 20px; display: grid; gap: 12px; font-size: 13px; line-height: 1.5; color: var(--text); min-width: 0; }
+.dfy-steps-help li { min-width: 0; }
+.dfy-steps-help li::marker { color: var(--muted); font-weight: 600; }
+.dfy-cmd-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px; min-width: 0; }
+.dfy-cmd-row code, .dfy-add .td code { font: 12px/1.45 var(--mono, ui-monospace, "Cascadia Mono", Consolas, monospace); overflow-wrap: anywhere; }
+.dfy-cmd-row > code { flex: 1 1 240px; min-width: 0; padding: 7px 10px; border-radius: 8px; background: color-mix(in srgb, var(--text) 6%, transparent);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dfy-cmd-row > a.pbtn { text-decoration: none; display: inline-flex; align-items: center; }
+.dfy-proxy { display: grid; gap: 8px; margin-top: 8px; padding: 12px 14px; border-radius: var(--sx-r-sm, 9px);
+  background: color-mix(in srgb, var(--text) 3%, transparent); }
+.dfy-proxy .dfy-cmd-row { margin-top: 0; }
+@media (max-width: 720px) {
+  .dfy-machine { grid-template-columns: minmax(0, 1fr); }
+  .dfy-machine-acts { justify-content: flex-start; }
+}

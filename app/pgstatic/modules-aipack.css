@@ -1,0 +1,84 @@
+/* Round 29: modules «AI pack» docs widget + «Validate and import» card (modules-aipack.js).
+ * Only theme tokens: works in every design and in dark / light. */
+.memu-docs-widget { margin: 14px 0 18px; }
+.aipack-card {
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 16px; border: 1px solid var(--border); border-radius: var(--radius, 12px);
+  background: linear-gradient(180deg, var(--accent-soft, transparent), transparent 70%), var(--panel);
+}
+.aipack-head { display: flex; gap: 12px; align-items: flex-start; }
+.aipack-head b { display: block; font-size: 15px; color: var(--text); }
+.aipack-head small { display: block; margin-top: 3px; color: var(--muted); line-height: 1.45; }
+.aipack-badge {
+  flex: 0 0 auto; display: inline-grid; place-items: center; width: 36px; height: 36px;
+  border-radius: var(--radius-sm, 8px); background: var(--accent-soft); color: var(--accent);
+}
+.aipack-badge .ui-icon svg { width: 20px; height: 20px; }
+.aipack-options { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.aipack-seg {
+  display: inline-flex; padding: 2px; border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 8px); background: var(--panel-2);
+}
+.aipack-seg button {
+  min-width: 44px; padding: 5px 10px; border: 0; border-radius: calc(var(--radius-sm, 8px) - 2px);
+  background: transparent; color: var(--muted); font: inherit; font-weight: 600; cursor: pointer;
+}
+.aipack-seg button[aria-checked="true"] { background: var(--accent); color: var(--on-accent, #fff); }
+.aipack-seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.aipack-check { display: inline-flex; gap: 8px; align-items: center; color: var(--text); cursor: pointer; }
+.aipack-meta { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--muted); }
+.aipack-meta span:first-child { font-family: var(--mono, monospace); color: var(--text); word-break: break-all; }
+.aipack-tok {
+  display: inline-flex; align-items: center; gap: 6px; padding: 1px 6px 1px 8px; margin: -1px 0;
+  border: 1px solid var(--border); border-radius: 999px; background: transparent;
+  color: var(--text); font: inherit; font-size: 12px; cursor: pointer;
+}
+.aipack-tok:hover { background: var(--panel-2); }
+.aipack-tok:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.aipack-tok em { font-style: normal; color: var(--muted); }
+.aipack-tok i { font-style: normal; color: var(--muted); font-variant-numeric: tabular-nums; }
+.aipack-caret { width: 13px; height: 13px; color: var(--muted); transition: transform .15s ease; }
+.aipack-tok[aria-expanded="true"] .aipack-caret { transform: rotate(180deg); }
+.aipack-models { flex: 1 0 100%; display: flex; flex-direction: column; gap: 8px; padding: 10px 12px;
+  border-radius: var(--radius-sm, 8px); background: var(--panel-2); }
+.aipack-models[hidden] { display: none; }
+.aipack-models ul { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 4px 20px; }
+.aipack-models li { display: flex; justify-content: space-between; gap: 12px; min-width: 0; }
+.aipack-models li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.aipack-models li b { font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.aipack-models li b em { font-style: normal; font-weight: 400; color: var(--accent); }
+.aipack-models small { color: var(--muted); line-height: 1.45; }
+.aipack-meta .aipack-models span:first-child { font-family: inherit; color: var(--muted); word-break: normal; }
+.aipack-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.aipack-hint { margin: 0; font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+
+.aipack-import h4 { display: flex; gap: 6px; align-items: center; }
+.aipack-import textarea { font-family: var(--mono, monospace); font-size: 12.5px; }
+.aipack-report:empty { display: none; }
+.aipack-verdict {
+  display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm, 8px); background: var(--panel-2);
+}
+.aipack-verdict b { display: block; color: var(--text); }
+.aipack-verdict small { display: block; color: var(--muted); margin-top: 2px; word-break: break-word; }
+.aipack-verdict.ok { border-color: color-mix(in srgb, #2fa86a 55%, var(--border)); }
+.aipack-verdict.ok > .ui-icon { color: #2fa86a; }
+.aipack-verdict.bad { border-color: color-mix(in srgb, var(--danger, #d9534f) 55%, var(--border)); }
+.aipack-verdict.bad > .ui-icon { color: var(--danger, #d9534f); }
+.aipack-stats { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.aipack-stats span {
+  padding: 2px 8px; border-radius: 999px; background: var(--panel-2);
+  border: 1px solid var(--border); font-size: 12px; color: var(--muted);
+}
+.aipack-problems { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; max-height: 320px; overflow: auto; }
+.aipack-problems li {
+  display: grid; grid-template-columns: 20px minmax(70px, auto) 1fr; gap: 8px; align-items: start;
+  padding: 6px 8px; border-radius: var(--radius-sm, 8px); background: var(--panel-2); font-size: 12.5px;
+}
+.aipack-lvl .ui-icon svg { width: 15px; height: 15px; }
+.aipack-problems .lvl-error .aipack-lvl { color: var(--danger, #d9534f); }
+.aipack-problems .lvl-warn .aipack-lvl { color: #d99a1e; }
+.aipack-problems .lvl-info .aipack-lvl { color: var(--accent); }
+.aipack-where { font-family: var(--mono, monospace); color: var(--muted); white-space: nowrap; }
+.aipack-msg { color: var(--text); line-height: 1.45; word-break: break-word; }
+.aipack-import [data-av-import]:disabled { opacity: .5; cursor: not-allowed; }

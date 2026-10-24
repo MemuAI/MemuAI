@@ -1,0 +1,22 @@
+<div class="ml" id="app" data-view="home">
+  <aside class="ml-side" aria-label="MemuLearn">
+    <div class="ml-brand">
+      <span class="ml-logo" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 4 2.5 8.5 12 13l9.5-4.5z"/><path d="M6 10.6V15c0 1.7 2.7 3 6 3s6-1.3 6-3v-4.4"/><path d="M21.5 8.5V14"/></svg></span>
+      <b>MemuLearn</b>
+    </div>
+    <nav class="ml-nav">
+      <button type="button" class="ml-nav-item" data-go="home"><svg viewBox="0 0 24 24"><path d="M4 11.5 12 5l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5h-5v5H5a1 1 0 0 1-1-1z"/></svg><span data-i18n="nav.today"></span><i class="ml-badge" id="nav-due" hidden></i></button>
+      <button type="button" class="ml-nav-item" data-go="stats"><svg viewBox="0 0 24 24"><path d="M5 19V11M12 19V5M19 19v-6"/></svg><span data-i18n="nav.stats"></span></button>
+      <button type="button" class="ml-nav-item" data-go="settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span data-i18n="nav.settings"></span></button>
+    </nav>
+    <div class="ml-side-head"><span data-i18n="nav.courses"></span><button type="button" class="ml-icon-btn small" data-go="create" data-i18n-title="course.new" data-i18n-aria-label="course.new"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button></div>
+    <div class="ml-courses" id="side-courses"></div>
+    <button type="button" class="ml-new" data-go="create"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span data-i18n="course.new"></span></button>
+  </aside>
+
+  <main class="ml-main" id="main" tabindex="-1"></main>
+
+  <div class="ml-toast" id="toast" role="status" aria-live="polite" hidden></div>
+  <input type="file" id="file-doc" accept=".pdf,.docx,.epub,.txt,.md,.markdown,.html,.htm,.rtf,.odt" hidden>
+  <input type="file" id="file-import" accept=".apkg,.csv,.tsv,.txt" hidden>
+</div>

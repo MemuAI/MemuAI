@@ -1,0 +1,294 @@
+<div class="ds" id="app" data-view="setup">
+  <header class="ds-bar">
+    <div class="ds-brand">
+      <span class="ds-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="m13.5 6.5 4 4"/></svg>
+      </span>
+      <div class="ds-brand-text">
+        <b class="ds-title">MemuAI Design</b>
+        <span class="ds-status" id="design-status" role="status" aria-live="polite" data-i18n="status.idle"></span>
+      </div>
+    </div>
+
+    <div class="ds-seg ds-views" role="tablist" data-i18n-aria-label="views.aria">
+      <button type="button" class="ds-seg-btn" data-view-btn="setup" role="tab" aria-selected="true" data-i18n="views.setup"></button>
+      <button type="button" class="ds-seg-btn" data-view-btn="preview" role="tab" aria-selected="false" data-i18n="views.preview"></button>
+    </div>
+
+    <span class="ds-grow"></span>
+
+    <div class="ds-seg ds-devices" role="radiogroup" data-i18n-aria-label="devices.aria">
+      <button type="button" class="ds-seg-btn icon" data-device="desktop" role="radio" aria-checked="true" data-i18n-title="device.desktop.title" data-i18n-aria-label="device.desktop">
+        <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>
+      </button>
+      <button type="button" class="ds-seg-btn icon" data-device="tablet" role="radio" aria-checked="false" data-i18n-title="device.tablet.title" data-i18n-aria-label="device.tablet">
+        <svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M11 18h2"/></svg>
+      </button>
+      <button type="button" class="ds-seg-btn icon" data-device="phone" role="radio" aria-checked="false" data-i18n-title="device.phone.title" data-i18n-aria-label="device.phone">
+        <svg viewBox="0 0 24 24"><rect x="7" y="3" width="10" height="18" rx="2"/><path d="M11 18h2"/></svg>
+      </button>
+    </div>
+    <span class="ds-size" id="device-size" data-i18n-title="device.width">1280</span>
+  </header>
+
+  <div class="ds-body">
+    <!-- ------------------------------ левая колонка ------------------------------ -->
+    <aside class="ds-side" id="side" data-i18n-aria-label="side.aria">
+      <div class="ds-drop" id="drop" hidden aria-hidden="true">
+        <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="9.5" r="1.6"/><path d="m4 18 5-5 4 4 3-3 4 4"/></svg>
+        <b data-i18n="drop.title"></b><span data-i18n="drop.text"></span><span class="ds-drop-esc" data-i18n="drop.cancel"></span>
+      </div>
+      <nav class="ds-steps" role="tablist" data-i18n-aria-label="steps.aria">
+        <button type="button" class="ds-step-btn" data-step="brief" role="tab" aria-selected="true"><i>1</i><span data-i18n="step.brief"></span></button>
+        <button type="button" class="ds-step-btn" data-step="system" role="tab" aria-selected="false"><i>2</i><span data-i18n="step.system"></span></button>
+        <button type="button" class="ds-step-btn" data-step="code" role="tab" aria-selected="false"><i>3</i><span data-i18n="step.code"></span></button>
+        <button type="button" class="ds-step-btn" data-step="export" role="tab" aria-selected="false"><i>4</i><span data-i18n="step.export"></span></button>
+      </nav>
+
+      <div class="ds-scroll">
+        <!-- ------------------------------- Задача ------------------------------ -->
+        <section class="ds-step" data-step-panel="brief">
+          <label class="ds-field">
+            <span class="ds-label" data-i18n="brief.label"></span>
+            <textarea class="mu-textarea ds-brief" id="brief" rows="6" data-i18n-placeholder="brief.placeholder"></textarea>
+            <span class="ds-hint"><kbd>Ctrl</kbd> + <kbd>Enter</kbd> — <span data-i18n="brief.hint"></span></span>
+          </label>
+
+          <div class="ds-grid2">
+            <label class="ds-field">
+              <span class="ds-label" data-i18n="kind.label"></span>
+              <select class="mu-select" id="kind">
+                <option value="landing" data-i18n="kind.landing"></option>
+                <option value="dashboard" data-i18n="kind.dashboard"></option>
+                <option value="mobile" data-i18n="kind.mobile"></option>
+                <option value="docs" data-i18n="kind.docs"></option>
+                <option value="email" data-i18n="kind.email"></option>
+                <option value="widget" data-i18n="kind.widget"></option>
+              </select>
+            </label>
+            <label class="ds-field">
+              <span class="ds-label" data-i18n="model"></span>
+              <select class="mu-select" id="model"><option value="" data-i18n="model.loading"></option></select>
+            </label>
+          </div>
+
+          <fieldset class="ds-field ds-fieldset">
+            <legend class="ds-label" data-i18n="sections.label"></legend>
+            <div class="ds-chips" role="group">
+              <label class="ds-chip"><input type="checkbox" data-section="hero" checked><span data-i18n="section.hero"></span></label>
+              <label class="ds-chip"><input type="checkbox" data-section="features" checked><span data-i18n="section.features"></span></label>
+              <label class="ds-chip"><input type="checkbox" data-section="pricing"><span data-i18n="section.pricing"></span></label>
+              <label class="ds-chip"><input type="checkbox" data-section="testimonials"><span data-i18n="section.testimonials"></span></label>
+              <label class="ds-chip"><input type="checkbox" data-section="form"><span data-i18n="section.form"></span></label>
+              <label class="ds-chip"><input type="checkbox" data-section="footer" checked><span data-i18n="section.footer"></span></label>
+              <span class="ds-chips-custom" id="custom-sections"></span>
+            </div>
+            <div class="ds-add-section" id="section-form">
+              <input class="mu-input" id="section-custom" maxlength="120" data-i18n-placeholder="section.custom.placeholder" data-i18n-aria-label="section.custom.aria">
+              <button type="button" class="mu-btn ghost small" id="section-add">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span data-i18n="add"></span>
+              </button>
+            </div>
+          </fieldset>
+
+          <div class="ds-field">
+            <span class="ds-label" data-i18n="images.label"></span>
+            <div class="ds-images" id="image-list"></div>
+            <div class="ds-row">
+              <button type="button" class="mu-btn ghost small" id="add-image">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span data-i18n="add"></span>
+              </button>
+              <span class="ds-hint" id="image-count"></span>
+              <span class="ds-grow"></span>
+              <button type="button" class="mu-btn ghost small" id="image-clear" hidden data-i18n="images.clear"></button>
+            </div>
+          </div>
+
+          <div class="ds-refine" id="refine-box">
+            <label class="ds-field">
+              <span class="ds-label" data-i18n="refine.label"></span>
+              <textarea class="mu-textarea" id="refine" rows="3" data-i18n-placeholder="refine.placeholder"></textarea>
+            </label>
+            <div class="ds-row">
+              <button type="button" class="mu-btn small" id="refine-go" data-i18n="refine.go"></button>
+              <span class="ds-hint" id="refine-hint" data-i18n="refine.hint"></span>
+            </div>
+          </div>
+        </section>
+
+        <!-- -------------------------------- Стиль ------------------------------- -->
+        <section class="ds-step" data-step-panel="system" hidden>
+          <label class="ds-field">
+            <span class="ds-label" data-i18n="system.label"></span>
+            <select class="mu-select" id="system">
+              <option value="auto" data-i18n="system.auto"></option>
+              <option value="strict" data-i18n="system.strict"></option>
+              <option value="warm" data-i18n="system.warm"></option>
+              <option value="technical" data-i18n="system.technical"></option>
+              <option value="minimal" data-i18n="system.minimal"></option>
+              <option value="editorial" data-i18n="system.editorial"></option>
+              <option value="playful" data-i18n="system.playful"></option>
+              <option value="brutalist" data-i18n="system.brutalist"></option>
+              <option value="glass" data-i18n="system.glass"></option>
+            </select>
+          </label>
+          <div class="ds-field">
+            <span class="ds-label" data-i18n="palette.label"></span>
+            <div class="ds-swatches" id="palette-swatches" role="radiogroup" data-i18n-aria-label="palette.label"></div>
+            <select class="mu-select ds-visually-hidden" id="palette" tabindex="-1" aria-hidden="true">
+              <option value="" data-i18n="palette.auto.full"></option>
+              <option value="monochrome" data-i18n="palette.monochrome.full"></option>
+              <option value="earth" data-i18n="palette.earth.full"></option>
+              <option value="ocean" data-i18n="palette.ocean.full"></option>
+              <option value="forest" data-i18n="palette.forest.full"></option>
+              <option value="berry" data-i18n="palette.berry.full"></option>
+              <option value="neon" data-i18n="palette.neon.full"></option>
+              <option value="pastel" data-i18n="palette.pastel.full"></option>
+              <option value="corporate" data-i18n="palette.corporate.full"></option>
+            </select>
+          </div>
+          <div class="ds-grid2">
+            <label class="ds-field">
+              <span class="ds-label" data-i18n="mode.label"></span>
+              <select class="mu-select" id="mode">
+                <option value="auto" data-i18n="mode.auto"></option>
+                <option value="light" data-i18n="mode.light"></option>
+                <option value="dark" data-i18n="mode.dark"></option>
+                <option value="both" data-i18n="mode.both"></option>
+              </select>
+            </label>
+            <label class="ds-field">
+              <span class="ds-label" data-i18n="font.label"></span>
+              <select class="mu-select" id="font">
+                <option value="auto" data-i18n="font.auto"></option>
+                <option value="system" data-i18n="font.system"></option>
+                <option value="serif" data-i18n="font.serif"></option>
+                <option value="grotesque" data-i18n="font.grotesque"></option>
+                <option value="mono" data-i18n="font.mono"></option>
+              </select>
+            </label>
+          </div>
+          <fieldset class="ds-field ds-fieldset">
+            <legend class="ds-label" data-i18n="req.label"></legend>
+            <label class="ds-switch"><input type="checkbox" id="a11y" checked><i></i><span data-i18n="req.a11y"></span></label>
+            <label class="ds-switch"><input type="checkbox" id="responsive" checked><i></i><span data-i18n="req.responsive"></span></label>
+            <label class="ds-switch"><input type="checkbox" id="motion" checked><i></i><span data-i18n="req.motion"></span></label>
+            <label class="ds-switch"><input type="checkbox" id="content" checked><i></i><span data-i18n="req.content"></span></label>
+          </fieldset>
+          <details class="ds-details">
+            <summary data-i18n="instructions.title"></summary>
+            <textarea class="mu-textarea ds-mono" id="instructions" rows="8" spellcheck="false"></textarea>
+            <div class="ds-row">
+              <span class="ds-hint" data-i18n="instructions.hint"></span>
+              <span class="ds-grow"></span>
+              <button type="button" class="mu-btn ghost small" id="reset-instructions" data-i18n="instructions.reset"></button>
+            </div>
+          </details>
+        </section>
+
+        <!-- --------------------------------- Код -------------------------------- -->
+        <section class="ds-step" data-step-panel="code" hidden>
+          <div class="ds-row">
+            <span class="ds-label" data-i18n="code.label"></span>
+            <span class="ds-grow"></span>
+            <span class="ds-hint" id="code-size"></span>
+          </div>
+          <textarea class="mu-textarea ds-code" id="code" spellcheck="false" data-i18n-placeholder="code.placeholder"></textarea>
+          <div class="ds-row">
+            <button type="button" class="mu-btn ghost small" id="code-copy" data-i18n="copy"></button>
+            <button type="button" class="mu-btn ghost small" id="code-save" data-i18n="code.save"></button>
+            <span class="ds-grow"></span>
+            <button type="button" class="mu-btn ghost small" id="version-back" hidden data-i18n="version.back" data-i18n-title="version.back.hint"></button>
+          </div>
+          <label class="ds-field">
+            <span class="ds-label" data-i18n="patch.label"></span>
+            <textarea class="mu-textarea" id="code-patch" rows="3" data-i18n-placeholder="patch.placeholder"></textarea>
+          </label>
+          <div class="ds-row">
+            <button type="button" class="mu-btn small" id="patch-go" data-i18n="patch.go"></button>
+          </div>
+        </section>
+
+        <!-- -------------------------------- Отдать ------------------------------ -->
+        <section class="ds-step" data-step-panel="export" hidden>
+          <div class="ds-card">
+            <b data-i18n="handoff.title"></b>
+            <p data-i18n="handoff.text"></p>
+          </div>
+          <label class="ds-field">
+            <span class="ds-label" data-i18n="handoff.note"></span>
+            <textarea class="mu-textarea" id="handoff-note" rows="3" data-i18n-placeholder="handoff.note.placeholder"></textarea>
+          </label>
+          <div class="ds-row">
+            <button type="button" class="mu-btn primary" id="handoff" data-i18n="handoff.go"></button>
+            <button type="button" class="mu-btn ghost small" id="handoff-copy" data-i18n="handoff.copy"></button>
+          </div>
+          <div class="ds-result" id="handoff-result" hidden></div>
+        </section>
+      </div>
+
+      <footer class="ds-side-foot">
+        <button type="button" class="mu-btn primary ds-make" id="make">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.7 5.3L19 10l-5.3 1.7L12 17l-1.7-5.3L5 10l5.3-1.7z"/></svg>
+          <span id="make-label" data-i18n="make"></span>
+        </button>
+        <button type="button" class="mu-btn ghost ds-stop" id="stop" hidden data-i18n="stop"></button>
+      </footer>
+    </aside>
+
+    <!-- ------------------------------ предпросмотр ------------------------------ -->
+    <main class="ds-canvas" data-i18n-aria-label="views.preview">
+      <div class="ds-canvas-bar">
+        <span class="ds-preview-title" id="preview-title"></span>
+        <span class="ds-live" id="live-badge" hidden><i aria-hidden="true"></i><span data-i18n="live.badge"></span></span>
+        <span class="ds-grow"></span>
+        <div class="ds-history" id="history">
+          <button type="button" class="ds-tool icon" id="undo" disabled data-i18n-title="history.undo.hint" data-i18n-aria-label="history.undo">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>
+          </button>
+          <button type="button" class="ds-tool icon" id="redo" disabled data-i18n-title="history.redo.hint" data-i18n-aria-label="history.redo">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg>
+          </button>
+          <button type="button" class="ds-tool" id="history-toggle" aria-expanded="false" aria-haspopup="true" aria-controls="history-pop" data-i18n-title="history.hint">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg><span id="history-label" data-i18n="history.title"></span>
+          </button>
+          <div class="ds-history-pop" id="history-pop" role="menu" hidden>
+            <div class="ds-history-head"><b data-i18n="history.title"></b><small id="history-note"></small></div>
+            <ol class="ds-history-list" id="history-list"></ol>
+          </div>
+        </div>
+        <span class="ds-divider" aria-hidden="true"></span>
+        <button type="button" class="ds-tool" id="preview-devtools" aria-pressed="false" data-i18n-title="tool.outline.hint">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" stroke-dasharray="3 3"/><path d="M3 12h18M12 3v18"/></svg><span data-i18n="tool.outline"></span>
+        </button>
+        <button type="button" class="ds-tool" id="preview-refresh" data-i18n-title="tool.refresh.hint">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5"/></svg><span data-i18n="tool.refresh"></span>
+        </button>
+        <button type="button" class="ds-tool" id="preview-focus" aria-pressed="false" data-i18n-title="tool.focus.hint">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3"/></svg><span data-i18n="tool.focus"></span>
+        </button>
+      </div>
+      <div class="ds-stage" id="frame-wrap" data-device="desktop">
+        <div class="ds-device-box" id="device-box">
+          <div class="ds-device" id="device">
+            <div class="ds-chrome" aria-hidden="true"><i></i><i></i><i></i><span id="chrome-title">design.html</span></div>
+            <div class="ds-frames">
+              <iframe id="preview" class="front" data-i18n-title="preview.frame" sandbox="allow-scripts"></iframe>
+              <iframe id="preview-b" data-i18n-title="preview.frame" sandbox="allow-scripts" tabindex="-1" aria-hidden="true"></iframe>
+            </div>
+          </div>
+        </div>
+        <div class="ds-empty" id="ds-empty">
+          <div class="ds-empty-card" id="ds-empty-card"></div>
+        </div>
+        <div class="ds-pill" id="live-pill" hidden role="status" aria-live="polite">
+          <span class="ds-pill-spin" aria-hidden="true"></span>
+          <span class="ds-pill-text"><b id="live-stage"></b><small id="live-note"></small></span>
+          <button type="button" class="ds-pill-stop" id="live-stop" data-i18n="stop"></button>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <input id="images" type="file" accept="image/*" multiple hidden>
+</div>

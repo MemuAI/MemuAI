@@ -1,0 +1,52 @@
+/* MemuAI Quick Ask · Round 30 (r30-quick-core): clarity of the window — the hint line under the idle list, the «/»
+   command list, the question of each turn. Tokens only. */
+
+/* one quiet line: what the window can do (shown after the first-open tip was dismissed) */
+.qa-hints { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin: 6px 2px 2px; padding: 8px 10px 4px; border-top: 1px solid var(--qa-line);
+  color: var(--qa-faint); font-size: 11.5px; line-height: 1.5; }
+.qa-hints kbd { height: 17px; min-width: 17px; font-size: 10px; }
+
+/* the question of a turn reads as the user's line, the answer below as the main text */
+.qa-q { color: var(--text); opacity: .78; }
+.qa-q span { font-weight: 600; }
+
+/* the toast sits on the footer bar — never on the answer text or its buttons («Скопировано» used to cover them);
+   a long message wraps (up to three lines) instead of being cut with «…» */
+.qa-toast { bottom: 7px; max-width: calc(100% - 24px); width: max-content; white-space: normal; text-align: center; line-height: 1.4;
+  border-radius: 12px; background: var(--panel-2); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+:root[data-cu="compact"] .qa-toast { bottom: auto; top: 6px; }
+
+/* a dropped document: its file name(s) in the chip, the size after it */
+.qa-chip-file .tl { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 560; }
+
+/* the thumbnail's caption reads on any picture (a white screenshot hid the white text) */
+.qa-thumb span { left: 0; right: 0; bottom: 0; padding: 10px 6px 3px; background: linear-gradient(transparent, rgba(0, 0, 0, .62)); text-shadow: none;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* the first-open tip: a quiet note (neutral surface, ghost «Понятно») — the accent stays on the send button */
+.qa-tip { background: var(--qa-chip); border-color: var(--qa-chip-line); }
+.qa-tip button { background: transparent; color: var(--text); border: 1px solid var(--qa-chip-line); font-weight: 560; }
+.qa-tip button:hover, .qa-tip button:focus-visible { background: var(--qa-hover); outline: none; }
+
+/* Round 34 (r34-quick-core): earlier turns of a long chat are not laid out while they are scrolled away — a long
+   answer streaming under them stayed slow (every frame re-measured all previous answers). */
+.qa-answer > .qa-turn:not(:last-child) { content-visibility: auto; contain-intrinsic-size: auto 320px; }
+/* …and so are the heavy blocks of the answer itself (rich tables, code) while they are out of view */
+.qa-answer .qa-md > :is(.mt-host, .code-block-wrap):not(:last-child) { content-visibility: auto; contain-intrinsic-size: auto 120px; }
+
+/* Round 34: task lists «- [ ] …» — a box instead of the bullet; a done one is quieter */
+.qa-md li.md-task { list-style: none; margin-left: -1.15em; }
+.qa-md li.md-task .md-box { display: inline-block; width: 1.1em; color: var(--muted); }
+.qa-md li.md-task.done { color: var(--muted); }
+.qa-md li.md-task.done .md-box { color: var(--accent, currentColor); }
+
+/* Round 34: thumbnails of the pictures a question was sent with */
+.qa-q .qa-q-pics { display: inline-flex; flex: none; gap: 4px; align-self: center; overflow: visible; -webkit-line-clamp: unset; }
+.qa-q-pics img { width: 28px; height: 28px; object-fit: cover; border-radius: 6px; border: 1px solid var(--qa-line); }
+
+/* Round 34 (r34-quick-core-2): Arabic / Hebrew questions and answers were laid out left-to-right (the closing «.» or «?»
+   on the wrong side, the text left-aligned). Each paragraph now takes its direction from its own first strong letter. */
+.qa-md :is(p, li, h1, h2, h3, h4, h5, h6, blockquote, td, th), .qa-q > span, .qa-input, .qa-think-body {
+  unicode-bidi: plaintext;
+  text-align: start;
+}

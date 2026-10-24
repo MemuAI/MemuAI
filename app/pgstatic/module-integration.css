@@ -1,0 +1,106 @@
+/* Round 38 (r38-mod-integ): module panels on the home screen, the gallery tag, the chat mini player. */
+.mmi-slot { position: relative; height: var(--mmi-h, 220px); margin: -4px -6px -6px; border-radius: 12px; overflow: hidden; contain: strict; }
+.mp-card[data-mode="sidebar"] .mmi-slot { height: min(var(--mmi-h, 220px), 200px); }
+.mmi-frame { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: transparent;
+  opacity: 0; transition: opacity .25s ease; }
+.mmi-frame.ready { opacity: 1; }
+.mmi-parking { display: none; }
+.mmi-skel { position: absolute; inset: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+.mmi-skel i { width: 64px; height: 64px; border-radius: 10px; background: color-mix(in srgb, var(--text) 7%, transparent); }
+.mmi-skel b { height: 10px; border-radius: 5px; width: 60%; background: color-mix(in srgb, var(--text) 7%, transparent); }
+.mmi-skel b + b { width: 40%; }
+.mmi-off { padding: 12px 4px; color: var(--muted); font-size: 12.5px; }
+.mp-card[data-kind="module"] .mp-title { display: none; }
+.mmi-gal .mp-tpl { position: relative; }
+.mmi-tag { position: absolute; top: 8px; right: 8px; font-style: normal; font-size: 10.5px; padding: 1px 6px; border-radius: 999px;
+  color: var(--muted); background: color-mix(in srgb, var(--text) 7%, transparent); max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* chat mini player (widget chat.composer) */
+.mmi-chat-np { --mmi-c: var(--accent); display: flex; align-items: center; gap: 10px; width: fit-content; max-width: min(520px, 100%); margin: 0 auto 8px;
+  padding: 5px 6px 5px 5px; border-radius: 999px; cursor: pointer; border: 1px solid color-mix(in srgb, var(--mmi-c) 28%, var(--border));
+  background: color-mix(in srgb, var(--mmi-c) 10%, var(--panel)); animation: mmi-in .25s cubic-bezier(.2, .8, .2, 1); }
+.mmi-chat-np[hidden] { display: none; }
+@keyframes mmi-in { from { opacity: 0; transform: translateY(4px); } }
+.mmi-chat-np > img, .mmi-chat-np > .mmi-gen { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; flex: none; }
+.mmi-gen { display: grid; place-items: center; color: #fff; background: var(--mmi-c); font-size: 13px; }
+.mmi-np-meta { min-width: 0; display: flex; flex-direction: column; line-height: 1.2; }
+.mmi-np-meta b { font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 260px; }
+.mmi-np-meta small { font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 260px; }
+.mmi-chat-np button { width: 26px; height: 26px; border: 0; border-radius: 50%; display: grid; place-items: center; background: transparent; color: var(--text); cursor: pointer; flex: none; }
+.mmi-chat-np button:hover { background: color-mix(in srgb, var(--text) 9%, transparent); }
+.mmi-chat-np button.main { background: var(--mmi-c); color: #fff; }
+.mmi-chat-np button svg { width: 14px; height: 14px; }
+.mmi-chat-np button:focus-visible { outline: 2px solid var(--mmi-c); outline-offset: 2px; }
+.mmi-eq { display: inline-flex; align-items: flex-end; gap: 2px; height: 14px; }
+.mmi-eq i { width: 3px; height: 30%; border-radius: 1px; background: var(--mmi-c); animation: mmi-eq .85s ease-in-out infinite alternate; }
+.mmi-eq i:nth-child(2) { animation-delay: -.25s; } .mmi-eq i:nth-child(3) { animation-delay: -.5s; } .mmi-eq i:nth-child(4) { animation-delay: -.7s; } .mmi-eq i:nth-child(5) { animation-delay: -.15s; }
+@keyframes mmi-eq { 0% { height: 25%; } 50% { height: 100%; } 100% { height: 40%; } }
+@media (prefers-reduced-motion: reduce) { .mmi-eq i, .mmi-chat-np { animation: none; } }
+:root[data-motion="reduced"] .mmi-eq i, :root[data-calm] .mmi-eq i { animation: none; }
+/* result cards of module commands in the chat (MemuModInt.cardsHtml): cover, title, buttons, list rows */
+.mmi-cards { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.mmi-card { --mmi-c: hsl(var(--mmi-h, 220) 60% 58%); position: relative; width: min(460px, 100%); border-radius: 14px; overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--mmi-c) 22%, var(--border)); background: var(--panel);
+  background-image: radial-gradient(circle at 36px 36px, color-mix(in srgb, var(--mmi-c) 16%, transparent), transparent 160px); }
+.mmi-card[data-ok="0"] { --mmi-c: var(--muted); }
+.mmi-card-main { display: flex; align-items: center; gap: 12px; padding: 10px 12px; min-width: 0; }
+.mmi-cover { width: 52px; height: 52px; flex: none; border-radius: 10px; object-fit: cover; background: var(--panel-2);
+  box-shadow: 0 6px 16px -8px color-mix(in srgb, var(--mmi-c) 70%, #000); }
+.mmi-cover.mmi-gen { display: grid; place-items: center; font-size: 20px; font-weight: 700; color: #fff;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--mmi-c) 85%, #fff 0%), color-mix(in srgb, var(--mmi-c) 45%, #000)); }
+.mmi-card-meta { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 1px; line-height: 1.3; }
+.mmi-card-from { font-size: 10.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--mmi-c); }
+.mmi-card[data-ok="0"] .mmi-card-from { color: var(--muted); }
+.mmi-card-meta b { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mmi-card-meta small { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mmi-card-meta .mmi-note { color: var(--text); opacity: .75; }
+.mmi-acts { display: flex; align-items: center; gap: 2px; flex: none; }
+.mmi-act { height: 32px; min-width: 32px; border: 0; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  background: transparent; color: var(--text); cursor: pointer; padding: 0 8px; font: inherit; font-size: 12px; }
+.mmi-act:hover { background: color-mix(in srgb, var(--text) 8%, transparent); }
+.mmi-act.main { width: 36px; height: 36px; padding: 0; background: var(--mmi-c); color: #fff; }
+.mmi-act.main:hover { background: color-mix(in srgb, var(--mmi-c) 86%, #fff); }
+.mmi-act svg { width: 16px; height: 16px; flex: none; }
+.mmi-act span { white-space: nowrap; }
+.mmi-card[data-kind="track"] .mmi-act span { display: none; }
+.mmi-act:focus-visible, .mmi-item:focus-visible { outline: 2px solid var(--mmi-c); outline-offset: 2px; }
+.mmi-items { display: flex; flex-direction: column; padding: 0 6px 6px; border-top: 1px solid color-mix(in srgb, var(--text) 6%, transparent); padding-top: 4px; }
+.mmi-item { display: flex; align-items: center; gap: 10px; padding: 6px; border: 0; border-radius: 9px; background: none; color: var(--text);
+  text-align: left; font: inherit; cursor: pointer; min-width: 0; }
+.mmi-item:hover:not([disabled]) { background: color-mix(in srgb, var(--text) 6%, transparent); }
+.mmi-item[disabled] { cursor: default; }
+.mmi-item > img, .mmi-mono, .mmi-rank { width: 28px; height: 28px; flex: none; border-radius: 8px; object-fit: cover; display: grid; place-items: center;
+  font-style: normal; font-size: 12px; font-weight: 700; }
+.mmi-mono { color: var(--mmi-c); background: color-mix(in srgb, var(--mmi-c) 14%, transparent); }
+.mmi-rank { width: 24px; height: 24px; color: var(--muted); background: color-mix(in srgb, var(--text) 6%, transparent); font-variant-numeric: tabular-nums; }
+.mmi-rank[data-place="1"] { color: #3b2a05; background: linear-gradient(135deg, #f6d27a, #d9a23a); }
+.mmi-rank[data-place="2"] { color: #2a2f36; background: linear-gradient(135deg, #e6e9ee, #b5bcc6); }
+.mmi-rank[data-place="3"] { color: #3a1f0c; background: linear-gradient(135deg, #e9b48a, #b87445); }
+.mmi-item > span { min-width: 0; flex: 1; display: flex; flex-direction: column; line-height: 1.3; }
+.mmi-item b { font-weight: 550; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mmi-item small { color: var(--muted); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mmi-item em { font-style: normal; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--text); flex: none; }
+/* the module panel editor (panels.js openModuleEditor) */
+.mmi-ed { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 12px; background: color-mix(in srgb, var(--text) 4%, transparent); }
+.mmi-ed small { color: var(--muted); }
+.mmi-ed-open { align-self: flex-start; }
+/* Round 39 (r39-integ): paused chat mini player — still bars; Settings → Modules → «Виджеты модулей» */
+.mmi-chat-np.is-paused .mmi-eq i { animation-play-state: paused; opacity: .55; }
+.mmi-wset { margin-top: 20px; padding: 16px; border: 1px solid var(--border); border-radius: 14px; background: var(--panel); }
+.mmi-wset[hidden] { display: none; }
+.mmi-wset-h { margin: 0 0 4px; font-size: 14px; font-weight: 650; }
+.mmi-wset-p { margin: 0 0 12px; font-size: 12.5px; color: var(--muted); }
+.mmi-wset-mod + .mmi-wset-mod { margin-top: 12px; }
+.mmi-wset-name { display: block; font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
+.mmi-wset-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 0; border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent); }
+.mmi-wset-t { font-size: 13px; min-width: 0; }
+.mmi-wset-c { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: flex-end; }
+.mmi-wset-sw { position: relative; display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); cursor: pointer; }
+.mmi-wset-sw input { position: absolute; opacity: 0; width: 36px; height: 20px; margin: 0; cursor: pointer; }
+.mmi-wset-sw i { position: relative; width: 36px; height: 20px; border-radius: 999px; background: color-mix(in srgb, var(--text) 18%, transparent); transition: background .2s; flex: none; }
+.mmi-wset-sw i::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .2s; }
+.mmi-wset-sw input:checked + i { background: var(--accent); }
+.mmi-wset-sw input:checked + i::after { transform: translateX(16px); }
+.mmi-wset-sw input:focus-visible + i { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mmi-wset-seg { display: inline-flex; padding: 2px; border-radius: 9px; background: color-mix(in srgb, var(--text) 7%, transparent); }
+.mmi-wset-seg button { border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 12.5px; padding: 4px 10px; border-radius: 7px; cursor: pointer; }
+.mmi-wset-seg button[aria-checked="true"] { background: var(--panel); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.18); }

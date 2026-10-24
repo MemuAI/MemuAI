@@ -1,0 +1,17 @@
+/* Round 29 — Settings → Quick Ask → «Explorer, programs and tools» (explorer-settings.js): the lists and the
+   per-app prompt editor; rows, toggles and notes come from the settings kit. */
+.qe-settings { display: flex; flex-direction: column; gap: 4px; }
+.qe-set-list { display: flex; flex-direction: column; margin: 2px 0 4px; }
+.qe-set-item { display: flex; align-items: center; gap: 10px; padding: 8px 14px; border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent); }
+.qe-set-name { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.qe-set-name b { font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qe-set-name small { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qe-set-empty { padding: 10px 14px; color: var(--muted); font-size: 12.5px; border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent); }
+.qe-set-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 10px 14px; }
+.qe-set-err { flex: 1; min-width: 0; color: var(--danger); font-size: 12.5px; }
+.qe-set-editor { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px 0; border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent); }
+.qe-set-editor label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.qe-set-editor .sx-input, .qe-set-editor select, .qe-set-editor textarea { width: 100% !important; }
+.qe-set-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.qe-set-row { display: flex; justify-content: space-between; gap: 12px; padding: 8px 14px; }
+@media (max-width: 720px) { .qe-set-grid { grid-template-columns: 1fr; } .qe-set-item { flex-wrap: wrap; } }

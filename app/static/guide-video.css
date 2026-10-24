@@ -1,0 +1,65 @@
+/* Round 33: «Видео-инструкция» button + player (guide-video.js). Shared by the chat app and MemuAI Proxy:
+   only tokens both apps define (--text, --muted, --border, --accent, --panel/--card) with fallbacks. */
+.mgv-btn {
+  display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 11px 0 9px;
+  border: 1px solid color-mix(in srgb, var(--accent, #7c8cff) 45%, transparent);
+  border-radius: 999px; background: color-mix(in srgb, var(--accent, #7c8cff) 12%, transparent);
+  color: var(--text, #e8e9ee); font: inherit; font-size: 12.5px; font-weight: 600; line-height: 1;
+  cursor: pointer; white-space: nowrap; vertical-align: middle;
+  transition: background .15s ease, border-color .15s ease, transform .15s ease;
+}
+.mgv-btn svg { color: var(--accent, #7c8cff); flex: none; }
+.mgv-btn small { color: var(--muted, #9aa0ad); font-weight: 500; font-size: 11px; font-variant-numeric: tabular-nums; }
+.mgv-btn:hover { background: color-mix(in srgb, var(--accent, #7c8cff) 20%, transparent); border-color: var(--accent, #7c8cff); }
+.mgv-btn:active { transform: translateY(1px); }
+.mgv-btn:focus-visible { outline: 2px solid var(--accent, #7c8cff); outline-offset: 2px; }
+.mgv-btn--compact { height: 26px; padding: 0 9px 0 7px; font-size: 12px; }
+.mgv-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0 4px; }
+
+.mgv-backdrop {
+  position: fixed; inset: 0; z-index: 2147483000; display: grid; place-items: center; padding: 24px;
+  background: rgba(8, 10, 16, .62); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  animation: mgv-fade .16s ease-out;
+}
+.mgv-dialog {
+  width: min(960px, 100%); max-height: calc(100vh - 48px); display: flex; flex-direction: column; overflow: hidden;
+  background: var(--panel, var(--card, #1b1e26)); color: var(--text, #e8e9ee);
+  border: 1px solid var(--border, rgba(255, 255, 255, .12)); border-radius: 16px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, .45); outline: none; animation: mgv-rise .2s ease-out;
+}
+.mgv-head { display: flex; align-items: center; gap: 12px; padding: 12px 12px 12px 16px; border-bottom: 1px solid var(--border, rgba(255, 255, 255, .1)); }
+.mgv-badge { width: 30px; height: 30px; flex: none; display: grid; place-items: center; border-radius: 9px;
+  background: color-mix(in srgb, var(--accent, #7c8cff) 18%, transparent); color: var(--accent, #7c8cff); }
+.mgv-titles { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.mgv-titles b { font-size: 15px; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mgv-titles small { font-size: 12px; color: var(--muted, #9aa0ad); }
+.mgv-x { width: 32px; height: 32px; flex: none; display: grid; place-items: center; border: 0; border-radius: 9px;
+  background: transparent; color: var(--muted, #9aa0ad); cursor: pointer; }
+.mgv-x:hover { background: color-mix(in srgb, var(--text, #fff) 9%, transparent); color: var(--text, #fff); }
+.mgv-x:focus-visible, .mgv-act:focus-visible, .mgv-step:focus-visible { outline: 2px solid var(--accent, #7c8cff); outline-offset: 1px; }
+.mgv-stage { position: relative; background: #0b0d12; aspect-ratio: 16 / 9; max-height: calc(100vh - 260px); }
+.mgv-video { display: block; width: 100%; height: 100%; object-fit: contain; background: #0b0d12; }
+.mgv-video::cue { font-size: 18px; line-height: 1.35; background: rgba(10, 12, 18, .82); color: #fff; }
+.mgv-error { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center; color: #d7dae2; font-size: 14px; }
+.mgv-error[hidden] { display: none; }
+.mgv-foot { display: flex; gap: 12px; align-items: flex-start; padding: 10px 12px 12px; min-height: 0; }
+.mgv-steps { flex: 1; min-width: 0; list-style: none; margin: 0; padding: 0; max-height: 132px; overflow: auto; display: grid; gap: 2px; }
+.mgv-step { width: 100%; display: flex; gap: 10px; align-items: baseline; padding: 5px 8px; border: 0; border-radius: 8px;
+  background: transparent; color: var(--text, #e8e9ee); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.mgv-step:hover { background: color-mix(in srgb, var(--text, #fff) 7%, transparent); }
+.mgv-step.is-on { background: color-mix(in srgb, var(--accent, #7c8cff) 16%, transparent); }
+.mgv-step-t { flex: none; min-width: 34px; color: var(--muted, #9aa0ad); font-variant-numeric: tabular-nums; font-size: 12px; }
+.mgv-step.is-on .mgv-step-t { color: var(--accent, #7c8cff); }
+.mgv-actions { display: flex; flex-direction: column; gap: 6px; flex: none; }
+.mgv-act { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 30px; min-width: 92px; padding: 0 10px;
+  border: 1px solid var(--border, rgba(255, 255, 255, .14)); border-radius: 9px; background: transparent;
+  color: var(--text, #e8e9ee); font: inherit; font-size: 12.5px; cursor: pointer; font-variant-numeric: tabular-nums; }
+.mgv-act:hover { background: color-mix(in srgb, var(--text, #fff) 7%, transparent); }
+@keyframes mgv-fade { from { opacity: 0; } }
+@keyframes mgv-rise { from { opacity: 0; transform: translateY(8px) scale(.985); } }
+@media (prefers-reduced-motion: reduce) { .mgv-backdrop, .mgv-dialog { animation: none; } }
+@media (max-width: 640px) { .mgv-foot { flex-direction: column; } .mgv-actions { flex-direction: row; } }
+/* Placement next to the chat app's instruction blocks (integrations-ui steps, settings «more» texts). */
+.gi-steps.compact + .mgv-row { margin: -6px 0 8px; padding: 0 18px 0 54px; }
+.gi-gh-guide > .mgv-row:first-child { margin-top: 0; }
+@media (max-width: 720px) { .gi-steps.compact + .mgv-row { padding-left: 18px; } }

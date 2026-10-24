@@ -1,0 +1,43 @@
+/* Round 40 (r40-proxy): Proxy — «Сэкономлено кэшем», веб-модели (:web) в каталоге моделей. */
+.metrics-cache { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin: 8px 0 0; padding: 8px 12px;
+  border-radius: 10px; font-size: 12.5px; background: color-mix(in srgb, var(--ok, #2f9e6a) 7%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ok, #2f9e6a) 18%, transparent); }
+.metrics-cache[hidden] { display: none; }
+.metrics-cache .mc-lbl { text-transform: uppercase; letter-spacing: .07em; font-size: 10.5px; font-weight: 600; color: var(--muted); }
+.metrics-cache .mc-val { font-size: 15px; font-variant-numeric: tabular-nums; }
+
+/* Веб-модели (:web): свёрнутая секция в карточке модели, диалог настроек, список в «Дополнительно». */
+.wm-ic { flex: none; color: var(--accent-text, var(--accent)); vertical-align: -2px; }
+.wm-muted { color: var(--muted); font-size: 12.5px; line-height: 1.5; margin: 0; }
+.wm-card { border-top: 1px solid var(--border); padding-top: 12px; }
+.wm-card > summary { display: flex; align-items: center; gap: 8px; cursor: pointer; list-style: none; min-height: 28px;
+  font-size: 11.5px; font-weight: 650; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.wm-card-sub { text-transform: none; letter-spacing: 0; font-weight: 500; font-size: 12px; opacity: .85; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1 1 auto; }
+.wm-card-state .chip { text-transform: none; letter-spacing: 0; }
+.wm-card-body { display: grid; gap: 10px; padding: 10px 0 2px; }
+.wm-idrow { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.wm-idrow code { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wm-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.wm-actions .grow { flex: 1; }
+.wm-actions .btn .wm-ic { margin-right: 6px; color: inherit; }
+.wm-dlg-h { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.wm-dlg-h .wm-ic { width: 18px; height: 18px; }
+.wm-dlg-code { font-size: 12px; font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.wm-dlg-id { margin-bottom: 14px; }
+.wm-form { display: grid; gap: 12px; }
+.wm-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 16px; }
+@media (max-width: 640px) { .wm-grid { grid-template-columns: 1fr; } }
+.wm-field { display: grid; gap: 6px; min-width: 0; }
+.wm-field > span { font-size: 12.5px; color: var(--text-2, var(--muted)); font-weight: 500; }
+.wm-field select, .wm-field input { width: 100%; min-width: 0; }
+.wm-checks { display: flex; flex-wrap: wrap; gap: 6px 18px; }
+.wm-check { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+.wm-sub-h { font-size: 11px; font-weight: 650; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-top: 2px; }
+.wm-try-out { min-height: 64px; padding: 10px 12px; border-radius: 10px; background: color-mix(in srgb, var(--muted) 7%, transparent); }
+.wm-try-meta { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+.wm-try-text { margin: 0; white-space: pre-wrap; word-break: break-word; font: inherit; font-size: 13px; max-height: 340px; overflow: auto; }
+.wm-list { display: flex; flex-direction: column; gap: 6px; flex: 1 1 320px; min-width: 0; }
+.wm-item { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.wm-item code { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wm-item.gone code { opacity: .6; text-decoration: line-through; }

@@ -1,0 +1,13 @@
+{
+  "id": "doc-brief",
+  "title": "Краткое содержание",
+  "title_en": "Document brief",
+  "summary": "PDF, DOCX или текст → краткое содержание выбранной длины; сохранить в .md.",
+  "summary_en": "PDF, DOCX or text → a brief of the chosen length; save as .md.",
+  "version": "1.0",
+  "author": "MemuAI examples",
+  "icon": "book",
+  "window": { "default_width": 820, "default_height": 620, "min_width": 420, "min_height": 380 },
+  "persist": ["model", "length"],
+  "permissions": ["files", "chat", "models", "download", "storage", "clipboard"]
+}

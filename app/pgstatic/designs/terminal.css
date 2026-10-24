@@ -1,0 +1,271 @@
+/* =====================================================================
+   MemuAI design «Терминал / Terminal» (Round24) — scoped to
+   :root[data-design="terminal"].
+   ---------------------------------------------------------------------
+   A phosphor CRT console: one monospace face for everything, square
+   corners, box-drawing hairlines, a «❯» prompt in the composer, glowing
+   accent headings and faint scanlines. Dark mode is the green-screen
+   night; light mode is a calm LCD / thermal-paper console without glow.
+
+   Colours: only theme tokens and color-mix() of them (plus #000/#fff for
+   the deepest black and the glow), so every variant and accent works.
+   Every selector starts with :root[data-design="terminal"].
+   ===================================================================== */
+
+@font-face { font-family: "Term Mono"; font-style: normal; font-weight: 100 800; font-display: swap;
+  src: url("fonts/jetbrains-mono/jetbrains-mono-latin-wght.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: "Term Mono"; font-style: normal; font-weight: 100 800; font-display: swap;
+  src: url("fonts/jetbrains-mono/jetbrains-mono-cyrillic-wght.woff2") format("woff2");
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+
+/* ------------------------------------------------------------ tokens */
+:root[data-design="terminal"] {
+  --t-mono: "Term Mono", "JetBrains Mono", "Cascadia Mono", Consolas, ui-monospace, monospace;
+  --d-display: var(--t-mono); --d-text: var(--t-mono); --d-small: var(--t-mono);
+  --sans: var(--t-mono); --mono: var(--t-mono); --serif: var(--t-mono);
+
+  --t-bg: color-mix(in srgb, color-mix(in srgb, var(--bg-deep) 55%, #000) 96%, var(--accent));
+  --t-canvas: color-mix(in srgb, color-mix(in srgb, var(--bg-deep) 70%, #000) 95%, var(--accent));
+  --t-panel: color-mix(in srgb, color-mix(in srgb, var(--panel) 78%, #000) 93%, var(--accent));
+  --t-ink: color-mix(in srgb, var(--text) 88%, var(--accent));
+  --t-dim: color-mix(in srgb, var(--muted) 70%, var(--text));
+  --t-line: color-mix(in srgb, var(--accent) 30%, transparent);
+  --t-line-soft: color-mix(in srgb, var(--accent) 16%, transparent);
+  --t-wash: color-mix(in srgb, var(--accent) 10%, transparent);
+  --t-wash-strong: color-mix(in srgb, var(--accent) 20%, transparent);
+  --t-hi: var(--accent); /* accent as text; light mode deepens it to stay readable on the washes */
+  --t-glow: 0 0 6px color-mix(in srgb, var(--accent) 55%, transparent), 0 0 18px color-mix(in srgb, var(--accent) 25%, transparent);
+  --t-box-glow: 0 0 0 1px var(--t-line), 0 0 22px -8px color-mix(in srgb, var(--accent) 45%, transparent);
+  --t-scan: repeating-linear-gradient(180deg, color-mix(in srgb, #000 22%, transparent) 0 1px, transparent 1px 3px);
+
+  --chrome: var(--t-bg); --canvas: var(--t-canvas);
+  --canvas-line: var(--t-line);
+  --d-line: var(--t-line-soft); --d-line-soft: color-mix(in srgb, var(--accent) 10%, transparent);
+  --d-hover: var(--t-wash); --d-press: var(--t-wash-strong); --d-selected: var(--t-wash);
+  --d-glass: var(--t-panel);
+  --d-pop-shadow: 0 0 0 1px var(--t-line), 0 12px 32px -12px rgba(0, 0, 0, .7);
+  --d-lift: none;
+  --r-xs: 2px; --r-sm: 2px; --r-md: 3px; --r-lg: 4px; --r-xl: 4px; --r-2xl: 4px;
+  --hover: var(--t-wash);
+  --code-bg: color-mix(in srgb, var(--t-bg) 92%, #000);
+  --code-header: var(--t-panel);
+  --composer-shadow: none;
+  --user-bubble: var(--t-wash);
+  --scroll-thumb: color-mix(in srgb, var(--accent) 40%, transparent);
+  --selection: color-mix(in srgb, var(--accent) 45%, transparent);
+  --tooltip-bg: var(--t-panel);
+  caret-color: var(--accent);
+}
+:root[data-design="terminal"][data-theme="light"] {
+  --t-bg: color-mix(in srgb, var(--bg-deep) 92%, var(--accent));
+  --t-canvas: color-mix(in srgb, var(--bg) 95%, var(--accent));
+  --t-panel: color-mix(in srgb, var(--panel) 94%, var(--accent));
+  --t-ink: var(--text);
+  --t-dim: color-mix(in srgb, var(--muted) 80%, var(--text));
+  --t-line: color-mix(in srgb, var(--accent) 38%, transparent);
+  --t-line-soft: color-mix(in srgb, var(--text) 14%, transparent);
+  --t-wash: color-mix(in srgb, var(--accent) 9%, transparent);
+  --t-wash-strong: color-mix(in srgb, var(--accent) 16%, transparent);
+  --t-hi: color-mix(in srgb, var(--accent) 50%, var(--text));
+  --t-glow: none;
+  --t-box-glow: 0 0 0 1px var(--t-line);
+  --t-scan: repeating-linear-gradient(180deg, color-mix(in srgb, var(--text) 3%, transparent) 0 1px, transparent 1px 3px);
+  --d-pop-shadow: 0 0 0 1px var(--t-line), 6px 6px 0 -1px color-mix(in srgb, var(--accent) 14%, transparent);
+  --code-bg: color-mix(in srgb, var(--panel) 90%, var(--accent));
+}
+
+/* ----------------------------------------------------- base & CRT */
+:root[data-design="terminal"] body { background: var(--t-bg); color: var(--t-ink); font-family: var(--t-mono); font-size: 13.5px; letter-spacing: 0; }
+:root[data-design="terminal"] #app { background: var(--t-bg); position: relative; isolation: isolate; }
+:root[data-design="terminal"] #app::after {
+  content: ""; position: fixed; inset: 0; z-index: 2147483000; pointer-events: none;
+  background: var(--t-scan); mix-blend-mode: multiply; opacity: .55;
+}
+:root[data-design="terminal"][data-theme="light"] #app::after { mix-blend-mode: normal; opacity: 1; }
+:root[data-design="terminal"] :focus-visible { outline: 1px dashed var(--accent); outline-offset: 2px; }
+:root[data-design="terminal"] :is(textarea, .pinput, .ptexta, input):focus-visible { outline: none; }
+:root[data-design="terminal"] ::selection { background: var(--accent); color: var(--on-accent); }
+:root[data-design="terminal"] #startup-cover { background: var(--t-canvas); }
+:root[data-design="terminal"] .startup-mark { border-radius: 2px; box-shadow: var(--t-box-glow); }
+:root[data-design="terminal"] .startup-name::after { content: "_"; color: var(--t-hi); animation: t-blink 1.1s steps(1) infinite; }
+@keyframes t-blink { 50% { opacity: 0; } }
+
+/* -------------------------------------------------- frame & canvas */
+:root[data-design="terminal"] .main {
+  margin: 8px 8px 8px 0; border-radius: 3px; background: var(--t-canvas);
+  border: 1px solid var(--t-line); box-shadow: var(--t-box-glow);
+}
+:root[data-design="terminal"] .side.hidden ~ .main,
+:root[data-design="terminal"] .focus-mode .main { margin-left: 8px; }
+:root[data-design="terminal"] .side { padding: 10px 6px 10px 10px; }
+
+/* ----------------------------------------------------------- sidebar */
+:root[data-design="terminal"] .brand { font: 700 14px/1 var(--t-mono); letter-spacing: .04em; text-transform: uppercase; }
+:root[data-design="terminal"] .brand::after { content: "_"; color: var(--t-hi); margin-left: -6px; animation: t-blink 1.1s steps(1) infinite; }
+:root[data-design="terminal"] :is(.brand-dot, .greet-mark, .msg-assistant .who .mini) { border-radius: 2px; box-shadow: var(--t-glow); }
+:root[data-design="terminal"] .btn-new {
+  border-radius: 2px; background: transparent; color: var(--t-hi);
+  border: 1px solid var(--t-line); box-shadow: none; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; font-size: 12px;
+}
+:root[data-design="terminal"] .btn-new:hover { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+:root[data-design="terminal"] .btn-new:hover .ico { color: var(--on-accent); }
+:root[data-design="terminal"] .btn-new .ico { background: transparent; color: var(--t-hi); box-shadow: none; }
+:root[data-design="terminal"] :is(.btn-temp, .side-btn, .chat-item, .profile-card, .ci-more) { border-radius: 2px; }
+:root[data-design="terminal"] .mode-switch { border-radius: 2px; background: transparent; border: 1px solid var(--t-line-soft); padding: 3px; box-shadow: none; }
+:root[data-design="terminal"] .mode-switch .side-btn { border-radius: 2px; font-size: 11.5px; }
+:root[data-design="terminal"] .mode-switch .side-btn.active-section { background: var(--t-wash-strong); color: var(--t-hi); box-shadow: inset 0 0 0 1px var(--t-line); }
+:root[data-design="terminal"] .side-label { text-transform: uppercase; letter-spacing: .12em; font-size: 10.5px; color: var(--t-dim); }
+:root[data-design="terminal"] .side-label::before { content: "# "; color: var(--t-hi); }
+:root[data-design="terminal"] .chat-item { font-size: 12.5px; color: var(--t-dim); }
+:root[data-design="terminal"] .chat-item:hover { background: var(--t-wash); color: var(--t-ink); }
+:root[data-design="terminal"] .chat-item.active { background: var(--t-wash-strong); color: var(--t-hi); box-shadow: inset 2px 0 0 var(--accent); }
+:root[data-design="terminal"] .chat-item.active::before { content: "> "; white-space: pre; color: var(--t-hi); }
+:root[data-design="terminal"] :is(.meme-empty, .meme-new-chat) { border-radius: 2px; border: 1px dashed var(--t-line); }
+:root[data-design="terminal"] .profile-card { background: transparent; border: 1px solid var(--t-line-soft); }
+:root[data-design="terminal"] .profile-avatar { border-radius: 2px; }
+:root[data-design="terminal"] .hub-status .dot { box-shadow: 0 0 6px currentColor; }
+
+/* ------------------------------------------------------------ topbar */
+:root[data-design="terminal"] .topbar.appbar { border-bottom: 1px solid var(--t-line-soft); background: transparent; }
+:root[data-design="terminal"] :is(.bar-icon, .iconbtn, .dd-btn, .chat-search, .context-meter) { border-radius: 2px; }
+:root[data-design="terminal"] .chat-search { background: transparent; border: 1px solid var(--t-line-soft); }
+:root[data-design="terminal"] .chat-search:focus-within { border-color: var(--accent); box-shadow: none; }
+:root[data-design="terminal"] .dd-btn { font: 600 13px/1.2 var(--t-mono); color: var(--t-hi); text-shadow: var(--t-glow); }
+:root[data-design="terminal"] .context-meter { background: transparent; border: 1px solid var(--t-line-soft); font-family: var(--t-mono); }
+
+/* --------------------------------------------------------- popovers */
+:root[data-design="terminal"] :is(.dd-pop, .app-menu-pop, .context-menu, .profile-menu-pop, .pretty-select-menu, .msg-more-pop, .slash-menu, .plus-menu, .module-layout-menu) {
+  border-radius: 2px; background: var(--t-panel); border: 1px solid var(--t-line);
+  box-shadow: var(--d-pop-shadow); -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+:root[data-design="terminal"] :is(.dd-item, .app-menu-pop button, .context-menu button, .profile-menu-pop button, .pretty-select-menu button, .msg-more-pop button, .slash-menu button, .plus-row) { border-radius: 0; }
+:root[data-design="terminal"] :is(.dd-item:hover, .dd-item.kb, .app-menu-pop button:hover, .context-menu button:hover, .profile-menu-pop button:hover, .pretty-select-menu button:hover, .msg-more-pop button:hover, .slash-menu button:hover, .slash-menu button.active, .plus-row:hover) {
+  background: var(--accent); color: var(--on-accent);
+}
+:root[data-design="terminal"] :is(.dd-item:hover, .dd-item.kb, .plus-row:hover) :is(small, .ui-icon, span) { color: var(--on-accent); }
+:root[data-design="terminal"] :is(.dd-item.sel, .pretty-select-menu button.selected) { background: var(--t-wash-strong); box-shadow: inset 2px 0 0 var(--accent); }
+:root[data-design="terminal"] :is(.dd-search input, .plus-search) { border-radius: 0; background: transparent; border: 0; border-bottom: 1px solid var(--t-line); box-shadow: none; }
+
+/* ---------------------------------------------------------- welcome */
+:root[data-design="terminal"] .greeting h1 { font: 700 clamp(1.4rem, 2.4vw, 1.9rem)/1.2 var(--t-mono); letter-spacing: -.01em; color: var(--t-hi); text-shadow: var(--t-glow); }
+:root[data-design="terminal"] .greeting h1::after { content: "█"; margin-left: .2em; font-weight: 400; animation: t-blink 1.1s steps(1) infinite; }
+:root[data-design="terminal"] .greeting-subtitle { color: var(--t-dim); }
+:root[data-design="terminal"] .greeting-subtitle::before { content: "// "; color: var(--t-hi); }
+:root[data-design="terminal"] .chip-sug { border-radius: 2px; background: transparent; border: 1px solid var(--t-line-soft); font-size: 12.5px; box-shadow: none; }
+:root[data-design="terminal"] .chip-sug:hover { border-color: var(--accent); background: var(--t-wash); color: var(--t-hi); transform: none; }
+:root[data-design="terminal"] .chip-sug.featured { border-color: var(--t-line); background: var(--t-wash); color: var(--t-hi); }
+:root[data-design="terminal"] :is(.work-guide, .temp-guide, .code-guide) { border-radius: 2px; border: 1px dashed var(--t-line); background: transparent; }
+
+/* --------------------------------------------------------- composer */
+:root[data-design="terminal"] .composer-wrap::before { background: linear-gradient(to bottom, transparent, var(--t-canvas)); }
+:root[data-design="terminal"] .composer {
+  border-radius: 3px; background: var(--t-panel); border: 1px solid var(--t-line); box-shadow: none;
+}
+:root[data-design="terminal"] .composer:focus-within { border-color: var(--accent); box-shadow: var(--t-box-glow); }
+:root[data-design="terminal"] .composer-main { position: relative; padding-left: 18px; }
+:root[data-design="terminal"] .composer-main::before {
+  content: "❯"; position: absolute; left: 4px; top: 7px; color: var(--t-hi); font: 700 14px/1.5 var(--t-mono); text-shadow: var(--t-glow);
+}
+:root[data-design="terminal"] .composer textarea { font: 14px/1.55 var(--t-mono); color: var(--t-ink); caret-color: var(--accent); }
+:root[data-design="terminal"] :is(.cbtn, .plus-btn, .attach-chip, .composer .tog, .tool-chip, .composer .image-aspect) { border-radius: 2px; }
+:root[data-design="terminal"] .plus-btn { background: transparent; border: 1px solid var(--t-line-soft); }
+:root[data-design="terminal"] .send { border-radius: 2px; background: var(--accent); color: var(--on-accent); box-shadow: var(--t-glow); }
+:root[data-design="terminal"] .send:hover { filter: brightness(1.08); }
+:root[data-design="terminal"] .composer-hint { font-size: 11px; color: var(--t-dim); }
+
+/* --------------------------------------------------------- messages */
+:root[data-design="terminal"] .msg-user .bubble {
+  border-radius: 2px; background: var(--t-wash); color: var(--t-ink);
+  border: 1px solid var(--t-line); box-shadow: none; font-family: var(--t-mono);
+}
+:root[data-design="terminal"] .msg-user .bubble { position: relative; padding-left: 30px; }
+:root[data-design="terminal"] .msg-user .bubble::before { content: "$"; position: absolute; left: 12px; top: 10px; color: var(--t-hi); font-weight: 700; }
+:root[data-design="terminal"] .msg-assistant .body { font-size: 14px; line-height: 1.7; }
+:root[data-design="terminal"] .msg-assistant .body :is(h1, h2, h3, h4) { font-family: var(--t-mono); color: var(--t-hi); text-shadow: var(--t-glow); letter-spacing: 0; }
+:root[data-design="terminal"] .msg-assistant .body h2::before { content: "## "; opacity: .6; }
+:root[data-design="terminal"] .msg-assistant .body h3::before { content: "### "; opacity: .6; }
+:root[data-design="terminal"] .msg-assistant .body strong { color: var(--t-hi); }
+:root[data-design="terminal"] .msg-assistant .body a { color: var(--t-hi); text-decoration-style: dashed; }
+:root[data-design="terminal"] .msg-assistant .body :is(ol, ul) > li::marker { color: var(--t-hi); }
+:root[data-design="terminal"] .msg-assistant .body :not(pre) > code,
+:root[data-design="terminal"] .msg-user .user-text :not(pre) > code { border-radius: 0; background: var(--t-wash); color: var(--t-hi); box-shadow: none; }
+:root[data-design="terminal"] .code-block-wrap { border-radius: 2px; border: 1px solid var(--t-line); background: var(--code-bg); }
+:root[data-design="terminal"] .code-header { background: var(--code-header); border-bottom: 1px dashed var(--t-line); text-transform: uppercase; letter-spacing: .1em; }
+:root[data-design="terminal"] .code-copy-btn { border-radius: 2px; }
+:root[data-design="terminal"] .table-wrap { border-radius: 2px; border: 1px solid var(--t-line); }
+:root[data-design="terminal"] :is(.table-wrap th, .body th) { background: var(--t-wash); color: var(--t-hi); text-transform: uppercase; letter-spacing: .06em; font-size: 12px; }
+:root[data-design="terminal"] :is(.table-wrap td, .body td, .table-wrap th, .body th) { border-color: var(--t-line-soft); }
+:root[data-design="terminal"] .msg-assistant .body blockquote { border-left: 2px solid var(--accent); background: var(--t-wash); border-radius: 0; }
+:root[data-design="terminal"] :is(.trail, .rs-card, .file-pill, .continue-strip, .msg-video, .msg-tool, .imgwrap img, .msg-actions button) { border-radius: 2px; }
+:root[data-design="terminal"] .jump-latest { border-radius: 2px; background: var(--t-panel); border: 1px solid var(--t-line); }
+
+/* ----------------------------------------------- modal / settings */
+:root[data-design="terminal"] .panel-back { background: color-mix(in srgb, #000 55%, transparent); -webkit-backdrop-filter: none; backdrop-filter: none; }
+:root[data-design="terminal"][data-theme="light"] .panel-back { background: color-mix(in srgb, var(--text) 22%, transparent); }
+:root[data-design="terminal"] .panel { border-radius: 3px; background: var(--t-canvas); border: 1px solid var(--t-line); box-shadow: var(--d-pop-shadow); }
+:root[data-design="terminal"] .settings-header { border-bottom: 1px solid var(--t-line-soft); }
+:root[data-design="terminal"] :is(.panel-close, .settings-tab-btn, .settings-section, .hintbox) { border-radius: 2px; }
+:root[data-design="terminal"] .settings-tabs-sidebar { background: transparent; border-right: 1px solid var(--t-line-soft); }
+:root[data-design="terminal"] .settings-tab-btn { font-size: 12.5px; }
+:root[data-design="terminal"] .settings-tab-btn.active { background: var(--t-wash-strong); color: var(--t-hi); box-shadow: inset 2px 0 0 var(--accent); }
+:root[data-design="terminal"] :is(.pinput, .ptexta, .pretty-select-button, select) {
+  border-radius: 2px; background: transparent; border-color: var(--t-line-soft); font-family: var(--t-mono);
+}
+:root[data-design="terminal"] :is(.pinput, .ptexta):focus { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+:root[data-design="terminal"] .pbtn { border-radius: 2px; background: var(--accent); color: var(--on-accent); box-shadow: none; text-transform: uppercase; letter-spacing: .05em; font-size: 12px; font-weight: 700; }
+:root[data-design="terminal"] .pbtn.ghost { background: transparent; color: var(--t-hi); border: 1px solid var(--t-line); }
+:root[data-design="terminal"] .pbtn.ghost:hover { background: var(--t-wash); }
+:root[data-design="terminal"] .switch .sl { border-radius: 2px; }
+:root[data-design="terminal"] .switch .sl::before { border-radius: 1px; }
+:root[data-design="terminal"] .toast { border-radius: 2px; background: var(--t-panel); border: 1px solid var(--t-line); -webkit-backdrop-filter: none; backdrop-filter: none; font-family: var(--t-mono); }
+:root[data-design="terminal"] .memu-tooltip { border-radius: 2px; border: 1px solid var(--t-line); font-family: var(--t-mono); }
+
+/* ------------------------------------------- modules, panels, docs */
+:root[data-design="terminal"] .module-window { border-radius: 3px; border: 1px solid var(--t-line); background: var(--t-canvas); box-shadow: var(--d-pop-shadow); }
+:root[data-design="terminal"] .module-window-bar { border-bottom: 1px dashed var(--t-line); background: var(--t-panel); }
+:root[data-design="terminal"] :is(.module-card, .module-taskbar) { border-radius: 2px; border-color: var(--t-line-soft); }
+:root[data-design="terminal"] .mp-card { --mp-r: 2px; border-color: var(--t-line-soft); background: var(--t-panel); box-shadow: none; }
+:root[data-design="terminal"] .mp-card[data-mode="home"]:hover { border-color: var(--accent); box-shadow: var(--t-box-glow); }
+:root[data-design="terminal"] :is(.mp-chip, .mp-menu, .mp-modal) { border-radius: 2px; }
+:root[data-design="terminal"] :is(.docs-search, .docs-find, .docs-page-link, .docs-table, .docs-callout, .docs-pager-card) { border-radius: 2px; }
+:root[data-design="terminal"] .docs-page-link.active { background: var(--t-wash-strong); color: var(--t-hi); }
+:root[data-design="terminal"] .live-call { border-radius: 4px; border: 1px solid var(--t-line); background: var(--t-canvas); }
+
+/* ------------------------------------------------------- scrollbars */
+:root[data-design="terminal"] ::-webkit-scrollbar { width: 9px; height: 9px; }
+:root[data-design="terminal"] ::-webkit-scrollbar-track { background: transparent; }
+:root[data-design="terminal"] ::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius: 0; border: 2px solid transparent; background-clip: content-box; }
+:root[data-design="terminal"] ::-webkit-scrollbar-thumb:hover { background: var(--accent); background-clip: content-box; }
+
+/* ----------------------------------------------------------- motion */
+/* Pseudo-elements are not allowed inside :is() (the whole rule was dropped and the cursor kept blinking). */
+:root[data-design="terminal"]:is([data-motion="reduced"], [data-motion="off"]) :is(.brand, .greeting h1, .startup-name)::after,
+:root[data-design="terminal"] body.reduce-motion :is(.brand, .greeting h1, .startup-name)::after { animation: none; }
+:root[data-design="terminal"].m-paused :is(.brand, .greeting h1)::after { animation-play-state: paused; }
+@media (prefers-reduced-motion: reduce) {
+  :root[data-design="terminal"] :is(.brand, .greeting h1, .startup-name)::after { animation: none; }
+}
+@media (forced-colors: active) {
+  :root[data-design="terminal"] #app::after { display: none; }
+}
+@media (max-width: 800px) {
+  :root[data-design="terminal"] .side, :root[data-design="terminal"] .side.hidden { background: var(--t-bg); border-right: 1px solid var(--t-line); }
+  :root[data-design="terminal"] .main, :root[data-design="terminal"] .side.hidden ~ .main { margin: 6px; }
+}
+
+/* ------------------------------------- settings kit (settings.css) */
+:root[data-design="terminal"] {
+  --sx-r: 3px; --sx-r-sm: 2px; --sx-font: var(--t-mono); --sx-display: var(--t-mono);
+  --sx-bg: var(--t-canvas); --sx-side: var(--t-bg); --sx-card: var(--t-panel); --sx-card-hover: color-mix(in srgb, var(--t-panel) 90%, var(--accent));
+  --sx-line: var(--t-line-soft); --sx-sel: var(--t-wash-strong);
+}
+:root[data-design="terminal"] .sx-nav-label { text-transform: uppercase; letter-spacing: .12em; font-size: 10px; }
+:root[data-design="terminal"] .sx-nav-label::before { content: "# "; color: var(--t-hi); }
+:root[data-design="terminal"] .sx-shell .sx-nav .settings-tab-btn { border-radius: 2px; }
+:root[data-design="terminal"] .sx-shell .sx-nav .settings-tab-btn.active { color: var(--t-hi); box-shadow: inset 2px 0 0 var(--accent); }
+:root[data-design="terminal"] :is(.sx-search, .sx-seg, .sx-sub-back, .sx-seg-opt span, .sx-page-icon, .sx-link-icon, .sx-result-icon, .sx-badge, .sx-chip, .sx-saved) { border-radius: 2px; }
+:root[data-design="terminal"] .sx-shell .sx-section-title { text-transform: uppercase; letter-spacing: .1em; font-size: 11.5px; color: var(--t-hi); }
+:root[data-design="terminal"] .sx-shell .sx-section-title::before { content: "## "; opacity: .6; }
+:root[data-design="terminal"] .sx-shell .sx-page-title { color: var(--t-hi); text-shadow: var(--t-glow); }
+:root[data-design="terminal"] .sx-card { border-color: var(--t-line-soft); }

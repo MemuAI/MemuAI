@@ -1,0 +1,50 @@
+{
+  "id": "catalog",
+  "title": "Каталог моделей",
+  "title_en": "Model catalog",
+  "summary": "Модели OpenRouter и Models.dev: цены, контекст, возможности, бенчмарки и сравнение до трёх моделей.",
+  "summary_en": "OpenRouter and Models.dev models: prices, context, capabilities, benchmarks and comparison of up to three models.",
+  "version": "1.0",
+  "icon": "icon.svg",
+  "enabled": false,
+  "default_locale": "ru",
+  "launcher": {
+    "hidden": false,
+    "slot": "sidebar"
+  },
+  "window": {
+    "default_width": 1240,
+    "default_height": 800,
+    "min_width": 560,
+    "min_height": 420,
+    "max_width": 2400,
+    "max_height": 1600,
+    "fixed": false,
+    "resizable": true,
+    "size_mode": "user",
+    "center": true
+  },
+  "persist": [
+    "filters",
+    "sort",
+    "compare",
+    "layout",
+    "cache",
+    "cache_benchmarks",
+    "benchmark_boards"
+  ],
+  "permissions": [
+    "web",
+    "models",
+    "storage",
+    "external",
+    "clipboard"
+  ],
+  "bridge": {
+    "model": "",
+    "keep_in_chat": false,
+    "thinking": false,
+    "web_search": false,
+    "instructions": ""
+  }
+}

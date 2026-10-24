@@ -1,0 +1,13 @@
+.notes { gap: 12px; }
+.notes-search { flex: 1; width: auto; }
+.notes-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(170px, 240px) 1fr; gap: 12px; }
+.notes-list { display: flex; flex-direction: column; gap: 4px; }
+.note-item { display: block; width: 100%; text-align: left; padding: 8px 10px; border-radius: var(--radius-sm);
+  border: 1px solid transparent; background: transparent; color: var(--text); font: inherit; cursor: pointer; }
+.note-item:hover { background: var(--panel-2); }
+.note-item[aria-selected="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.note-item b { display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.note-item span { color: var(--muted); font-size: .85em; }
+.notes-editor { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+.notes-editor .mu-textarea { flex: 1; min-height: 140px; resize: none; }
+@media (max-width: 620px) { .notes-body { grid-template-columns: 1fr; } }

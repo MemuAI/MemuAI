@@ -1,0 +1,727 @@
+/* =====================================================================
+   MemuAI · Settings shell and component kit (Round 23)
+   ---------------------------------------------------------------------
+   Loaded after every design (classic/aurora/focus/grid/glass), motion.css
+   and the section stylesheets, so it owns the look of the settings dialog.
+   Colours are theme tokens or color-mix of tokens only (themes.css), every
+   user theme keeps working. Per-design accents live at the end of the file.
+   Kit reference for other agents: round23/SETTINGS_KIT.md.
+   ===================================================================== */
+
+:root {
+  --sx-bg: var(--panel);
+  --sx-side: color-mix(in srgb, var(--text) 3.2%, var(--panel));
+  --sx-card: color-mix(in srgb, var(--text) 2.2%, var(--panel));
+  --sx-card-hover: color-mix(in srgb, var(--text) 4.5%, var(--panel));
+  --sx-line: color-mix(in srgb, var(--text) 9%, transparent);
+  --sx-line-soft: color-mix(in srgb, var(--text) 6%, transparent);
+  --sx-hover: color-mix(in srgb, var(--text) 5.5%, transparent);
+  --sx-press: color-mix(in srgb, var(--text) 9%, transparent);
+  --sx-sel: color-mix(in srgb, var(--accent) 13%, transparent);
+  --sx-r: 14px;
+  --sx-r-sm: 9px;
+  --sx-row-pad: 14px 18px;
+  --sx-font: var(--d-text, "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif);
+  --sx-display: var(--d-display, "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif);
+  --sx-warn: #c98a1e;
+  --sx-ease: cubic-bezier(.2, .8, .2, 1);
+}
+[data-theme="light"] {
+  --sx-side: color-mix(in srgb, var(--text) 2.6%, var(--panel));
+  --sx-card: color-mix(in srgb, var(--text) 1.6%, var(--panel));
+  --sx-line: color-mix(in srgb, var(--text) 10%, transparent);
+  --sx-warn: #9a6408;
+}
+
+/* ------------------------------------------------------------ dialog */
+:root .panel.settings-panel.sx-panel {
+  width: min(1180px, calc(100vw - 40px)); max-width: none;
+  height: min(860px, calc(100dvh - 40px)); max-height: none;
+  padding: 0; display: flex; overflow: hidden;
+}
+:root .panel.sx-panel > .panel-close { position: absolute; top: 10px; right: 12px; z-index: 9; width: 34px; height: 34px; }
+
+.sx-shell {
+  flex: 1; min-width: 0; min-height: 0; display: grid;
+  grid-template-columns: 252px minmax(0, 1fr);
+  font-family: var(--sx-font); color: var(--text); background: var(--sx-bg);
+}
+
+/* ------------------------------------------------------------ sidebar */
+.sx-side {
+  min-height: 0; display: flex; flex-direction: column;
+  background: var(--sx-side); border-right: 1px solid var(--sx-line-soft);
+}
+.sx-side-head { padding: 20px 14px 10px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+.sx-side-head > * { min-width: 0; }
+:root .sx-shell .sx-title { margin: 0 6px; font: 650 19px/1.2 var(--sx-display); letter-spacing: -.02em; }
+.sx-search {
+  position: relative; display: flex; align-items: center; height: 36px; padding: 0 8px 0 32px;
+  border-radius: 10px; border: 1px solid var(--sx-line); background: var(--panel);
+  transition: border-color .15s, box-shadow .15s;
+}
+.sx-search:focus-within { border-color: color-mix(in srgb, var(--accent) 70%, var(--sx-line)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent); }
+.sx-search > svg { position: absolute; left: 10px; width: 15px; height: 15px; fill: none; stroke: var(--muted); stroke-width: 2; stroke-linecap: round; }
+.sx-search input {
+  flex: 1; min-width: 0; width: 100%; height: 100%; border: 0; outline: 0; background: transparent; color: var(--text);
+  font: 400 13.5px/1 var(--sx-font); padding: 0;
+}
+.sx-search input::-webkit-search-cancel-button { -webkit-appearance: none; display: none; }
+.sx-search input::placeholder { color: color-mix(in srgb, var(--muted) 85%, transparent); }
+.sx-search kbd {
+  flex: none; font: 600 10px/1 var(--sx-font); color: var(--muted); padding: 4px 5px; border-radius: 5px;
+  border: 1px solid var(--sx-line); background: var(--sx-card); letter-spacing: .02em;
+}
+.sx-search:focus-within kbd { opacity: 0; }
+
+.sx-nav { flex: 1; min-height: 0; overflow: auto; padding: 4px 10px 12px; scrollbar-width: thin; }
+.sx-nav-group + .sx-nav-group { margin-top: 14px; }
+.sx-nav-label { padding: 6px 10px 5px; font: 600 11px/1.2 var(--sx-font); color: var(--muted); letter-spacing: .01em; }
+:root .sx-shell .sx-nav .settings-tab-btn {
+  position: relative; width: 100%; min-height: 34px; margin: 1px 0; padding: 7px 10px; gap: 10px;
+  display: flex; align-items: center; border: 0; border-radius: 9px; background: transparent; box-shadow: none;
+  font: 500 13.5px/1.25 var(--sx-font); color: color-mix(in srgb, var(--text) 82%, var(--muted)); text-align: left; cursor: pointer;
+  transition: background-color .14s, color .14s;
+}
+:root .sx-shell .sx-nav .settings-tab-btn:hover { background: var(--sx-hover); color: var(--text); }
+:root .sx-shell .sx-nav .settings-tab-btn.active { background: var(--sx-sel); color: var(--text); font-weight: 600; box-shadow: none; }
+:root .sx-shell .sx-nav .settings-tab-btn:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 75%, transparent); outline-offset: -1px; }
+.sx-nav-icon { width: 18px; height: 18px; flex: none; display: grid; place-items: center; color: var(--muted); }
+.sx-nav-icon .ui-icon, .sx-nav-icon > svg { width: 16px; height: 16px; }
+.sx-nav-icon > svg { fill: none; stroke: currentColor; }
+:root .sx-shell .settings-tab-btn.active .sx-nav-icon { color: var(--accent); }
+.sx-nav-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sx-nav-badge { font: 600 10px/1 var(--sx-font); padding: 3px 6px; border-radius: 99px; background: var(--accent-soft); color: var(--accent); }
+.sx-side-foot {
+  display: flex; align-items: center; gap: 7px; padding: 11px 18px 14px; border-top: 1px solid var(--sx-line-soft);
+  font: 400 11.5px/1.35 var(--sx-font); color: var(--muted);
+}
+.sx-side-foot svg { width: 13px; height: 13px; flex: none; fill: none; stroke: var(--ok, currentColor); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ------------------------------------------------------------ main column */
+.sx-main { min-width: 0; min-height: 0; display: flex; flex-direction: column; position: relative; }
+.sx-topbar {
+  flex: none; height: 54px; display: flex; align-items: center; gap: 10px; padding: 0 60px 0 40px;
+  border-bottom: 1px solid var(--sx-line-soft);
+}
+.sx-nav-toggle { display: none; }
+.sx-crumbs { flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; overflow: hidden; white-space: nowrap; }
+.sx-crumb {
+  border: 0; background: transparent; padding: 4px 6px; border-radius: 6px; margin: 0;
+  font: 500 13px/1.2 var(--sx-font); color: var(--muted); cursor: pointer; overflow: hidden; text-overflow: ellipsis;
+}
+button.sx-crumb:hover { color: var(--text); background: var(--sx-hover); }
+.sx-crumb.is-current { color: var(--text); cursor: default; font-weight: 600; }
+.sx-crumb-root { padding-left: 0; }
+button.sx-crumb-root:hover { padding-left: 6px; margin-left: -6px; }
+.sx-crumb-sep { display: inline-grid; place-items: center; color: color-mix(in srgb, var(--muted) 70%, transparent); }
+.sx-crumb-sep svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2; }
+
+.sx-saved {
+  display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px 5px 8px; border-radius: 99px;
+  font: 600 12px/1 var(--sx-font); color: var(--ok, var(--accent)); background: color-mix(in srgb, var(--ok, var(--accent)) 12%, transparent);
+  opacity: 0; transform: translateY(-3px); pointer-events: none; transition: opacity .25s var(--sx-ease), transform .25s var(--sx-ease);
+}
+.sx-saved svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.sx-saved.show { opacity: 1; transform: none; }
+.sx-saved[data-state="err"] { color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, transparent); }
+
+/* body: the old .settings-body class stays the scroll container */
+:root .sx-shell .settings-body {
+  flex: 1; min-height: 0; overflow: auto; padding: 0 40px 72px; scroll-padding-top: 60px;
+  scrollbar-gutter: stable; background: transparent;
+}
+:root .sx-shell .settings-body.docs-mode { padding: 0; }
+.sx-main.is-searching > .settings-body { display: none; }
+
+/* ------------------------------------------------------------ page */
+:root .sx-shell .settings-tab-pane { display: none; max-width: 760px; margin: 0 auto; animation: none; }
+:root .sx-shell .settings-tab-pane.active { display: block; }
+:root .sx-shell .settings-tab-pane#pane-docs, :root .sx-shell .settings-tab-pane#pane-modules { max-width: none; }
+:root .sx-shell .settings-tab-pane#pane-modules { padding-top: 24px; }
+.sx-page-head { display: flex; align-items: flex-start; gap: 14px; padding: 28px 0 6px; }
+.sx-page-icon {
+  width: 40px; height: 40px; flex: none; display: grid; place-items: center; border-radius: 12px;
+  color: var(--accent); background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.sx-page-icon .ui-icon, .sx-page-icon > svg { width: 20px; height: 20px; }
+.sx-page-icon > svg { fill: none; stroke: currentColor; }
+:root .sx-shell .sx-page-title { margin: 1px 0 0; font: 650 22px/1.2 var(--sx-display); letter-spacing: -.022em; outline: none; }
+.sx-page-desc { margin: 5px 0 0; font: 400 13.5px/1.5 var(--sx-font); color: var(--muted); max-width: 60ch; }
+:root .sx-shell .sx-in-sub > .sx-page-head { display: none; }
+
+.sx-enter { animation: sx-enter .2s var(--sx-ease) both; }
+@keyframes sx-enter { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+/* Round 25: an in-place re-render (a select saved and the page was redrawn) replaces the
+   pane and the nav item with new nodes; motion.css would replay their entrance from opacity 0
+   and the whole page blinked. The kit marks such a shell .sx-quiet until the next page switch. */
+:root:not([data-motion="off"]) body:not(.reduce-motion) .sx-shell.sx-quiet :is(.settings-tab-pane.active:not(.sx-enter), .settings-tab-btn.active) { animation: none; }
+
+/* ------------------------------------------------------------ section */
+:root .sx-shell .sx-section { margin: 26px 0 0; padding: 0; border: 0; background: none; box-shadow: none; border-radius: 0; }
+/* Round 36 (perf): off-screen sections are not laid out or painted until they come near the viewport (opening
+   «Appearance» 51 → 12 ms, «Quick access» 35 → 13 ms). `auto` remembers the real height once seen; the clip margin
+   keeps the sticky head's -8px bleed and focus rings visible. */
+:root .sx-shell .sx-section { content-visibility: auto; contain-intrinsic-size: auto 420px; overflow-clip-margin: 12px; }
+.sx-section-head {
+  position: sticky; top: 0; z-index: 3; margin: 0 -8px; padding: 12px 8px 9px;
+  background: color-mix(in srgb, var(--sx-bg) 94%, transparent);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+}
+:root .sx-shell .sx-section-title {
+  margin: 0; display: flex; align-items: center; gap: 8px; font: 650 14.5px/1.3 var(--sx-display); letter-spacing: -.01em;
+  border: 0; padding: 0;
+}
+.sx-section-title > span:first-child:not(.sx-section-icon), .sx-section-title > .sx-section-icon + span { min-width: 0; }
+.sx-section-icon { display: inline-grid; place-items: center; color: var(--accent); }
+.sx-section-icon .ui-icon, .sx-section-icon > svg { width: 16px; height: 16px; }
+.sx-section-icon > svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.sx-section-aside { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.sx-section-desc { margin: 4px 0 0; font: 400 12.75px/1.55 var(--sx-font); color: var(--muted); max-width: 68ch; }
+.sx-section-reset {
+  margin-left: auto; display: inline-flex; align-items: center; gap: 5px; border: 0; background: transparent; cursor: pointer;
+  font: 500 12px/1 var(--sx-font); color: var(--muted); padding: 5px 7px; border-radius: 7px;
+}
+.sx-section-reset:hover { color: var(--text); background: var(--sx-hover); }
+.sx-section-reset svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+
+.sx-card { border: 1px solid var(--sx-line); border-radius: var(--sx-r); background: var(--sx-card); }
+/* No overflow:hidden (popovers of searchable pickers must escape the card); the
+   first and last rows round their own hover backgrounds instead. */
+.sx-card > :first-child { border-top-left-radius: calc(var(--sx-r) - 1px); border-top-right-radius: calc(var(--sx-r) - 1px); }
+.sx-card > :last-child { border-bottom-left-radius: calc(var(--sx-r) - 1px); border-bottom-right-radius: calc(var(--sx-r) - 1px); }
+.sx-card > .sx-more:last-child > summary { border-radius: 0 0 calc(var(--sx-r) - 1px) calc(var(--sx-r) - 1px); }
+.sx-card > .sx-more[open]:last-child > summary { border-radius: 0; }
+:root .sx-shell .sx-control .mpick { margin: 0; width: 260px; max-width: 100%; }
+:root .sx-shell .sx-field .mpick { margin: 0; width: 100%; max-width: 100% !important; }
+:root .sx-shell .mpick-btn { min-height: 36px; padding: 7px 11px; border-radius: 10px; border-color: var(--control-border, var(--sx-line)); font-size: 13.5px; }
+:root .sx-shell .mpick-pop { z-index: 40; }
+:root .sx-shell .appearance-intro { display: none; }
+.sx-section-body > * + * { margin-top: 10px; }
+
+/* ------------------------------------------------------------ rows */
+:root .sx-shell .sx-row {
+  position: relative; display: flex; align-items: center; justify-content: space-between; gap: 24px;
+  min-height: 58px; margin: 0; padding: var(--sx-row-pad); border: 0; border-radius: 0; background: transparent;
+  box-shadow: none;
+}
+:root .sx-shell .sx-card > :is(.sx-row, .sx-field, .sx-more, .sx-actions, div[id], .sx-grid2, .sound-settings-card) + :is(.sx-row, .sx-field, .sx-more, .sx-actions, div[id], .sx-grid2, .sound-settings-card),
+:root .sx-shell .sx-more-body > * + *,
+:root .sx-shell .sx-card > div[id] > .sx-row + .sx-row { border-top: 1px solid var(--sx-line-soft); }
+:root .sx-shell .sx-card > [hidden] + *, :root .sx-shell .sx-card > *:first-child { border-top: 0; }
+.sx-row-text { flex: 1 1 auto; min-width: 0; }
+:root .sx-shell .sx-label { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font: 550 14px/1.4 var(--sx-font); color: var(--text); }
+:root .sx-shell .sx-desc { margin-top: 2px; font: 400 12.75px/1.5 var(--sx-font); color: var(--muted); max-width: 58ch; }
+:root .sx-shell .sx-desc-sub { margin-top: 3px; font-size: 12px; color: var(--muted); }
+.sx-control { flex: 0 0 auto; display: flex; align-items: center; justify-content: flex-end; gap: 8px; max-width: 58%; min-width: 0; }
+/* Round 30: a segmented control wider than its share (4 options in a narrow window) moves under the text instead
+   of being drawn over the description (max-width 58% let it overflow leftwards). */
+:root .sx-shell .sx-row:has(> .sx-control > .sx-seg) { flex-wrap: wrap; row-gap: 10px; }
+:root .sx-shell .sx-row:has(> .sx-control > .sx-seg) > .sx-row-text { flex: 1 1 160px; }
+.sx-control:has(> .sx-seg) { max-width: 100%; }
+.sx-row--stack { flex-direction: column; align-items: stretch !important; gap: 10px !important; }
+.sx-row--stack > .sx-control { max-width: none; justify-content: flex-start; }
+:root .sx-shell .sx-row--sub { padding-left: 38px; min-height: 50px; }
+:root .sx-shell .sx-row--sub::before { content: ""; position: absolute; left: 22px; top: 0; bottom: 50%; width: 9px; border-left: 1.5px solid var(--sx-line); border-bottom: 1.5px solid var(--sx-line); border-bottom-left-radius: 6px; }
+:root .sx-shell .sx-row--danger .sx-label { color: var(--danger); }
+:root .sx-shell .sx-row--note { display: block; min-height: 0; padding: 12px 18px; }
+:root .sx-shell .sx-row--note .td { margin: 0; }
+
+/* hover reset (↺) */
+.sx-reset {
+  display: none; width: 22px; height: 22px; padding: 0; margin-left: 2px; border: 0; border-radius: 6px; cursor: pointer;
+  place-items: center; color: var(--muted); background: transparent; opacity: .7; transition: opacity .15s, background .15s, color .15s;
+}
+.sx-reset svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.sx-modified > .sx-row-text .sx-reset { display: inline-grid; }
+.sx-reset:hover, .sx-reset:focus-visible { opacity: 1; color: var(--accent); background: var(--sx-hover); }
+.sx-modified > .sx-row-text > .sx-label::before {
+  content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin-left: -12px; margin-right: 0; flex: none;
+  position: absolute; left: 7px; top: calc(14px + .7em - 3px);
+}
+
+/* help tip */
+.sx-help-tip { position: relative; display: inline-grid; place-items: center; color: var(--muted); cursor: help; outline: none; }
+.sx-help-tip > svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.sx-help-pop {
+  position: absolute; left: 50%; bottom: calc(100% + 8px); transform: translateX(-50%) translateY(3px); width: max-content; max-width: 280px;
+  padding: 8px 10px; border-radius: 9px; background: var(--text); color: var(--panel); font: 400 12px/1.45 var(--sx-font);
+  opacity: 0; pointer-events: none; transition: opacity .15s, transform .15s; z-index: 10; white-space: normal;
+}
+.sx-help-tip:is(:hover, :focus-visible) .sx-help-pop { opacity: 1; transform: translateX(-50%); }
+
+/* link rows (sub-page openers) */
+:root .sx-shell button.sx-row--link {
+  width: 100%; text-align: left; cursor: pointer; font: inherit; color: inherit; gap: 14px; border-radius: 0;
+  transition: background-color .14s;
+}
+:root .sx-shell button.sx-row--link:hover { background: var(--sx-card-hover); }
+:root .sx-shell button.sx-row--link:active { background: var(--sx-press); }
+:root .sx-shell button.sx-row--link:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: -2px; }
+.sx-row--link .sx-row-text { display: flex; flex-direction: column; }
+.sx-link-icon {
+  width: 32px; height: 32px; flex: none; display: grid; place-items: center; border-radius: 9px;
+  color: var(--accent); background: color-mix(in srgb, var(--accent) 11%, transparent);
+}
+.sx-link-icon .ui-icon, .sx-link-icon > svg { width: 16px; height: 16px; }
+.sx-link-icon .live-mini-orb { width: 18px; height: 18px; font-size: 11px; }
+.sx-link-value { flex: 0 1 auto; min-width: 0; max-width: 46%; font: 400 13px/1.3 var(--sx-font); color: var(--muted); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sx-chev { flex: none; display: grid; place-items: center; color: color-mix(in srgb, var(--muted) 80%, transparent); }
+.sx-chev svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+:root .sx-shell .sx-row--link .int-state { font-size: 12px; }
+
+/* fields (label above a wide control) */
+:root .sx-shell .sx-field { padding: 14px 18px; display: grid; gap: 7px; }
+:root .sx-shell .sx-field-label { margin: 0; display: flex; align-items: center; gap: 6px; font: 550 13px/1.35 var(--sx-font); color: var(--text); }
+:root .sx-shell .sx-field :is(.pinput, .ptexta, .pretty-select) { width: 100%; max-width: 100%; margin: 0; }
+:root .sx-shell .sx-help { font: 400 12px/1.5 var(--sx-font); color: var(--muted); margin: 0; }
+.sx-grid2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.sx-grid2 > .sx-field + .sx-field { border-left: 1px solid var(--sx-line-soft); }
+.sx-inline { display: flex; gap: 8px; align-items: center; }
+.sx-inline > .pinput { flex: 1; }
+.sx-mono { font-family: var(--mono, "Cascadia Code", Consolas, monospace) !important; font-size: 12.5px !important; letter-spacing: 0; }
+
+/* secret */
+.sx-secret { position: relative; display: flex; align-items: center; width: 100%; }
+.sx-secret > .pinput { flex: 1; padding-right: 40px !important; margin: 0; }
+.sx-secret-eye {
+  position: absolute; right: 5px; width: 30px; height: 30px; display: grid; place-items: center; border: 0; padding: 0;
+  border-radius: 7px; background: transparent; color: var(--muted); cursor: pointer;
+}
+.sx-secret-eye:hover { background: var(--sx-hover); color: var(--text); }
+.sx-secret-eye.is-on { color: var(--accent); }
+.sx-secret-eye svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+/* segmented */
+.sx-seg { display: inline-flex; padding: 3px; gap: 2px; border-radius: 10px; background: var(--sx-press); }
+.sx-seg-opt { position: relative; }
+.sx-seg-opt input { position: absolute; opacity: 0; pointer-events: none; }
+.sx-seg-opt span {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 8px; cursor: pointer;
+  font: 500 12.75px/1.2 var(--sx-font); color: var(--muted); transition: background .15s, color .15s, box-shadow .15s; white-space: nowrap;
+}
+.sx-seg-opt span:hover { color: var(--text); }
+.sx-seg-opt input:checked + span { background: var(--panel); color: var(--text); box-shadow: 0 1px 2px rgba(0, 0, 0, .14), 0 0 0 1px var(--sx-line-soft); font-weight: 600; }
+.sx-seg-opt input:focus-visible + span { outline: 2px solid color-mix(in srgb, var(--accent) 75%, transparent); outline-offset: 1px; }
+.sx-seg-opt input:disabled + span { opacity: .45; cursor: not-allowed; }
+
+/* slider */
+.sx-slider { display: flex; align-items: center; gap: 12px; min-width: 220px; }
+.sx-slider input[type="range"] { flex: 1; min-width: 120px; max-width: 240px; accent-color: var(--accent); margin: 0; }
+.sx-slider-value { min-width: 44px; text-align: right; font: 600 12.5px/1 var(--sx-font); font-variant-numeric: tabular-nums; color: var(--text); }
+
+/* disclosure: «Дополнительно» */
+:root .sx-shell .sx-more { margin: 0; border: 0; border-radius: 0; padding: 0; background: transparent; }
+.sx-section-body > .sx-more, .sx-card + .sx-more { margin-top: 10px; border: 1px solid var(--sx-line) !important; border-radius: var(--sx-r) !important; background: var(--sx-card) !important; overflow: hidden; }
+:root .sx-shell .sx-more > summary {
+  list-style: none; display: flex; align-items: center; gap: 10px; min-height: 46px; padding: 0 18px; cursor: pointer;
+  font: 550 13px/1.2 var(--sx-font); color: var(--muted); transition: color .14s, background .14s; user-select: none;
+}
+.sx-more > summary::-webkit-details-marker { display: none; }
+:root .sx-shell .sx-more > summary:hover { color: var(--text); background: var(--sx-hover); }
+:root .sx-shell .sx-more > summary:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: -2px; }
+.sx-more > summary > small { font: 400 12px/1.2 var(--sx-font); color: color-mix(in srgb, var(--muted) 80%, transparent); }
+.sx-more > summary > i { margin-left: auto; display: grid; place-items: center; transition: transform .2s var(--sx-ease); }
+.sx-more > summary > i svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.sx-more[open] > summary > i { transform: rotate(90deg); }
+.sx-more[open] > summary { color: var(--text); }
+:root .sx-shell .sx-more-body { border-top: 1px solid var(--sx-line-soft); }
+.sx-more-text { padding: 14px 18px 16px; font: 400 12.75px/1.65 var(--sx-font); color: var(--muted); }
+
+/* sub-pages */
+.sx-sub-hidden { display: none !important; }
+.sx-sub-head { display: flex; align-items: flex-start; gap: 12px; padding: 26px 0 4px; }
+.sx-sub-back {
+  width: 34px; height: 34px; flex: none; display: grid; place-items: center; margin-top: -2px; border-radius: 10px; padding: 0; cursor: pointer;
+  border: 1px solid var(--sx-line); background: var(--sx-card); color: var(--text); transition: background .14s, border-color .14s;
+}
+.sx-sub-back:hover { background: var(--sx-card-hover); border-color: color-mix(in srgb, var(--accent) 40%, var(--sx-line)); }
+.sx-sub-back svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.sx-sub-title { display: flex; align-items: center; gap: 8px; font: 650 20px/1.25 var(--sx-display); letter-spacing: -.02em; }
+.sx-sub-desc { margin: 5px 0 0; font: 400 13px/1.55 var(--sx-font); color: var(--muted); max-width: 64ch; }
+.sx-sub > .sx-section:first-of-type, .sx-sub > div > .sx-section:first-child { margin-top: 18px; }
+
+/* notes, badges, chips, actions */
+.sx-note {
+  display: flex; gap: 10px; align-items: flex-start; padding: 11px 14px; border-radius: 11px;
+  font: 400 12.75px/1.55 var(--sx-font); color: color-mix(in srgb, var(--text) 86%, var(--muted));
+  background: color-mix(in srgb, var(--text) 3.5%, transparent); border: 1px solid var(--sx-line);
+}
+.pane-gap, .settings-tab-pane > .sx-note { margin-top: 22px; }
+.sx-note-icon { flex: none; display: grid; place-items: center; margin-top: 1px; color: var(--accent); }
+.sx-note-icon svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.sx-note--warn { background: color-mix(in srgb, var(--sx-warn) 9%, transparent); border-color: color-mix(in srgb, var(--sx-warn) 24%, transparent); }
+.sx-note--warn .sx-note-icon { color: var(--sx-warn); }
+.sx-note--ok { background: color-mix(in srgb, var(--ok) 9%, transparent); border-color: color-mix(in srgb, var(--ok) 22%, transparent); }
+.sx-note--ok .sx-note-icon { color: var(--ok); }
+.sx-note--danger { background: color-mix(in srgb, var(--danger) 8%, transparent); border-color: color-mix(in srgb, var(--danger) 24%, transparent); }
+.sx-note--danger .sx-note-icon { color: var(--danger); }
+.sx-badge {
+  display: inline-flex; align-items: center; height: 18px; padding: 0 7px; border-radius: 99px; vertical-align: middle;
+  font: 600 10.5px/1 var(--sx-font); letter-spacing: .01em; color: var(--muted); border: 1px solid var(--sx-line); background: transparent;
+}
+.sx-badge--new { color: var(--accent); border-color: transparent; background: var(--accent-soft); }
+.sx-badge--beta { color: var(--sx-warn); border-color: color-mix(in srgb, var(--sx-warn) 35%, transparent); }
+.sx-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px 3px 7px; border-radius: 99px; font: 550 12px/1.3 var(--sx-font); background: var(--sx-press); color: var(--muted); }
+.sx-chip i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.sx-chip[data-tone="ok"] { color: var(--ok); background: color-mix(in srgb, var(--ok) 12%, transparent); }
+.sx-chip[data-tone="warn"] { color: var(--sx-warn); background: color-mix(in srgb, var(--sx-warn) 12%, transparent); }
+.sx-chip[data-tone="err"] { color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, transparent); }
+:root .sx-shell .sx-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; padding: 12px 18px; }
+.sx-actions-note { margin-right: auto; font-size: 12px; color: var(--muted); }
+:root .sx-shell .pbtn.sx-btn-sm { min-height: 32px; padding: 6px 12px; font-size: 12.75px; border-radius: 9px; }
+:root .sx-shell .rt-status { margin-right: auto; font: 500 12.5px/1.4 var(--sx-font); }
+.sx-list { display: grid; }
+.sx-list-item { display: flex; align-items: center; gap: 12px; padding: 12px 18px; }
+.sx-list-item + .sx-list-item { border-top: 1px solid var(--sx-line-soft); }
+.sx-list-main { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.sx-list-main small { color: var(--muted); font-size: 12px; }
+.sx-list-actions { display: flex; gap: 6px; }
+.sx-list--empty { padding: 18px; color: var(--muted); font-size: 13px; text-align: center; }
+.sx-filter { position: relative; display: flex; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--sx-line-soft); }
+.sx-filter > svg { position: absolute; left: 26px; width: 14px; height: 14px; fill: none; stroke: var(--muted); stroke-width: 2; stroke-linecap: round; }
+:root .sx-shell .sx-filter > .pinput { margin: 0; padding-left: 34px; width: 100%; }
+
+/* danger zone */
+:root .sx-shell .sx-danger { margin-top: 40px; }
+.sx-danger .sx-section-title { color: var(--danger) !important; }
+.sx-danger .sx-section-icon { color: var(--danger); }
+.sx-danger > .sx-card { border-color: color-mix(in srgb, var(--danger) 30%, var(--sx-line)); background: color-mix(in srgb, var(--danger) 3.5%, var(--sx-card)); }
+
+/* search highlight + results */
+:root .sx-shell .sx-flash { animation: sx-flash 2.1s var(--sx-ease); z-index: 1; }
+@keyframes sx-flash {
+  0%, 25% { background: color-mix(in srgb, var(--accent) 16%, transparent); box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent); }
+  100% { background: transparent; box-shadow: inset 0 0 0 2px transparent; }
+}
+.sx-results { flex: 1; min-height: 0; overflow: auto; padding: 18px 40px 48px; }
+.sx-results-count { max-width: 760px; margin: 6px auto 10px; font: 600 12px/1 var(--sx-font); color: var(--muted); }
+.sx-results-list { max-width: 760px; margin: 0 auto; display: grid; gap: 2px; }
+.sx-result {
+  display: flex; align-items: center; gap: 14px; width: 100%; padding: 10px 12px; border: 0; border-radius: 11px; cursor: pointer;
+  background: transparent; text-align: left; color: var(--text); font: inherit; transition: background .12s;
+}
+.sx-result:hover { background: var(--sx-hover); }
+.sx-result.is-active { background: var(--sx-sel); }
+.sx-result-icon { width: 32px; height: 32px; flex: none; display: grid; place-items: center; border-radius: 9px; background: var(--sx-card); border: 1px solid var(--sx-line-soft); color: var(--muted); }
+.sx-result.is-active .sx-result-icon { color: var(--accent); }
+.sx-result-icon .ui-icon, .sx-result-icon > svg { width: 16px; height: 16px; }
+.sx-result-icon > svg { fill: none; stroke: currentColor; }
+.sx-result-text { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.sx-result-path { font: 500 11.5px/1.3 var(--sx-font); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sx-result-path i { font-style: normal; opacity: .6; padding: 0 2px; }
+.sx-result-text b { font: 600 14px/1.35 var(--sx-font); }
+.sx-result-text small { font: 400 12.5px/1.45 var(--sx-font); color: var(--muted); overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; }
+.sx-result mark { background: color-mix(in srgb, var(--accent) 22%, transparent); color: inherit; border-radius: 3px; padding: 0 1px; }
+.sx-result-go { color: var(--muted); opacity: 0; transition: opacity .12s; }
+.sx-result-go svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; }
+.sx-result:is(:hover, .is-active) .sx-result-go { opacity: 1; }
+.sx-results-empty { max-width: 420px; margin: 80px auto 0; text-align: center; color: var(--muted); font: 400 13px/1.55 var(--sx-font); }
+.sx-results-empty b { display: block; margin: 12px 0 4px; font: 600 15px/1.3 var(--sx-font); color: var(--text); }
+.sx-results-empty-icon { width: 46px; height: 46px; margin: 0 auto; display: grid; place-items: center; border-radius: 14px; background: var(--sx-card); border: 1px solid var(--sx-line); }
+.sx-results-empty-icon svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+
+/* ------------------------------------------------------------ controls inside rows */
+:root .sx-shell .sx-control :is(.pretty-select, select.pinput) { max-width: 100%; }
+:root .sx-shell .sx-control > .pinput:not([type="number"]) { min-width: 0; }
+:root .sx-shell .sx-control .pretty-select-button { min-height: 34px; }
+:root .sx-shell .model-select-wrap { width: 100%; display: grid; gap: 4px; }
+:root .sx-shell .model-select-wrap .pretty-select { width: 100% !important; max-width: 100% !important; }
+:root .sx-shell .model-select-id { font: 400 11.5px/1.3 var(--mono, monospace); letter-spacing: 0; color: var(--muted); padding-left: 2px; }
+:root .sx-shell .context-detected { margin-top: 6px; font: 400 12.5px/1.5 var(--sx-font); color: var(--muted); }
+
+/* ------------------------------------------------------------ legacy content inside the shell
+   Unconverted blocks (telegram, research, realtime, voice cards, panels, quick)
+   get the kit look without touching their markup. */
+:root .sx-shell .settings-tab-pane .settings-section:not(.sx-section),
+:root .sx-shell .tg-card {
+  margin: 22px 0 0; padding: 4px 0; border: 1px solid var(--sx-line); border-radius: var(--sx-r);
+  background: var(--sx-card); box-shadow: none;
+}
+:root .sx-shell .settings-section:not(.sx-section) > .settings-title,
+:root .sx-shell .tg-card-title {
+  margin: 0; padding: 12px 18px 10px; border-bottom: 1px solid var(--sx-line-soft); font: 650 14.5px/1.3 var(--sx-display); letter-spacing: -.01em;
+}
+:root .sx-shell .settings-section:not(.sx-section) > :is(p.sub, .sub) { margin: 12px 18px 4px; font-size: 12.75px; line-height: 1.55; }
+:root .sx-shell :is(.settings-section:not(.sx-section), .tg-card, .rt-body, .voice-settings-group-body) > .p-toggle:not(.sx-row),
+:root .sx-shell .tg-row {
+  margin: 0; padding: 13px 18px; gap: 20px; min-height: 54px; border: 0; border-top: 1px solid var(--sx-line-soft);
+}
+:root .sx-shell :is(.p-toggle:not(.sx-row), .tg-row) .tl { font: 550 14px/1.4 var(--sx-font); }
+:root .sx-shell :is(.p-toggle:not(.sx-row), .tg-row) .td { font: 400 12.75px/1.5 var(--sx-font); color: var(--muted); margin-top: 2px; }
+:root .sx-shell .settings-section:not(.sx-section) > :is(.field-label, .pinput, .ptexta, .td, .row-end, .hintbox, details) { margin-left: 18px; margin-right: 18px; width: auto; }
+:root .sx-shell .settings-section:not(.sx-section) > .row-end { padding: 10px 0 12px; }
+:root .sx-shell .hintbox {
+  border-radius: 11px; border: 1px solid color-mix(in srgb, var(--accent) 16%, transparent); background: color-mix(in srgb, var(--accent) 6%, transparent);
+  font: 400 12.75px/1.6 var(--sx-font); color: color-mix(in srgb, var(--text) 84%, var(--muted)); padding: 11px 14px;
+}
+:root .sx-shell .advanced-settings, :root .sx-shell .tg-advanced {
+  border: 0; border-top: 1px solid var(--sx-line-soft); border-radius: 0; margin: 0; padding: 0 18px 4px;
+}
+:root .sx-shell .advanced-settings > summary, :root .sx-shell .tg-advanced > summary { padding: 13px 0; font: 550 13px/1.2 var(--sx-font); color: var(--muted); cursor: pointer; }
+:root .sx-shell .advanced-settings[open] > summary, :root .sx-shell .tg-advanced[open] > summary { color: var(--text); }
+:root .sx-shell .advanced-settings > .p-toggle { padding: 12px 0; border-top: 1px solid var(--sx-line-soft); }
+:root .sx-shell .field-label { font: 550 12.75px/1.35 var(--sx-font); color: var(--text); margin: 14px 0 6px; display: block; }
+
+/* realtime sub-page */
+:root .sx-shell .rt-providers { grid-template-columns: repeat(auto-fill, minmax(158px, 1fr)); gap: 8px; }
+:root .sx-shell .rt-provider { border-radius: 12px; border-color: var(--sx-line); background: var(--sx-card); padding: 11px 13px; }
+:root .sx-shell .rt-provider:has(input:checked) { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, var(--sx-card)); }
+:root .sx-shell .rt-key-ok { color: var(--ok) !important; }
+
+/* sound picker card */
+:root .sx-shell .sound-settings-card.sx-row { display: block; min-height: 0; padding: 4px 18px 16px; border: 0; background: transparent; }
+:root .sx-shell .sound-settings-card .sound-settings-grid { padding: 0; border: 0; gap: 16px 28px; }
+:root .sx-shell .sound-settings-card .sound-control > .tl { display: block; margin-bottom: 8px; font: 550 12.75px/1.3 var(--sx-font); color: var(--muted); }
+:root .sx-shell .sound-settings-card .sx-slider { min-width: 0; }
+
+/* voice model lists */
+:root .sx-shell .voice-model-list { display: grid; gap: 10px; }
+:root .sx-shell .voice-model-card { border-radius: 13px; border-color: var(--sx-line); background: var(--sx-card); }
+:root .sx-shell .voice-model-card.active { border-color: color-mix(in srgb, var(--accent) 50%, var(--sx-line)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent); }
+:root .sx-shell .voice-model-path { font: 400 11.5px/1.4 var(--mono, monospace); color: var(--muted); overflow-wrap: anywhere; }
+:root .sx-shell .postprocess-preset-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+:root .sx-shell .postprocess-preset-row .pretty-select { flex: 1 1 200px; }
+
+/* model visibility list */
+:root .sx-shell .model-visibility { max-height: none; border: 0; border-radius: 0; padding: 6px 8px 10px; columns: 2 280px; column-gap: 8px; }
+:root .sx-shell .model-visibility label { break-inside: avoid; border-radius: 8px; padding: 7px 10px; }
+:root .sx-shell .model-visibility label:hover { background: var(--sx-hover); }
+:root .sx-shell .model-visibility label[hidden] { display: none; }
+:root .sx-shell .effort-by-model .effort-grid { display: grid; grid-template-columns: 1fr; }
+:root .sx-shell .effort-row.sx-row { min-height: 50px; }
+:root .sx-shell .effort-row + .effort-row { border-top: 1px solid var(--sx-line-soft); }
+
+/* profile + about + transfer */
+:root .sx-shell .settings-profile-card { margin: 22px 0 0; padding: 16px 18px; border-radius: var(--sx-r); border: 1px solid var(--sx-line); background: var(--sx-card); }
+:root .sx-shell .profile-stats { margin-top: 12px; }
+:root .sx-shell .transfer-card { margin: 18px 0 0; border-radius: var(--sx-r); border-color: var(--sx-line); background: var(--sx-card); }
+:root .sx-shell .transfer-card:first-of-type { margin-top: 24px; }
+.sx-about-card {
+  display: flex; gap: 16px; align-items: center; margin-top: 22px; padding: 18px 20px; border-radius: var(--sx-r);
+  border: 1px solid var(--sx-line); background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 9%, var(--sx-card)), var(--sx-card) 60%);
+}
+.sx-about-mark { width: 48px; height: 48px; flex: none; display: grid; place-items: center; border-radius: 15px; color: var(--on-accent, #fff); background: var(--brand, var(--accent)); font-size: 22px; box-shadow: 0 8px 22px -12px var(--accent); }
+/* Round 33: the real MemuAI app icon (speech bubble + crystal star) instead of a glyph. */
+.sx-about-mark.is-app-icon { width: 52px; height: 52px; background: none; box-shadow: none; border-radius: 0; }
+.sx-about-mark.is-app-icon img { width: 52px; height: 52px; display: block; filter: drop-shadow(0 6px 14px rgba(120, 50, 110, .28)); }
+.sx-about-card b { font: 650 16px/1.3 var(--sx-display); }
+.sx-about-card p { margin: 3px 0 6px; font: 400 12.75px/1.5 var(--sx-font); color: var(--muted); }
+:root .sx-shell .about-versions { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--muted); }
+:root .sx-shell .shortcuts-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 0; border: 1px solid var(--sx-line); border-radius: var(--sx-r); overflow: hidden; background: var(--sx-card); }
+:root .sx-shell .shortcut-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 16px; border: 0; border-bottom: 1px solid var(--sx-line-soft); border-radius: 0; background: transparent; font-size: 13px; }
+:root .sx-shell .shortcut-item kbd { font: 600 11px/1 var(--sx-font); padding: 4px 6px; border-radius: 6px; border: 1px solid var(--sx-line); background: var(--panel); color: var(--muted); white-space: nowrap; }
+
+/* telegram hero, panels, modules inside the shell */
+:root .sx-shell #pane-remote .tg-settings { padding-top: 24px; }
+:root .sx-shell #pane-remote .tg-hero { border-radius: var(--sx-r); }
+
+/* ------------------------------------------------------------ narrow windows */
+@media (max-width: 860px) {
+  :root .panel.settings-panel.sx-panel { width: calc(100vw - 16px); height: calc(100dvh - 16px); border-radius: 16px; }
+  .sx-shell { grid-template-columns: minmax(0, 1fr); position: relative; }
+  .sx-side {
+    position: absolute; inset: 0; z-index: 8; border-right: 0; background: var(--sx-bg);
+    visibility: hidden; opacity: 0; transform: translateX(-12px); transition: opacity .2s var(--sx-ease), transform .2s var(--sx-ease), visibility 0s .2s;
+  }
+  .sx-shell.sx-nav-open .sx-side { visibility: visible; opacity: 1; transform: none; transition: opacity .2s var(--sx-ease), transform .2s var(--sx-ease); }
+  .sx-side-head { padding: 16px 16px 8px; }
+  .sx-topbar { padding: 0 52px 0 10px; height: 50px; }
+  .sx-nav-toggle {
+    display: grid; place-items: center; width: 34px; height: 34px; flex: none; padding: 0; border: 0; border-radius: 9px; cursor: pointer;
+    background: transparent; color: var(--text);
+  }
+  .sx-nav-toggle:hover { background: var(--sx-hover); }
+  .sx-nav-toggle svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  :root .sx-shell .settings-body { padding: 0 18px 56px; }
+  .sx-results { padding: 12px 14px 40px; }
+  .sx-page-head { padding-top: 20px; }
+  :root .sx-shell .sx-nav .settings-tab-btn { min-height: 42px; font-size: 14.5px; }
+  .sx-shell.sx-nav-open .sx-side .sx-side-foot { display: none; }
+}
+@media (max-width: 600px) {
+  :root .sx-shell .sx-row:not(.sx-row--link):not(.effort-row) { flex-direction: column; align-items: stretch; gap: 10px; }
+  :root .sx-shell .sx-row:not(.sx-row--link) > .sx-control { max-width: none; justify-content: flex-start; }
+  :root .sx-shell .sx-row:not(.sx-row--link) > .sx-control:has(> .switch:only-child) { position: absolute; top: 14px; right: 18px; }
+  :root .sx-shell .sx-row:has(> .sx-control > .switch:only-child) > .sx-row-text { padding-right: 56px; }
+  :root .sx-shell .sx-control .pretty-select { width: 100% !important; max-width: 100% !important; }
+  .sx-link-value { display: none; }
+  .sx-grid2 { grid-template-columns: 1fr; }
+  .sx-grid2 > .sx-field + .sx-field { border-left: 0; border-top: 1px solid var(--sx-line-soft); }
+  .sx-page-icon { width: 34px; height: 34px; border-radius: 10px; }
+  :root .sx-shell .sx-page-title { font-size: 19px; }
+  .sx-slider { min-width: 0; width: 100%; }
+  .sx-slider input[type="range"] { max-width: none; }
+}
+
+/* ------------------------------------------------------------ motion */
+:root[data-motion="off"] :is(.sx-enter, .sx-flash), :root[data-motion="reduced"] .sx-enter { animation: none !important; }
+:root[data-motion="off"] .sx-flash { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+@media (prefers-reduced-motion: reduce) {
+  .sx-enter { animation: none !important; }
+  .sx-flash { animation: none !important; background: color-mix(in srgb, var(--accent) 12%, transparent); }
+  .sx-side, .sx-saved, .sx-more > summary > i { transition: none !important; }
+}
+
+/* =====================================================================
+   Per-design accents. The structure stays the same everywhere; each design
+   gets its own shape language, as in the rest of its interface.
+   ===================================================================== */
+
+/* Aurora: soft, rounded, a serif display face, warm glow. */
+:root[data-design="aurora"] { --sx-r: 20px; --sx-r-sm: 12px; --sx-display: var(--au-serif, var(--d-display)); }
+:root[data-design="aurora"] .sx-shell .sx-page-title { font-weight: 560; font-size: 25px; letter-spacing: -.015em; }
+:root[data-design="aurora"] .sx-shell .sx-title { font-weight: 560; font-size: 21px; }
+:root[data-design="aurora"] .sx-shell .sx-section-title { font-weight: 560; font-size: 16.5px; }
+:root[data-design="aurora"] .sx-shell .sx-nav .settings-tab-btn { border-radius: 999px; padding-left: 12px; }
+:root[data-design="aurora"] .sx-search { border-radius: 999px; }
+:root[data-design="aurora"] .sx-page-icon { border-radius: 50%; }
+:root[data-design="aurora"] .sx-link-icon { border-radius: 50%; }
+:root[data-design="aurora"] .sx-side { background: transparent; }
+:root[data-design="aurora"] .sx-shell { background: radial-gradient(900px 500px at 100% -10%, color-mix(in srgb, var(--accent) 7%, transparent), transparent 60%), var(--sx-bg); }
+
+/* Focus: flat and quiet — no tinted cards, hairlines only, neutral selection. */
+:root[data-design="focus"] { --sx-card: transparent; --sx-card-hover: var(--sx-hover); --sx-side: transparent; --sx-sel: color-mix(in srgb, var(--text) 8%, transparent); --sx-r: 12px; }
+:root[data-design="focus"] .sx-shell .sx-nav .settings-tab-btn.active .sx-nav-icon { color: var(--text); }
+:root[data-design="focus"] .sx-page-icon { background: transparent; color: var(--text); box-shadow: inset 0 0 0 1px var(--sx-line); }
+:root[data-design="focus"] .sx-link-icon { background: transparent; color: var(--muted); box-shadow: inset 0 0 0 1px var(--sx-line); }
+:root[data-design="focus"] .sx-search { background: transparent; }
+
+/* Grid: technical — square-ish corners, mono group labels, accent rule. */
+:root[data-design="grid"] { --sx-r: 6px; --sx-r-sm: 4px; --sx-display: var(--g-sans, var(--d-display)); --sx-font: var(--g-sans, var(--d-text)); }
+:root[data-design="grid"] .sx-nav-label { font: 600 10px/1.2 var(--g-mono, monospace); letter-spacing: .12em; text-transform: uppercase; }
+:root[data-design="grid"] .sx-shell .sx-nav .settings-tab-btn { border-radius: 4px; }
+:root[data-design="grid"] .sx-shell .sx-nav .settings-tab-btn.active { box-shadow: inset 2px 0 0 var(--accent); }
+:root[data-design="grid"] .sx-search, :root[data-design="grid"] .sx-seg, :root[data-design="grid"] .sx-sub-back { border-radius: 4px; }
+:root[data-design="grid"] .sx-seg-opt span { border-radius: 3px; }
+:root[data-design="grid"] .sx-page-icon, :root[data-design="grid"] .sx-link-icon, :root[data-design="grid"] .sx-result-icon { border-radius: 4px; }
+:root[data-design="grid"] .sx-shell .sx-section-title { font: 600 11px/1.3 var(--g-mono, monospace); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+:root[data-design="grid"] .sx-shell .sx-page-title { font-size: 20px; }
+:root[data-design="grid"] .sx-badge, :root[data-design="grid"] .sx-chip, :root[data-design="grid"] .sx-saved { border-radius: 3px; }
+
+/* Glass: translucent material, a lens highlight on cards, accent glow. */
+:root[data-design="glass"] {
+  --sx-bg: transparent; --sx-side: color-mix(in srgb, var(--text) 3%, transparent);
+  --sx-card: color-mix(in srgb, var(--panel) 52%, transparent); --sx-card-hover: color-mix(in srgb, var(--panel) 70%, transparent);
+  --sx-line: var(--g-line, color-mix(in srgb, var(--text) 11%, transparent)); --sx-r: var(--g-r-md, 16px);
+  --sx-sel: linear-gradient(90deg, var(--g-tint-strong, var(--accent-soft)), var(--g-tint, transparent));
+}
+:root[data-design="glass"] .sx-section-head { background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; }
+:root[data-design="glass"] .sx-section-head.is-stuck, :root[data-design="glass"] .sx-shell .settings-body .sx-section-head { background: color-mix(in srgb, var(--panel) 72%, transparent); -webkit-backdrop-filter: blur(16px) saturate(150%); backdrop-filter: blur(16px) saturate(150%); border-radius: 12px; }
+:root[data-design="glass"] .sx-card, :root[data-design="glass"] .sx-shell :is(.tg-card, .settings-section:not(.sx-section), .transfer-card, .settings-profile-card, .shortcuts-grid) {
+  box-shadow: inset 0 1px 0 var(--g-edge, rgba(255, 255, 255, .12)), 0 0 0 0 transparent;
+}
+:root[data-design="glass"] .sx-shell .sx-nav .settings-tab-btn.active { background: var(--sx-sel); box-shadow: inset 0 1px 0 var(--g-edge, transparent), inset 0 0 0 1px color-mix(in srgb, var(--accent) 24%, transparent); }
+:root[data-design="glass"] .sx-search { background: color-mix(in srgb, var(--panel) 55%, transparent); }
+:root[data-design="glass"] .sx-topbar { background: transparent; }
+:root[data-design="glass"] .sx-page-icon { background: radial-gradient(120% 100% at 30% -20%, rgba(255, 255, 255, .28), transparent 55%), var(--brand, var(--accent)); color: var(--on-accent, #fff); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .4), 0 8px 18px -10px var(--accent); }
+
+/* ------------------------------------------------------------ appearance page (appearance.js) */
+:root .sx-shell #appearance-root > .sx-section:first-child { margin-top: 22px; }
+:root .sx-shell #appearance-root .sx-section-body > * + * { margin-top: 12px; }
+.appearance-subhead { margin-top: 18px !important; font: 600 12.5px/1.3 var(--sx-font); color: var(--muted); }
+:root .sx-shell #appearance-root .appearance-note { margin: 10px 0 0; font: 400 12.25px/1.5 var(--sx-font); color: var(--muted); }
+:root .sx-shell #appearance-root .sx-row .appearance-note { margin: 2px 0 0; }
+:root .sx-shell .theme-options { gap: 12px; }
+:root .sx-shell .theme-option { border-radius: var(--sx-r); border-color: var(--sx-line); background: var(--sx-card); padding: 10px; gap: 10px; transition: border-color .15s, background .15s; }
+:root .sx-shell .theme-option:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--sx-line)); }
+:root .sx-shell .theme-option:has(input:checked) { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent); background: var(--sx-card); }
+:root .sx-shell .theme-mini { height: 64px; }
+:root .sx-shell .theme-option-name { font: 550 13.5px/1.2 var(--sx-font); padding: 0 2px 2px; }
+:root .sx-shell .variant-grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 10px; }
+:root .sx-shell .variant-option { border-radius: 12px; border-color: var(--sx-line); background: var(--sx-card); }
+:root .sx-shell .variant-option:has(input:checked) { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent); background: var(--sx-card); }
+:root .sx-shell .accent-options { display: flex; flex-wrap: wrap; gap: 8px; }
+:root .sx-shell .accent-option {
+  min-height: 0; padding: 6px 12px 6px 7px; gap: 8px; border-radius: 99px; border: 1px solid var(--sx-line); background: var(--sx-card);
+  font: 500 13px/1.2 var(--sx-font); transition: border-color .15s, background .15s;
+}
+:root .sx-shell .accent-option:hover { background: var(--sx-card-hover); }
+:root .sx-shell .accent-option:has(input:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--sx-card)); }
+:root .sx-shell .accent-dot { width: 20px; height: 20px; }
+:root .sx-shell .design-options { grid-template-columns: repeat(auto-fill, minmax(122px, 1fr)); gap: 10px; }
+:root .sx-shell .design-option-text small { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+:root .sx-shell .design-option { border-radius: var(--sx-r); border-color: var(--sx-line); background: var(--sx-card); }
+:root .sx-shell .design-option:has(input:checked) { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent); }
+:root .sx-shell .design-option-text small { font-size: 11.75px; line-height: 1.4; }
+:root .sx-shell #appearance-custom-section { margin-top: 14px; }
+:root .sx-shell #appearance-custom-more .sx-more-body { padding: 14px 18px 16px; display: grid; gap: 12px; }
+:root .sx-shell .theme-toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; }
+:root .sx-shell .appearance-field input[type="radio"] { position: absolute; opacity: 0; }
+:root .sx-shell .sx-section :is(.theme-option, .variant-option, .accent-option, .design-option) input[type="radio"] { position: absolute; width: 1px; height: 1px; opacity: 0; margin: 0; }
+:root .sx-shell .sx-section label:has(> input[type="radio"]:focus-visible) { outline: 2px solid var(--accent); outline-offset: 3px; }
+:root .sx-shell #appearance-titlebar .sx-seg input:disabled + span { cursor: not-allowed; }
+
+/* fixes after the design pass */
+:root .sx-shell .sx-search input, :root .sx-shell .sx-search input:is(:focus, :focus-visible, :hover) { outline: none !important; box-shadow: none !important; border: 0 !important; background: transparent !important; min-height: 0 !important; border-radius: 0 !important; }
+:root[data-design="glass"] .sx-shell .sx-section-head, :root[data-design="glass"] .sx-shell .settings-body .sx-section-head { position: static; background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; border-radius: 0; }
+.sx-prompt-pick { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; cursor: pointer; }
+.sx-prompt-pick input { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; flex: none; }
+:root .sx-shell .sx-prompt-row { min-height: 52px; }
+:root .sx-shell .sx-prompt-row + .sx-prompt-row { border-top: 1px solid var(--sx-line-soft); }
+.sx-icon-btn { width: 32px; height: 32px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; }
+.sx-icon-btn:hover:not(:disabled) { background: var(--sx-hover); color: var(--text); }
+.sx-icon-btn.danger:hover:not(:disabled) { color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent); }
+.sx-icon-btn:disabled { opacity: .35; cursor: not-allowed; }
+.sx-icon-btn .ui-icon { width: 16px; height: 16px; }
+:root .sx-shell #pr-sets .prompt-set-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+:root .sx-shell #pr-sets .prompt-set-bar .pretty-select, :root .sx-shell #pr-sets .prompt-set-bar .mpick { flex: 1 1 240px; margin: 0; }
+:root .sx-shell #pr-sets > .sub { margin: 8px 0 12px; font-size: 12.75px; line-height: 1.55; }
+:root .sx-shell .internal-prompt-card { border-radius: 10px; }
+:root .sx-shell #pr-internal { display: grid; gap: 6px; padding: 0 18px 16px; }
+:root .sx-shell .sx-more-body > p.sub { margin: 12px 18px 10px; font-size: 12.75px; }
+:root .sx-shell #pr-disabled { padding: 0 18px 10px; }
+:root .sx-shell .shortcuts-grid { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+
+/* final pass (r23 settings finish): field labels sit flush, textareas use the UI font, calmer info notes */
+:root .sx-shell .sx-field > .sx-field-label { margin: 0 !important; }
+:root .sx-shell .sx-field > .sx-help { margin: 0; }
+:root .sx-shell textarea.sx-textarea:not(.sx-mono) { font-family: var(--sx-font); font-size: 13.25px; line-height: 1.5; min-height: 84px; margin: 0; }
+/* the searchable picker (mpick) looks exactly like the pretty select next to it */
+:root .sx-shell .mpick-btn { background: var(--panel-2); border: 1px solid var(--border); border-radius: 11px; min-height: 39px; padding: 8px 11px; font-size: 14px; }
+:root .sx-shell .mpick-btn:hover, :root .sx-shell .mpick.open .mpick-btn { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+:root .sx-shell .mpick-btn > svg { color: var(--muted); flex: none; }
+:root[data-design="aurora"] .sx-shell .mpick-btn { border-radius: 14px; }
+:root[data-design="focus"] .sx-shell .mpick-btn { border-color: var(--f-line-strong, var(--border)); background: var(--f-field, var(--panel-2)); border-radius: 12px; }
+:root[data-design="grid"] .sx-shell .mpick-btn { border-radius: var(--g-r, 4px); }
+:root[data-design="glass"] .sx-shell .mpick-btn { border-radius: 12px; background-color: color-mix(in srgb, var(--panel) 72%, transparent); border-color: color-mix(in srgb, var(--control-border, var(--border)) 55%, transparent); box-shadow: inset 0 1px 2px color-mix(in srgb, #000 8%, transparent); }
+
+/* Telegram + Mini App (telegram-settings.js / tgapp-settings.js): same paddings, titles and lines as kit cards */
+:root .sx-shell #pane-remote .tg-card { gap: 0; padding: 0; overflow: hidden; }
+:root .sx-shell #pane-remote .tg-card-title { text-transform: none; letter-spacing: -.01em; color: var(--text); font: 650 14px/1.3 var(--sx-display); padding: 14px 18px 12px; }
+:root .sx-shell #pane-remote .tg-card-title + .tg-row { border-top: 0; }
+:root .sx-shell #pane-remote .tg-step { padding: 14px 18px; gap: 12px; }
+:root .sx-shell #pane-remote .tg-step + .tg-step { border-top: 1px solid var(--sx-line-soft); padding-top: 14px; }
+:root .sx-shell #pane-remote .tg-step .tl { font: 550 14px/1.4 var(--sx-font); }
+:root .sx-shell #pane-remote .tg-step .td { font: 400 12.75px/1.5 var(--sx-font); }
+:root .sx-shell #pane-remote .tg-token-line { min-width: 0; }
+:root .sx-shell #pane-remote .tg-token-line .pinput { min-width: 0; width: auto; }
+:root .sx-shell #pane-remote .tg-chips { padding: 0 18px 10px; }
+:root .sx-shell #pane-remote .tg-note { padding: 0 18px 12px; margin: 0; }
+:root .sx-shell #pane-remote .tg-actions { margin-top: 14px; }
+:root .sx-shell #pane-remote .tg-quiet input[type="time"] { width: 118px; }
+:root .sx-shell #tgapp-settings { margin-top: 22px; }
+:root .sx-shell #tgapp-settings .tga-card { gap: 0; padding: 0; border: 1px solid var(--sx-line); border-radius: var(--sx-r); background: var(--sx-card); box-shadow: none; overflow: hidden; }
+:root .sx-shell #tgapp-settings .tga-head { margin: 0; padding: 16px 18px 14px; }
+:root .sx-shell #tgapp-settings .tga-row { margin: 0; padding: 13px 18px; gap: 20px; min-height: 54px; border-top: 1px solid var(--sx-line-soft); }
+:root .sx-shell #tgapp-settings .tga-row .tl { font: 550 14px/1.4 var(--sx-font); }
+:root .sx-shell #tgapp-settings .tga-row .td, :root .sx-shell #tgapp-settings .tga-note { font: 400 12.75px/1.5 var(--sx-font); }
+:root .sx-shell #tgapp-settings details.tga-row > summary { font: 550 13px/1.2 var(--sx-font); color: var(--muted); cursor: pointer; }
+:root .sx-shell #tgapp-settings .tga-card > .tga-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 13px 18px 15px; border-top: 1px solid var(--sx-line-soft); }
+:root .sx-shell #tgapp-settings .tga-card > .tga-actions .tga-note { margin: 0; flex: 1 1 240px; }
+:root .sx-shell #tgapp-settings .tga-card > .tga-error { margin: 0 18px 14px; }
+:root .sx-shell .profile-stats > div { background: var(--sx-card); border-color: var(--sx-line); border-radius: 12px; }
+:root .sx-shell :not(.sx-card) > .sx-more + .sx-more { margin-top: 10px; }
+:root .sx-shell .transfer-card .settings-title { border: 0; padding: 0; margin: 4px 0 2px; font: 650 14.5px/1.3 var(--sx-display); }
+:root .sx-shell .transfer-card .transfer-head p.sub { margin: 2px 0 0; font-size: 12.75px; line-height: 1.55; }
+:root .sx-shell :is(.transfer-actions, .sx-actions, .tg-actions) .pbtn { display: inline-flex; align-items: center; gap: 7px; }
+:root .sx-shell :is(.transfer-actions, .sx-actions, .tg-actions) .pbtn .ui-icon { width: 15px; height: 15px; margin: 0; }
+
+/* Round 24: клавиатурная подсветка в меню (MemuLayers.listKeys ставит .active) */
+/* r29f: :where — :is() took the specificity of #context-menu (1,1,1) and beat every design's «selected» style: in Brutal the
+   chosen option kept its dark on-accent text on this faint tint (unreadable). */
+:root :where(.pretty-select-menu, #context-menu, .context-menu) button.active {
+  background: var(--d-hover, color-mix(in srgb, var(--accent, #6b8afd) 14%, transparent));
+  outline: 2px solid color-mix(in srgb, var(--accent, #6b8afd) 45%, transparent); outline-offset: -2px;
+}

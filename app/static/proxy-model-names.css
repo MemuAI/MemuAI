@@ -1,0 +1,14 @@
+/* Round 33 (r33c-models-lists): model catalogue rows — the readable name first, the full id under it (muted). */
+.pm-cell { min-width: 180px; max-width: 420px; }
+.pm-cell .pm-name { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pm-cell .pm-id { display: block; margin-top: 1px; font-size: 11.5px; color: var(--muted, #8b8fa3); opacity: .85;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.model-pick-row .pm-cell { display: inline-flex; flex-direction: column; min-width: 0; max-width: none; flex: 1 1 auto; }
+#mcap-title .mcap-title-id { display: block; margin-top: 2px; font-size: 12px; font-weight: 500; color: var(--muted); opacity: .9;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Round 34: a long id (openrouter-…-reasoning:free) set the column's min width — the table grew past the card and
+   the pinned actions covered «Context». The name column now takes a share of the width and ellipsizes inside it. */
+#models-table td.pm-cell { max-width: 0; width: 42%; min-width: 0; }
+.model-pick-row .pm-cell .mono { max-width: none; }
+.model-pick-bar { flex-wrap: wrap; }
+.model-pick-bar input { flex: 1 1 220px; }

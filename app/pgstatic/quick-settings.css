@@ -1,0 +1,94 @@
+/* Settings → «Быстрый доступ» (Round 23). The page itself is built from the settings kit (settings.css, r23-settings);
+   this file only styles what is unique to Quick Ask: the status chip, the hotkey capture field and its messages,
+   the endpoint key line and the connection result. Theme tokens only. */
+.qs-settings { display: block; }
+.qs-inline { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+
+/* status chip in the «Основное» header */
+.qs-pill { display: inline-flex; align-items: center; gap: 7px; max-width: 100%; height: 24px; padding: 0 10px; border-radius: 999px;
+  background: color-mix(in srgb, var(--text) 6%, transparent); color: var(--muted); font-size: 12px; font-weight: 600; white-space: nowrap;
+  overflow: hidden; vertical-align: middle; letter-spacing: 0; text-transform: none; }
+.qs-pill > span { overflow: hidden; text-overflow: ellipsis; }
+.qs-pill i { width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--muted); }
+.qs-pill[data-state="registered"] { color: var(--ok); background: color-mix(in srgb, var(--ok) 12%, transparent); }
+.qs-pill[data-state="registered"] i { background: var(--ok); }
+.qs-pill[data-state="busy"], .qs-pill[data-state="failed"] { color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, transparent); }
+.qs-pill[data-state="busy"] i, .qs-pill[data-state="failed"] i { background: var(--danger); }
+.qs-pill[data-state="conflict"] { color: #c98a1b; background: color-mix(in srgb, #d6a03a 14%, transparent); }
+.qs-pill[data-state="conflict"] i { background: #d6a03a; }
+.qs-pill[data-state="capturing"] { color: var(--accent); background: var(--accent-soft); }
+.qs-pill[data-state="capturing"] i, .qs-pill[data-state="loading"] i { background: var(--accent); animation: qs-pulse 1.2s ease-in-out infinite; }
+@keyframes qs-pulse { 50% { opacity: .3; } }
+
+/* hotkey capture: real keycaps */
+.qs-capture { display: inline-flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 4px; min-width: 150px; min-height: 36px; padding: 4px 12px;
+  border-radius: 10px; cursor: pointer; border: 1px solid var(--control-border, var(--border)); background: var(--panel); color: var(--text);
+  transition: border-color .15s, box-shadow .2s; }
+.qs-capture:hover, .qs-capture:focus-visible { border-color: var(--accent); outline: 0; }
+.qs-capture.capturing { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+.qs-capture kbd, .qs-alt kbd { display: inline-grid; place-items: center; min-width: 26px; height: 24px; padding: 0 8px; border-radius: 6px;
+  font: 650 12px var(--mono); color: var(--text); background: var(--panel-2); border: 1px solid var(--border); box-shadow: 0 1px 0 var(--border); }
+.qs-plus { color: var(--muted); font-size: 12px; padding: 0 1px; }
+.qs-capture-hint { color: var(--accent); font-size: 12.5px; font-weight: 600; }
+.qs-hotkey-msg { display: grid; gap: 6px; margin-top: 8px; }
+.qs-hotkey-msg:empty { display: none; }
+.qs-err, .qs-warn, .qs-info { padding: 8px 11px; border-radius: 9px; font-size: 12.5px; line-height: 1.5; }
+.qs-err { color: var(--danger); background: color-mix(in srgb, var(--danger) 9%, transparent); }
+.qs-warn { color: var(--text); background: color-mix(in srgb, #d6a03a 12%, transparent); }
+.qs-info { color: var(--muted); background: color-mix(in srgb, var(--text) 5%, transparent); }
+.qs-why { margin-top: 2px; font-size: 12.5px; line-height: 1.5; color: var(--muted); }
+.qs-why > summary { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; list-style: none; color: var(--muted);
+  font-weight: 550; border-radius: 6px; }
+.qs-why > summary::-webkit-details-marker { display: none; }
+.qs-why > summary::before { content: ""; width: 6px; height: 6px; border: solid currentColor; border-width: 0 1.5px 1.5px 0;
+  transform: rotate(-45deg); transition: transform .15s; opacity: .8; }
+.qs-why[open] > summary::before { transform: rotate(45deg) translate(-1px, -1px); }
+.qs-why > summary:hover, .qs-why > summary:focus-visible { color: var(--text); outline: 0; }
+.qs-why > p { margin: 6px 0 0; max-width: 56ch; }
+@media (prefers-reduced-motion: reduce) { .qs-why > summary::before { transition: none; } }
+.qs-alts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+.qs-alt { display: inline-flex; align-items: center; gap: 3px; padding: 3px 5px; border-radius: 9px; cursor: pointer; border: 1px dashed var(--border); background: transparent; }
+.qs-alt:hover { border-color: var(--accent); background: var(--accent-soft); }
+.qs-alt.taken { opacity: .45; cursor: not-allowed; text-decoration: line-through; }
+.qs-free { margin-left: 4px; color: var(--ok); font-weight: 700; font-size: 12px; }
+.qs-alt kbd { height: 22px; min-width: 22px; padding: 0 6px; font-size: 11px; }
+
+/* own endpoint */
+.qs-key-line { display: flex; align-items: center; gap: 8px; }
+.qs-key-line > :first-child { flex: 1; min-width: 0; }
+.qs-key-line input { width: 100%; }
+.qs-settings input.qs-invalid { border-color: var(--danger) !important; box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 14%, transparent); }
+.qs-ep-test .sx-actions { align-items: center; gap: 12px; }
+.qs-test-result { flex: 1; min-width: 0; font-size: 12.5px; line-height: 1.45; color: var(--muted); text-align: right; }
+.qs-test-result[data-tone="ok"] { color: var(--ok); }
+.qs-test-result[data-tone="err"] { color: var(--danger); }
+.qs-vision .qs-warn { margin-top: 8px; }
+.qs-count { font-variant-numeric: tabular-nums; margin-left: 6px; opacity: .8; }
+#qs-persona-desc:empty { display: none; }
+.qs-sub-body { display: grid; gap: 14px; }
+
+/* the fallback kit (settings-kit.js not loaded) still reads as a settings page */
+.qs-settings[data-kit="fallback"] .sx-section { margin: 0 0 18px; }
+.qs-settings[data-kit="fallback"] .sx-section-title { display: flex; align-items: center; gap: 10px; font-size: 14px; margin: 0 0 8px; }
+.qs-settings[data-kit="fallback"] .sx-card { border: 1px solid var(--border); border-radius: 12px; padding: 4px 16px; background: var(--panel); }
+.qs-settings[data-kit="fallback"] .sx-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 0;
+  border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent); width: 100%; text-align: left; background: none; border-left: 0; border-right: 0; border-bottom: 0; color: inherit; }
+.qs-settings[data-kit="fallback"] .sx-card > .sx-row:first-child { border-top: 0; }
+.qs-settings[data-kit="fallback"] .sx-desc { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+.qs-settings[data-kit="fallback"] .sx-field { padding: 10px 0; display: grid; gap: 6px; }
+.qs-settings[data-kit="fallback"] .sx-seg { display: inline-flex; gap: 2px; padding: 2px; border-radius: 9px; background: color-mix(in srgb, var(--text) 6%, transparent); }
+.qs-settings[data-kit="fallback"] .sx-seg-opt input { position: absolute; opacity: 0; pointer-events: none; }
+.qs-settings[data-kit="fallback"] .sx-seg-opt span { display: inline-block; padding: 5px 11px; border-radius: 7px; cursor: pointer; font-size: 12.5px; font-weight: 600; color: var(--muted); }
+.qs-settings[data-kit="fallback"] .sx-seg-opt input:checked + span { background: var(--panel-2); color: var(--text); }
+.qs-settings[data-kit="fallback"] .sx-sub { margin: 18px 0; }
+.qs-settings[data-kit="fallback"] .sx-sub-title { font-weight: 650; font-size: 14px; margin-bottom: 6px; }
+@media (prefers-reduced-motion: reduce) { .qs-pill i { animation: none !important; } }
+
+/* Round 23 (r23-quick, pass 2): the model block keeps the kit dividers right for both sources; the vision hint is a
+   quiet line, not a box (it is information, not a warning). */
+:root .sx-shell .qs-settings .qs-model-block > :is(.sx-row, .sx-field, .qs-ep-test) { border-top: 0; }
+:root .sx-shell .qs-settings .qs-model-block > :not([hidden]) ~ :not([hidden]):not(.qs-ep-test) { border-top: 1px solid var(--sx-line-soft); }
+.qs-model-block > .qs-ep-test .sx-actions { margin-top: -4px; }
+.qs-vision { padding: 0 18px 14px; }
+.qs-vision-hint { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--muted); max-width: 64ch; }
+.qs-vision .qs-warn { margin-top: 8px; }

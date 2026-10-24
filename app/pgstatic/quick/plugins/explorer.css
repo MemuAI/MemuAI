@@ -1,0 +1,157 @@
+/* Round 29 — Quick Access over Explorer and other programs (explorer.js). Built on the window's classes
+   (.qa-row, .qa-view-head, .qa-search, .qa-btn, .qa-icon) and tokens, so every design, accent and theme applies. */
+
+:root[data-qe-view] #qa-suggest, :root[data-qe-view] #qa-answer, :root[data-qe-view] #qa-actions,
+:root[data-qe-view] #qa-chats, :root[data-qe-view] #qa-menu, :root[data-qe-view] #qa-picker { display: none !important; }
+
+.qa-plugin.qe { padding: 0 10px 2px; display: flex; flex-direction: column; gap: 6px; }
+.qa-plugin.qe[data-mode="view"] { padding: 0 8px 8px; min-height: 0; flex: 1 1 auto; max-height: calc(var(--qa-max-h) - 110px);
+  animation: qa-view-in .2s var(--qa-ease-out) both; }
+
+/* the context chip */
+.qe-chip { display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 3px 4px 3px 9px; border-radius: 9px;
+  background: var(--qa-chip); border: 1px solid var(--qa-chip-line); font-size: 12.5px; color: var(--text); min-width: 0; }
+.qe-chip .ic { flex: none; display: grid; place-items: center; color: var(--accent); }
+.qe-chip .ic svg { width: 15px; height: 15px; }
+.qe-chip .tx { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 560; }
+.qe-chip.off { opacity: .72; }
+.qe-chip.off .ic { color: var(--muted); }
+.qe-chip.pending .tx { color: var(--muted); font-weight: 500; }
+.qe-chip.pending .ic { animation: qe-pulse 1.2s ease-in-out infinite; }
+.qe-chip .qa-icon { width: 24px; height: 24px; flex: none; }
+.qe-chip .qa-icon svg { width: 13px; height: 13px; }
+.qe-chip .qe-more svg { transition: transform .15s ease; }
+.qe-chip .qe-more.on svg { transform: rotate(90deg); }
+.qe-chip .qe-attach { height: 24px; padding: 0 10px; font-size: 12px; }
+.qe-badge { flex: none; display: inline-flex; align-items: center; gap: 4px; font-size: 10.5px; font-weight: 650; padding: 2px 7px; border-radius: 999px;
+  color: var(--muted); background: color-mix(in srgb, var(--muted) 12%, transparent); white-space: nowrap; }
+.qe-badge.full { color: var(--accent); background: var(--qa-active); }
+.qe-badge.lock svg { width: 11px; height: 11px; }
+.qe-for { font-size: 11.5px; color: var(--qa-faint); padding: 0 2px; }
+
+/* one-click actions */
+.qe-actions { display: flex; flex-wrap: wrap; gap: 5px; }
+.qe-act { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px 0 8px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--qa-chip-line); background: transparent; color: var(--text); font: 500 12.5px var(--sans); max-width: 100%; }
+.qe-act svg { width: 14px; height: 14px; color: var(--muted); flex: none; }
+.qe-act span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qe-act:hover, .qe-act:focus-visible { background: var(--qa-hover); outline: 0; border-color: color-mix(in srgb, var(--accent) 40%, var(--qa-chip-line)); }
+.qe-act:hover svg { color: var(--accent); }
+.qe-act.preset svg { color: var(--accent-2); }
+
+/* views */
+.qe-head .qe-title { flex: 1; min-width: 0; font-weight: 640; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qe-spin { flex: none; width: 14px; height: 14px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  border-top-color: var(--accent); animation: qe-spin .8s linear infinite; }
+.qe-list { overflow: auto; min-height: 0; padding: 2px 0; scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--muted) 30%, transparent) transparent; }
+.qe-row { min-height: 42px; cursor: pointer; }
+.qe-main { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.qe-main .tx { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qe-main .tx i { font-style: normal; color: var(--muted); }
+.qe-main small { color: var(--muted); font: 12px var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qe-btns { flex: none; display: inline-flex; gap: 2px; opacity: 0; transition: opacity .12s ease; }
+.qe-row:hover .qe-btns, .qe-row.active .qe-btns { opacity: 1; }
+.qe-btns .qa-icon { width: 26px; height: 26px; }
+.qe-btns .qa-icon svg { width: 14px; height: 14px; }
+.qe-empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 20px 24px 16px; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.qe-empty > svg { width: 24px; height: 24px; opacity: .6; }
+.qe-empty b { color: var(--text); font-weight: 620; }
+.qe-foot { display: flex; align-items: center; gap: 10px; padding: 8px 6px 0; margin-top: 4px; border-top: 1px solid var(--qa-line); color: var(--qa-faint); font-size: 12px; }
+.qe-foot > span { flex: 1; min-width: 0; }
+.qe-banner { display: flex; align-items: flex-start; gap: 9px; margin: 2px 2px 6px; padding: 8px 10px; border-radius: 9px; font-size: 12.5px; color: var(--muted); background: var(--qa-chip); line-height: 1.45; }
+.qe-banner svg { width: 15px; height: 15px; flex: none; color: var(--accent); margin-top: 1px; }
+
+/* ask for a rule */
+.qe-ask { display: flex; flex-direction: column; gap: 9px; padding: 6px 4px 2px; }
+.qe-ask-ctx { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--muted); min-width: 0; }
+.qe-ask-ctx svg { width: 14px; height: 14px; flex: none; color: var(--accent); }
+.qe-ask-ctx span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qe-ask input { width: 100%; border: 1px solid var(--qa-chip-line); outline: 0; border-radius: 9px; background: var(--qa-chip); color: var(--text);
+  font: 14px var(--sans); padding: 9px 11px; }
+.qe-ask input:focus { border-color: color-mix(in srgb, var(--accent) 55%, var(--qa-chip-line)); }
+.qe-ask-foot { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--qa-faint); }
+.qe-ask-foot span { flex: 1; min-width: 0; }
+
+/* duplicates */
+.qe-group { padding: 4px 2px 8px; }
+.qe-group-h { font-size: 11.5px; font-weight: 650; color: var(--qa-faint); padding: 2px 6px 4px; }
+.qe-dup { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 30px; padding: 0 8px; border: 0; border-radius: 7px; background: none; color: var(--text);
+  font: 13px var(--sans); cursor: pointer; text-align: left; }
+.qe-dup:hover { background: var(--qa-hover); }
+.qe-dup .mk { flex: none; display: grid; place-items: center; }
+.qe-dup .mk svg { width: 14px; height: 14px; }
+.qe-dup.keep .mk { color: var(--accent); }
+.qe-dup.drop .mk { color: var(--danger); }
+.qe-dup.drop .tx { color: var(--muted); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--danger) 55%, transparent); }
+.qe-dup .tx { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qe-dup em { flex: none; font-style: normal; font-size: 11px; color: var(--qa-faint); }
+
+/* change-set cards (bottom slot) */
+.qa-plugin.qe-cards { padding: 0 10px 8px; display: flex; flex-direction: column; gap: 8px; }
+/* r29d: the cards live outside the scrolling answer — cap them so the answer and the footer always stay visible. */
+.qa-plugin.qe-cards { max-height: min(calc(var(--qa-max-h) * .55), 52vh); overflow-y: auto; scrollbar-width: thin; flex-shrink: 0; }
+.qe-card { flex: none; }
+.qe-card [data-qe-toggle] { cursor: pointer; }
+.qe-card.compact header { padding-bottom: 8px; }
+.qe-card .qa-btn.qe-undo-sm { flex: none; height: 26px; padding: 0 9px; font-size: 12px; }
+.qe-card .qa-btn.qe-undo-sm svg { width: 13px; height: 13px; margin-right: 4px; vertical-align: -2px; }
+.qe-card { border: 1px solid var(--qa-chip-line); border-radius: 11px; background: var(--qa-chip); overflow: hidden; animation: qa-view-in .2s var(--qa-ease-out) both; }
+.qe-card.pending { border-color: color-mix(in srgb, var(--accent) 45%, var(--qa-chip-line)); }
+.qe-card header { display: flex; align-items: center; gap: 9px; padding: 8px 6px 6px 11px; }
+.qe-card header .ic { flex: none; display: grid; place-items: center; color: var(--accent); }
+.qe-card header .ic svg { width: 16px; height: 16px; }
+.qe-card header div { flex: 1; min-width: 0; display: grid; }
+.qe-card header b { font-size: 13px; font-weight: 640; }
+.qe-card header small { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qe-card header .qa-icon { width: 26px; height: 26px; }
+.qe-card header .qa-icon svg { width: 13px; height: 13px; }
+.qe-card-body { max-height: 260px; overflow: auto; padding: 0 8px 4px; scrollbar-width: thin; }
+.qe-card footer { display: flex; align-items: center; gap: 8px; padding: 7px 8px 8px 11px; border-top: 1px solid var(--qa-line); }
+.qe-card footer > span:first-child { flex: 1; min-width: 0; }
+.qe-card footer .qa-btn svg { width: 14px; height: 14px; margin-right: 4px; vertical-align: -2px; }
+.qe-warn { font-size: 11.5px; color: var(--danger); }
+
+.qe-op { font-size: 12.5px; border-radius: 7px; }
+.qe-op summary { display: flex; align-items: center; gap: 8px; padding: 5px 4px; cursor: pointer; list-style: none; min-width: 0; }
+.qe-op summary::-webkit-details-marker { display: none; }
+.qe-op summary:hover { background: var(--qa-hover); border-radius: 7px; }
+.qe-op .k { flex: none; font-size: 10.5px; font-weight: 650; padding: 1px 7px; border-radius: 999px; color: var(--accent); background: var(--qa-active); }
+.qe-op .k.delete { color: var(--danger); background: color-mix(in srgb, var(--danger) 13%, transparent); }
+.qe-op .k.mkdir, .qe-op .k.move, .qe-op .k.copy { color: var(--accent-2); background: color-mix(in srgb, var(--accent-2) 13%, transparent); }
+.qe-op .p { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: 12px; }
+.qe-op.invalid .p, .qe-op.discarded .p { text-decoration: line-through; color: var(--muted); }
+.qe-op-err { color: var(--danger); font-size: 11.5px; padding: 0 6px 4px; }
+em.st { flex: none; font-style: normal; font-size: 10.5px; font-weight: 650; padding: 1px 6px; border-radius: 999px; color: var(--muted); background: color-mix(in srgb, var(--muted) 12%, transparent); }
+em.st.applied { color: var(--accent); background: var(--qa-active); }
+em.st.failed, em.st.invalid, em.st.risky { color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, transparent); }
+.qe-diff { margin: 2px 0 6px; padding: 7px 9px; border-radius: 7px; background: color-mix(in srgb, var(--text) 5%, transparent); font: 11.5px/1.45 var(--mono);
+  white-space: pre-wrap; word-break: break-word; max-height: 220px; overflow: auto; }
+.qe-diff span.add { color: #2f9e5a; background: color-mix(in srgb, #2f9e5a 10%, transparent); display: inline-block; width: 100%; }
+.qe-diff span.del { color: var(--danger); background: color-mix(in srgb, var(--danger) 9%, transparent); display: inline-block; width: 100%; }
+.qe-diff span.hunk { color: var(--qa-faint); }
+:root[data-theme="dark"] .qe-diff span.add, [data-theme="dark"] .qe-diff span.add { color: #63cf8c; }
+
+.qe-table { width: 100%; border-collapse: collapse; font-size: 12.5px; table-layout: fixed; }
+.qe-table th { text-align: left; font-weight: 600; font-size: 11px; color: var(--qa-faint); padding: 4px 6px; }
+.qe-table th:nth-child(2), .qe-table td.ar { width: 24px; padding: 4px 0; color: var(--muted); text-align: center; text-overflow: clip; }
+.qe-table th:last-child, .qe-table td:last-child { width: 74px; text-align: right; }
+.qe-table td { padding: 4px 6px; border-top: 1px solid var(--qa-line); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qe-table td b { font-weight: 600; color: var(--accent); }
+.qe-table tr.applied td b { color: var(--text); }
+.qe-table tr.invalid td, .qe-table tr.discarded td { color: var(--muted); text-decoration: line-through; }
+
+.qe-sort-g { border-radius: 7px; }
+.qe-sort-g summary { display: flex; align-items: center; gap: 7px; padding: 5px 4px; cursor: pointer; list-style: none; font-size: 12.5px; }
+.qe-sort-g summary::-webkit-details-marker { display: none; }
+.qe-sort-g summary svg { width: 14px; height: 14px; color: var(--accent); flex: none; }
+.qe-sort-g summary b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.qe-sort-g summary span { font-size: 11px; color: var(--muted); }
+.qe-sort-g ul { margin: 0 0 6px; padding: 0 0 0 28px; list-style: none; font: 12px/1.6 var(--mono); color: var(--muted); }
+.qe-sort-g li { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+@keyframes qe-spin { to { transform: rotate(360deg); } }
+@keyframes qe-pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .qe-spin, .qe-chip.pending .ic { animation: none; } .qe-card, .qa-plugin.qe[data-mode="view"] { animation: none; } }
+/* r29t: the shortcut hint inside the accent «Apply» button follows the button's own text colour (was a pale
+   peach-on-peach chip, unreadable in light themes) */
+.qe-card .qa-btn.accent kbd { color: inherit; opacity: .72; background: rgba(0, 0, 0, .1); border-color: rgba(0, 0, 0, .14); }

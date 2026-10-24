@@ -1,0 +1,510 @@
+/* =====================================================================
+   MemuAI design «Аврора / Aurora» — scoped to :root[data-design="aurora"].
+   ---------------------------------------------------------------------
+   Warm, editorial, calm. The window is one soft surface lit by a faint
+   aurora (radial glows mixed from --accent / --accent-2). The sidebar
+   floats inside it as a rounded translucent panel; the conversation sits
+   directly on the glow, set in a generous reading rhythm with serif
+   display type (Source Serif 4, OFL, bundled latin + cyrillic) and a big
+   floating composer.
+
+   Colours: only tokens from /themes.css and color-mix() of them, so every
+   mode, surface variant and accent keeps working. Nothing here leaks into
+   other designs: every selector starts with :root[data-design="aurora"].
+   ===================================================================== */
+
+@font-face {
+  font-family: "Aurora Serif";
+  src: url("fonts/source-serif-4/SourceSerif4-Variable.woff2") format("woff2");
+  font-weight: 300 700; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "Aurora Serif";
+  src: url("fonts/source-serif-4/SourceSerif4-Italic-Variable.woff2") format("woff2");
+  font-weight: 300 700; font-style: italic; font-display: swap;
+}
+
+/* ------------------------------------------------------------ tokens */
+:root[data-design="aurora"] {
+  --au-serif: "Aurora Serif", "Source Serif 4", Georgia, Cambria, "Times New Roman", serif;
+  --au-sans: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --au-display: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  --serif: var(--au-serif);
+  --d-display: var(--au-display);
+
+  --au-a1: var(--accent);
+  --au-a2: var(--accent-2, var(--accent));
+  --au-glow-1: color-mix(in srgb, var(--au-a1) 24%, transparent);
+  --au-glow-2: color-mix(in srgb, var(--au-a2) 19%, transparent);
+  --au-glow-3: color-mix(in srgb, var(--au-a2) 10%, transparent);
+  --au-base: var(--bg);
+  --au-float: color-mix(in srgb, var(--panel) 66%, transparent);
+  --au-float-solid: color-mix(in srgb, var(--panel) 94%, var(--bg));
+  --au-glass: color-mix(in srgb, var(--panel) 97%, transparent);
+  --au-hair: color-mix(in srgb, var(--text) 9%, transparent);
+  --au-hair-soft: color-mix(in srgb, var(--text) 5.5%, transparent);
+  --au-hover: color-mix(in srgb, var(--text) 6%, transparent);
+  --au-press: color-mix(in srgb, var(--text) 10%, transparent);
+  --au-tint: color-mix(in srgb, var(--accent) 13%, transparent);
+  --au-tint-strong: color-mix(in srgb, var(--accent) 20%, transparent);
+  --au-shadow-float: 0 1px 0 color-mix(in srgb, var(--text) 4%, transparent) inset, 0 30px 70px -40px rgba(0, 0, 0, .65), 0 8px 24px -16px rgba(0, 0, 0, .4);
+  --au-shadow-pop: 0 0 0 1px color-mix(in srgb, var(--text) 7%, transparent), 0 28px 70px -24px rgba(0, 0, 0, .6), 0 10px 24px -14px rgba(0, 0, 0, .35);
+  --au-shadow-composer: 0 0 0 1px color-mix(in srgb, var(--text) 8%, transparent), 0 26px 60px -28px rgba(0, 0, 0, .7), 0 6px 18px -10px rgba(0, 0, 0, .35);
+  --au-r: 18px; --au-r-lg: 24px; --au-r-xl: 30px;
+  --au-ease: cubic-bezier(.22, 1, .36, 1);
+
+  /* Design-3 helper tokens re-pointed so shared rules inherit the look. */
+  --d-line: var(--au-hair);
+  --d-line-soft: var(--au-hair-soft);
+  --d-hover: var(--au-hover);
+  --d-press: var(--au-press);
+  --d-glass: var(--au-glass);
+  --d-pop-shadow: var(--au-shadow-pop);
+  --canvas: var(--au-base);
+  --canvas-line: var(--au-hair);
+  --brand: linear-gradient(140deg, var(--au-a1) 0%, color-mix(in srgb, var(--au-a1) 50%, var(--au-a2)) 55%, var(--au-a2) 100%);
+}
+:root[data-design="aurora"][data-theme="light"] {
+  --au-glow-1: color-mix(in srgb, var(--au-a1) 13%, transparent);
+  --au-glow-2: color-mix(in srgb, var(--au-a2) 10%, transparent);
+  --au-glow-3: color-mix(in srgb, var(--au-a1) 6%, transparent);
+  --au-float: color-mix(in srgb, var(--panel) 72%, transparent);
+  --au-glass: color-mix(in srgb, var(--panel) 98%, transparent);
+  --au-hair: color-mix(in srgb, var(--text) 10%, transparent);
+  --au-hair-soft: color-mix(in srgb, var(--text) 6%, transparent);
+  --au-hover: color-mix(in srgb, var(--text) 5%, transparent);
+  --au-tint: color-mix(in srgb, var(--accent) 10%, var(--panel));
+  --au-tint-strong: color-mix(in srgb, var(--accent) 16%, transparent);
+  --au-shadow-float: 0 1px 0 rgba(255, 255, 255, .7) inset, 0 30px 60px -40px rgba(60, 40, 20, .32), 0 6px 20px -14px rgba(60, 40, 20, .18);
+  --au-shadow-pop: 0 0 0 1px color-mix(in srgb, var(--text) 8%, transparent), 0 26px 60px -26px rgba(60, 40, 20, .3), 0 8px 20px -14px rgba(60, 40, 20, .16);
+  --au-shadow-composer: 0 0 0 1px color-mix(in srgb, var(--text) 9%, transparent), 0 24px 50px -28px rgba(60, 40, 20, .32), 0 4px 14px -8px rgba(60, 40, 20, .14);
+}
+
+/* -------------------------------------------------------------- base */
+:root[data-design="aurora"] body {
+  background: var(--au-base); font-family: var(--au-sans);
+  -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+}
+:root[data-design="aurora"] #app {
+  position: relative; isolation: isolate; background: var(--au-base);
+}
+/* The aurora: three very soft glows, drifting slowly. */
+:root[data-design="aurora"] #app::before {
+  content: ""; position: absolute; inset: -12%; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(42% 38% at 82% 6%, var(--au-glow-1), transparent 70%),
+    radial-gradient(38% 42% at 8% 96%, var(--au-glow-2), transparent 72%),
+    radial-gradient(30% 34% at 30% 8%, var(--au-glow-3), transparent 75%);
+  /* coarse steps (~4 updates/s): the blurred composer, chips and menus sit
+     on these glows, so a 60 fps drift re-filtered them every frame */
+  animation: au-drift 38s steps(76, end) infinite alternate;
+}
+:root[data-design="aurora"] #app::after {
+  /* Fine grain keeps the glows from banding on 8-bit panels. */
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; opacity: .05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+@keyframes au-drift {
+  0% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(-2%, 1.5%, 0) scale(1.04); }
+  100% { transform: translate3d(1.5%, -1%, 0) scale(1.02); }
+}
+:root[data-design="aurora"] ::selection { background: color-mix(in srgb, var(--accent) 30%, transparent); }
+:where(:root[data-design="aurora"]) :focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 85%, transparent); outline-offset: 2px; }
+
+/* Startup cover */
+:root[data-design="aurora"] #startup-cover { background: var(--au-base); }
+:root[data-design="aurora"] .startup-mark { border-radius: 50%; }
+:root[data-design="aurora"] .startup-name { font: 500 24px/1.2 var(--au-serif); letter-spacing: -.01em; }
+
+/* ------------------------------------------------------------- shell */
+:root[data-design="aurora"] .side {
+  position: relative; z-index: 2;
+  margin: 10px 0 10px 10px; padding: 14px 10px 10px 12px;
+  background: var(--au-float); border: 1px solid var(--au-hair); border-radius: var(--au-r-lg);
+  box-shadow: var(--au-shadow-float);
+  /* Round 36: no backdrop-filter here — the glows behind the sidebar are
+     already soft, while the blur made the compositor re-filter the whole
+     pane on every drift frame and while scrolling. */
+  transition: width .28s var(--au-ease), padding .28s var(--au-ease), margin .28s var(--au-ease), opacity .2s ease, transform .28s var(--au-ease);
+}
+:root[data-design="aurora"] .side.hidden { margin: 10px 0; border-color: transparent; box-shadow: none; padding: 0; }
+:root[data-design="aurora"] .sidebar-resizer { width: 10px; }
+:root[data-design="aurora"] .main {
+  margin: 0; background: transparent; border: 0; border-radius: 0; box-shadow: none; overflow: hidden;
+}
+:root[data-design="aurora"] .side.hidden ~ .main,
+:root[data-design="aurora"] .focus-mode .main { margin-left: 0; }
+
+/* ----------------------------------------------------------- sidebar */
+:root[data-design="aurora"] .brand {
+  font: 560 21px/1 var(--au-serif); letter-spacing: -.015em; padding: 4px 8px 16px; gap: 11px;
+}
+:root[data-design="aurora"] .brand-dot {
+  width: 26px; height: 26px; border-radius: 50%;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 12%, transparent), 0 8px 22px -6px color-mix(in srgb, var(--accent) 70%, transparent);
+}
+:root[data-design="aurora"] .btn-new {
+  min-height: 42px; border-radius: 999px; padding: 8px 14px 8px 8px;
+  background: color-mix(in srgb, var(--panel) 80%, transparent); border: 1px solid var(--au-hair);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .06); font: 600 13.5px/1.2 var(--au-sans);
+}
+:root[data-design="aurora"] .btn-new:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--au-hair)); box-shadow: 0 0 0 4px var(--au-tint-strong); background: var(--panel); }
+:root[data-design="aurora"] .btn-new .ico { width: 26px; height: 26px; border-radius: 50%; }
+:root[data-design="aurora"] .btn-temp { width: 42px; min-height: 42px; border-radius: 50%; }
+:root[data-design="aurora"] .btn-temp.active { background: var(--au-tint-strong); }
+
+:root[data-design="aurora"] .mode-switch {
+  margin-top: 12px; padding: 4px; gap: 3px; border-radius: 20px;
+  background: color-mix(in srgb, var(--text) 5%, transparent); border: 1px solid var(--au-hair-soft);
+}
+:root[data-design="aurora"] .mode-switch .side-btn {
+  min-height: 50px; padding: 6px 4px; gap: 4px; border-radius: 16px;
+  font: 600 11.5px/1.1 var(--au-sans);
+}
+:root[data-design="aurora"] .mode-switch .side-btn.active-section {
+  background: var(--panel); color: var(--text);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .12), 0 0 0 1px var(--au-hair-soft);
+}
+
+:root[data-design="aurora"] .side-scroll { margin-top: 14px; }
+:root[data-design="aurora"] .side-btn { border-radius: 12px; min-height: 36px; }
+:root[data-design="aurora"] .side-label {
+  font: italic 500 13px/1.3 var(--au-serif); letter-spacing: 0; text-transform: none; opacity: 1;
+  color: var(--muted); padding: 12px 10px 6px;
+}
+:root[data-design="aurora"] .chat-item {
+  border-radius: 12px; min-height: 35px; padding: 6px 8px 6px 12px;
+  transition: background .2s var(--au-ease), color .2s, transform .2s var(--au-ease);
+}
+:root[data-design="aurora"] .chat-item:hover { background: var(--au-hover); transform: translateX(2px); }
+:root[data-design="aurora"] .chat-item.active {
+  background: var(--au-tint); color: var(--text); font-weight: 600;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+:root[data-design="aurora"] .chat-item.active:hover { transform: none; }
+:root[data-design="aurora"] .folder-toggle { border-radius: 12px; }
+:root[data-design="aurora"] .meme-empty, :root[data-design="aurora"] .meme-new-chat { border-radius: 14px; border-style: dashed; border-color: var(--au-hair); }
+:root[data-design="aurora"] .side-bottom { padding-top: 8px; border-top: 1px solid var(--au-hair-soft); }
+:root[data-design="aurora"] .profile-card { border-radius: 16px; }
+:root[data-design="aurora"] .profile-avatar { box-shadow: 0 0 0 2px var(--panel), 0 0 0 3.5px color-mix(in srgb, var(--accent) 45%, transparent); }
+
+/* ------------------------------------------------------------ appbar */
+:root[data-design="aurora"] .topbar.appbar { min-height: 58px; padding: 10px 18px 6px; background: transparent; }
+:root[data-design="aurora"] .bar-icon, :root[data-design="aurora"] .iconbtn { border-radius: 50%; }
+:root[data-design="aurora"] .chat-search { border-radius: 999px; padding: 0 12px; }
+:root[data-design="aurora"] .chat-search:focus-within { background: var(--au-float-solid); }
+:root[data-design="aurora"] .dd-btn {
+  min-height: 38px; padding: 6px 14px 6px 16px; border-radius: 999px;
+  background: color-mix(in srgb, var(--panel) 55%, transparent); border: 1px solid var(--au-hair);
+  font: 560 16px/1.2 var(--au-serif); letter-spacing: -.005em;
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+}
+:root[data-design="aurora"] .dd-btn:hover { background: var(--au-float-solid); border-color: color-mix(in srgb, var(--accent) 35%, var(--au-hair)); }
+:root[data-design="aurora"] .context-meter { border-radius: 999px; background: transparent; border: 1px solid var(--au-hair); }
+
+/* ------------------------------------------------------- popovers (all) */
+:root[data-design="aurora"] :is(.dd-pop, .app-menu-pop, .context-menu, .profile-menu-pop, .pretty-select-menu, .msg-more-pop, .slash-menu, .plus-menu) {
+  background: var(--au-glass); border: 1px solid var(--au-hair); box-shadow: var(--au-shadow-pop);
+  -webkit-backdrop-filter: blur(28px) saturate(1.6); backdrop-filter: blur(28px) saturate(1.6);
+  animation: au-pop .22s var(--au-ease) both;
+}
+:root[data-design="aurora"] .dd-pop { border-radius: 22px; padding: 8px; }
+:root[data-design="aurora"] .dd-search input { border-radius: 999px; padding-left: 16px; }
+:root[data-design="aurora"] .dd-item { border-radius: 14px; }
+:root[data-design="aurora"] .dd-item.sel { background: var(--au-tint); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 25%, transparent); }
+:root[data-design="aurora"] :is(.app-menu-pop, .context-menu, .profile-menu-pop) { border-radius: 18px; padding: 6px; }
+:root[data-design="aurora"] :is(.app-menu-pop, .context-menu, .profile-menu-pop, .msg-more-pop, .pretty-select-menu) button { border-radius: 11px; }
+:root[data-design="aurora"] .pretty-select-menu { border-radius: 16px; }
+:root[data-design="aurora"] .msg-more-pop { border-radius: 16px; }
+:root[data-design="aurora"] .slash-menu { border-radius: 22px; padding: 8px; bottom: calc(100% + 14px); background: var(--panel); }
+:root[data-design="aurora"] .slash-menu button { border-radius: 14px; }
+:root[data-design="aurora"] .slash-menu button.active { background: var(--au-tint); }
+:root[data-design="aurora"] .plus-menu { border-radius: 24px; padding: 8px; }
+:root[data-design="aurora"] .plus-search { border-radius: 999px; padding: 0 14px; }
+:root[data-design="aurora"] .plus-section { font: italic 500 12.5px/1 var(--au-serif); letter-spacing: 0; text-transform: none; opacity: 1; padding: 12px 10px 6px; }
+:root[data-design="aurora"] .plus-row { border-radius: 16px; }
+:root[data-design="aurora"] .plus-icon { border-radius: 50%; }
+:root[data-design="aurora"] .plus-row.is-on .plus-icon { background: var(--au-tint-strong); }
+@keyframes au-pop { from { opacity: 0; transform: translateY(6px) scale(.985); } to { opacity: 1; transform: none; } }
+
+/* ------------------------------------------------------------ greeting */
+:root[data-design="aurora"] .greet-head { flex-direction: column; gap: 18px; margin-bottom: 12px; }
+:root[data-design="aurora"] .greet-mark {
+  width: 54px; height: 54px; border-radius: 50%;
+  box-shadow: 0 0 0 8px color-mix(in srgb, var(--accent) 9%, transparent), 0 0 0 18px color-mix(in srgb, var(--accent) 4%, transparent),
+    0 18px 50px -10px color-mix(in srgb, var(--accent) 70%, transparent);
+  animation: au-mark-in .9s var(--au-ease) both, au-breathe 6s 1s steps(24, end) infinite;
+}
+:root[data-design="aurora"] .greeting h1 {
+  font-family: var(--au-serif); font-weight: 380; font-optical-sizing: auto;
+  font-size: clamp(2.3rem, 4.6vw, 3.5rem); line-height: 1.08; letter-spacing: -.022em;
+}
+:root[data-design="aurora"] .greeting-subtitle {
+  margin-top: 10px; font: italic 400 1.15rem/1.5 var(--au-serif); color: var(--muted); letter-spacing: 0;
+}
+:root[data-design="aurora"] :is(.work-guide, .temp-guide, .code-guide) {
+  border-radius: 20px; border: 1px solid var(--au-hair); background: var(--au-float); padding: 14px 18px;
+  -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+}
+:root[data-design="aurora"] .chips { margin-top: 28px; gap: 10px; }
+:root[data-design="aurora"] .chip-sug {
+  min-height: 40px; padding: 9px 16px 9px 13px; border-radius: 999px;
+  background: color-mix(in srgb, var(--panel) 55%, transparent); border: 1px solid var(--au-hair);
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .05);
+  transition: background .2s, border-color .2s, transform .25s var(--au-ease), box-shadow .25s var(--au-ease);
+}
+:root[data-design="aurora"] .chip-sug:hover {
+  background: var(--au-float-solid); transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--au-hair));
+  box-shadow: 0 10px 24px -14px color-mix(in srgb, var(--accent) 60%, transparent);
+}
+:root[data-design="aurora"] .chip-sug.featured { background: var(--au-tint); border-color: color-mix(in srgb, var(--accent) 35%, transparent); }
+
+/* ------------------------------------------------------------ composer */
+:root[data-design="aurora"] .chat {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 18px, #000 calc(100% - 36px), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 18px, #000 calc(100% - 36px), transparent 100%);
+}
+:root[data-design="aurora"] .composer-wrap { padding: 4px 28px 12px; }
+:root[data-design="aurora"] .composer-wrap::before { display: none; }
+:root[data-design="aurora"] .composer {
+  padding: 12px 12px 10px 16px; border-radius: var(--au-r-xl); gap: 4px;
+  background: color-mix(in srgb, var(--composer-bg, var(--panel)) 88%, transparent);
+  border: 1px solid transparent; box-shadow: var(--au-shadow-composer);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4); backdrop-filter: blur(24px) saturate(1.4);
+  transition: box-shadow .3s var(--au-ease), transform .3s var(--au-ease);
+}
+:root[data-design="aurora"] .composer:focus-within {
+  border-color: transparent;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent), 0 0 0 6px color-mix(in srgb, var(--accent) 12%, transparent),
+    0 28px 70px -30px color-mix(in srgb, var(--accent) 45%, rgba(0, 0, 0, .6));
+}
+:root[data-design="aurora"] .composer textarea:focus-visible { outline: none; }
+:root[data-design="aurora"] .composer textarea { font: 400 16px/1.6 var(--au-sans); padding: 6px 6px 6px; min-height: 34px; }
+:root[data-design="aurora"] .empty-chat .composer textarea { min-height: 56px; }
+:root[data-design="aurora"] .composer-bar { min-height: 40px; }
+:root[data-design="aurora"] .cbtn { width: 38px; height: 38px; }
+:root[data-design="aurora"] .plus-btn { background: color-mix(in srgb, var(--text) 4%, transparent); }
+:root[data-design="aurora"] .send {
+  width: 40px; height: 40px;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 12%, transparent), 0 10px 22px -10px color-mix(in srgb, var(--accent) 80%, transparent);
+}
+:root[data-design="aurora"] .send:hover { transform: translateY(-1px); }
+:root[data-design="aurora"] .attach-chip { border-radius: 999px; padding: 4px 10px 4px 4px; background: color-mix(in srgb, var(--text) 5%, transparent); }
+:root[data-design="aurora"] .attach-chip img { border-radius: 50%; width: 32px; height: 32px; }
+:root[data-design="aurora"] .attach-chip.video img { border-radius: 999px; }
+:root[data-design="aurora"] .composer-hint { font: italic 400 12px/1.4 var(--au-serif); padding-top: 9px; }
+:root[data-design="aurora"] :is(.composer .tog, .tool-chip, .composer .image-aspect) { min-height: 32px; padding: 0 12px 0 10px; }
+
+/* ------------------------------------------------------------ messages */
+:root[data-design="aurora"] .main .messages,
+:root[data-design="aurora"] .side.hidden ~ .main .messages,
+:root[data-design="aurora"] .focus-mode .messages { padding: 36px 28px 64px; }
+:root[data-design="aurora"] .msg { margin-bottom: 36px; animation: au-rise .45s var(--au-ease) both; }
+:root[data-design="aurora"] .msg-user .bubble {
+  padding: 12px 18px; border-radius: 24px 24px 6px 24px;
+  background: color-mix(in srgb, var(--accent) 14%, var(--panel));
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent);
+  box-shadow: 0 10px 26px -20px color-mix(in srgb, var(--accent) 70%, transparent);
+  color: var(--text);
+}
+:root[data-design="aurora"][data-theme="light"] .msg-user .bubble { background: color-mix(in srgb, var(--accent) 9%, var(--panel)); }
+:root[data-design="aurora"] .msg-user .user-text { font: 400 15.5px/1.65 var(--au-sans); }
+:root[data-design="aurora"] .msg-assistant .who { margin-bottom: 12px; }
+:root[data-design="aurora"] .msg-assistant .who .mini { border-radius: 50%; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent); }
+:root[data-design="aurora"] .msg-assistant .who-model { border-radius: 999px; background: transparent; border: 1px solid var(--au-hair); }
+:root[data-design="aurora"] .msg-assistant .body { font-size: 1.03rem; line-height: 1.82; letter-spacing: .002em; }
+:root[data-design="aurora"] .msg-assistant .body p { margin: 0 0 16px; }
+:root[data-design="aurora"] .msg-assistant .body :is(h1, h2, h3) {
+  font-family: var(--au-serif); font-weight: 560; letter-spacing: -.012em; line-height: 1.25; font-optical-sizing: auto;
+}
+:root[data-design="aurora"] .msg-assistant .body h1 { font-size: 1.85em; font-weight: 520; margin: 34px 0 14px; }
+:root[data-design="aurora"] .msg-assistant .body h2 { font-size: 1.48em; margin: 32px 0 12px; }
+:root[data-design="aurora"] .msg-assistant .body h3 { font-size: 1.2em; margin: 26px 0 8px; }
+:root[data-design="aurora"] .msg-assistant .body h4 { font-family: var(--au-sans); font-size: .82em; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 22px 0 8px; }
+:root[data-design="aurora"] .msg-assistant .body li { margin: 7px 0; padding-left: .3em; }
+:root[data-design="aurora"] .msg-assistant .body ol > li::marker { font-family: var(--au-serif); font-weight: 600; color: var(--accent); }
+:root[data-design="aurora"] .msg-assistant .body ul > li::marker { color: var(--accent); }
+:root[data-design="aurora"] .msg-assistant .body blockquote {
+  margin: 20px 0; padding: 4px 0 4px 22px; border: 0; border-radius: 0; background: none;
+  border-left: 2px solid var(--accent);
+  font: italic 400 1.12em/1.7 var(--au-serif); color: color-mix(in srgb, var(--text) 88%, var(--muted));
+}
+:root[data-design="aurora"] .msg-assistant .body hr {
+  border: 0; height: 1px; margin: 30px auto; width: 40%;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 50%, transparent), transparent);
+}
+:root[data-design="aurora"] .msg-assistant .body :not(pre) > code,
+:root[data-design="aurora"] .msg-user .user-text :not(pre) > code {
+  border-radius: 7px; border: 0; background: color-mix(in srgb, var(--accent) 11%, transparent); color: var(--text);
+}
+:root[data-design="aurora"] .code-block-wrap {
+  margin: 18px 0; border-radius: 20px; border: 1px solid var(--au-hair);
+  box-shadow: 0 18px 40px -30px rgba(0, 0, 0, .55); overflow: hidden;
+}
+:root[data-design="aurora"] .code-header {
+  padding: 9px 12px 9px 18px; background: color-mix(in srgb, var(--text) 3%, var(--code-header, var(--code-bg)));
+  border-bottom: 1px solid var(--au-hair-soft); font: 600 11px/1.4 var(--au-sans); letter-spacing: .1em; color: var(--muted);
+}
+:root[data-design="aurora"] .code-copy-btn { border-radius: 999px; padding: 4px 11px; }
+:root[data-design="aurora"] .code-block-wrap pre,
+:root[data-design="aurora"] .msg-assistant .body .code-block-wrap pre { padding: 16px 20px 18px; font-size: 13.2px; line-height: 1.7; }
+:root[data-design="aurora"] .table-wrap {
+  border-radius: 20px; border: 1px solid var(--au-hair); margin: 20px 0;
+  background: color-mix(in srgb, var(--panel) 45%, transparent); overflow: hidden;
+}
+:root[data-design="aurora"] :is(.table-wrap, .body) th {
+  background: transparent; font: 650 11.5px/1.3 var(--au-sans); letter-spacing: .07em; text-transform: uppercase;
+  color: var(--muted); padding: 13px 18px 11px; border-bottom: 1px solid var(--au-hair);
+}
+:root[data-design="aurora"] :is(.table-wrap, .body) td { padding: 12px 18px; border-bottom: 1px solid var(--au-hair-soft); }
+:root[data-design="aurora"] :is(.table-wrap table, .body table) { font-size: .95em; }
+:root[data-design="aurora"] .table-wrap tr:last-child td { border-bottom: 0; }
+:root[data-design="aurora"] .table-wrap tr:hover td { background: color-mix(in srgb, var(--accent) 5%, transparent); }
+:root[data-design="aurora"] .msg-assistant .body .katex { font-size: 1.12em; }
+:root[data-design="aurora"] .msg-assistant .body .katex-display { padding: 14px 0; }
+:root[data-design="aurora"] .msg-tool { border-radius: 50%; }
+:root[data-design="aurora"] .msg-tools { gap: 4px; margin-top: 12px; }
+:root[data-design="aurora"] .file-pill { border-radius: 999px; }
+:root[data-design="aurora"] .msg-error { border-radius: 18px; }
+:root[data-design="aurora"] .continue-strip { border-radius: 999px; }
+:root[data-design="aurora"] .rs-card { border-radius: 22px; background: var(--au-float); }
+:root[data-design="aurora"] .rs-plan-title { font: 560 18px/1.35 var(--au-serif); }
+:root[data-design="aurora"] .rs-source { border-radius: 16px; background: var(--au-float); }
+:root[data-design="aurora"] .step-dot { background: var(--panel); }
+:root[data-design="aurora"] .step-body { border-radius: 16px; }
+@keyframes au-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes au-mark-in { from { opacity: 0; transform: scale(.6); } to { opacity: 1; transform: none; } }
+@keyframes au-breathe {
+  0%, 100% { box-shadow: 0 0 0 8px color-mix(in srgb, var(--accent) 9%, transparent), 0 0 0 18px color-mix(in srgb, var(--accent) 4%, transparent), 0 18px 50px -10px color-mix(in srgb, var(--accent) 70%, transparent); }
+  50% { box-shadow: 0 0 0 11px color-mix(in srgb, var(--accent) 7%, transparent), 0 0 0 24px color-mix(in srgb, var(--accent) 2.5%, transparent), 0 18px 56px -8px color-mix(in srgb, var(--accent) 80%, transparent); }
+}
+
+/* --------------------------------------------------------- panels/modals */
+:root[data-design="aurora"] .panel-back {
+  background: color-mix(in srgb, var(--bg) 40%, rgba(0, 0, 0, .35));
+  -webkit-backdrop-filter: blur(10px) saturate(1.1); backdrop-filter: blur(10px) saturate(1.1);
+}
+:root[data-design="aurora"][data-theme="light"] .panel-back { background: color-mix(in srgb, var(--bg) 55%, rgba(40, 30, 20, .18)); }
+:root[data-design="aurora"] .panel {
+  border-radius: 28px; border: 1px solid var(--au-hair); box-shadow: var(--au-shadow-pop);
+  background: var(--panel); animation: au-pop .28s var(--au-ease) both;
+}
+:root[data-design="aurora"] .panel h2 { font-family: var(--au-serif); font-weight: 560; font-size: 22px; letter-spacing: -.012em; }
+:root[data-design="aurora"] .appearance-intro h3 { font: 500 1.75rem/1.25 var(--au-serif); letter-spacing: -.015em; }
+:root[data-design="aurora"] .panel-close { border-radius: 50%; }
+:root[data-design="aurora"] .settings-header { background: transparent; border-bottom: 1px solid var(--au-hair-soft); }
+:root[data-design="aurora"] .settings-header h2 { font: 560 1.55rem/1.2 var(--au-serif); letter-spacing: -.015em; }
+:root[data-design="aurora"] .settings-content-wrap { background: transparent; }
+:root[data-design="aurora"] .settings-tabs-sidebar {
+  background: color-mix(in srgb, var(--text) 2.5%, transparent); border-right: 1px solid var(--au-hair-soft); padding: 18px 12px; gap: 3px;
+}
+:root[data-design="aurora"] .settings-tab-btn { border-radius: 999px; min-height: 40px; padding: 9px 14px; }
+:root[data-design="aurora"] .settings-tab-btn.active {
+  background: var(--au-tint); color: var(--text); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 24%, transparent);
+}
+:root[data-design="aurora"] .settings-body { padding: 30px 36px 44px; }
+:root[data-design="aurora"] .settings-section {
+  border-radius: 22px; border: 1px solid var(--au-hair-soft); box-shadow: none;
+  background: color-mix(in srgb, var(--text) 2.2%, var(--panel)); padding: 22px 24px;
+}
+:root[data-design="aurora"] .settings-title { font: 560 18px/1.35 var(--au-serif); letter-spacing: -.01em; border-bottom-color: var(--au-hair-soft); }
+:root[data-design="aurora"] .p-toggle { border-bottom-color: var(--au-hair-soft); }
+:root[data-design="aurora"] :is(.pinput, .ptexta) { border-radius: 14px; background: color-mix(in srgb, var(--bg) 70%, var(--panel)); }
+:root[data-design="aurora"] .pinput { min-height: 40px; }
+:root[data-design="aurora"] .pbtn { border-radius: 999px; padding: 8px 18px; min-height: 40px; background: var(--brand); }
+:root[data-design="aurora"] .pbtn:not(.ghost):not(.danger) { box-shadow: 0 10px 22px -14px color-mix(in srgb, var(--accent) 80%, transparent); }
+:root[data-design="aurora"] .pbtn.ghost { background: transparent; }
+:root[data-design="aurora"] .pbtn.danger { background: color-mix(in srgb, var(--danger) 12%, transparent); }
+:root[data-design="aurora"] .pretty-select-button { border-radius: 14px !important; }
+:root[data-design="aurora"] .hintbox { border-radius: 18px; }
+:root[data-design="aurora"] .settings-body :is(.hintbox, .live-persona-card, .voice-settings-group) { border-radius: 18px; }
+:root[data-design="aurora"] .tool-dialog-mark { border-radius: 50%; }
+:root[data-design="aurora"] .pin-lock-box { border-radius: 28px; }
+
+/* Narrow columns (MemuCode, Work with preview) get a calmer headline. */
+:root[data-design="aurora"] .code-mode .greeting h1 { font-size: clamp(1.9rem, 2.8vw, 2.4rem); }
+
+/* ---------------------------------------------------------------- docs */
+:root[data-design="aurora"] .docs-article h1 { font: 520 34px/1.15 var(--au-serif); letter-spacing: -.018em; }
+:root[data-design="aurora"] .docs-article h2 { font: 560 23px/1.3 var(--au-serif); letter-spacing: -.01em; }
+:root[data-design="aurora"] .docs-article h3 { font: 600 18px/1.35 var(--au-serif); }
+:root[data-design="aurora"] .docs-article { line-height: 1.75; }
+:root[data-design="aurora"] :is(.docs-search, .docs-find) { border-radius: 999px; }
+:root[data-design="aurora"] :is(.docs-page-link, .docs-result, .docs-group-head) { border-radius: 12px; }
+
+/* ------------------------------------------------------------ MemuCode */
+:root[data-design="aurora"] .codebar { border-radius: 22px; }
+:root[data-design="aurora"] .code-chip { border-radius: 999px; }
+:root[data-design="aurora"] .code-badge { border-radius: 999px; }
+:root[data-design="aurora"] body.code-mode #code-explorer {
+  border-radius: 18px; border-color: var(--au-hair-soft); background: color-mix(in srgb, var(--panel) 60%, transparent);
+}
+:root[data-design="aurora"] .cx-tabs { border-radius: 999px; padding: 3px; }
+:root[data-design="aurora"] .cx-tabs button { border-radius: 999px; }
+:root[data-design="aurora"] .cx-search { border-radius: 999px; }
+@media (min-width: 981px) {
+  :root[data-design="aurora"] body.code-mode #code-dock {
+    margin: 0 10px 10px 0; border: 1px solid var(--au-hair); border-radius: var(--au-r-lg); overflow: hidden;
+    background: var(--au-float); box-shadow: var(--au-shadow-float);
+    -webkit-backdrop-filter: blur(22px) saturate(1.3); backdrop-filter: blur(22px) saturate(1.3);
+  }
+  :root[data-design="aurora"] .code-dock-resizer::after { background: transparent; }
+}
+:root[data-design="aurora"] .cd-head { background: transparent; border-bottom-color: var(--au-hair-soft); padding: 8px 8px 0 10px; }
+:root[data-design="aurora"] .code-dock-tabs button { border-radius: 12px 12px 0 0; }
+
+/* -------------------------------------------------------- module windows */
+:root[data-design="aurora"] .module-window {
+  border-radius: 24px; border: 1px solid var(--au-hair); box-shadow: var(--au-shadow-pop); overflow: hidden;
+}
+/* R21: развёрнутое окно модуля — лист со скруглением дизайна (modules.css), не «весь MemuAI». */
+:root[data-design="aurora"] .module-window-bar {
+  min-height: 48px; padding: 0 10px 0 18px; border-bottom: 1px solid var(--au-hair-soft);
+  background: color-mix(in srgb, var(--text) 2.5%, var(--panel));
+}
+:root[data-design="aurora"] .module-window-bar b { font: 560 16px/1.2 var(--au-serif); letter-spacing: -.005em; }
+:root[data-design="aurora"] .module-window-tools button { border-radius: 50%; }
+
+/* --------------------------------------------------------------- toasts */
+:root[data-design="aurora"] .toast {
+  border-radius: 20px; padding: 11px 16px 11px 13px; background: var(--au-glass); border: 1px solid var(--au-hair);
+  box-shadow: var(--au-shadow-pop); -webkit-backdrop-filter: blur(24px) saturate(1.5); backdrop-filter: blur(24px) saturate(1.5);
+}
+
+/* ------------------------------------------------------------- Live */
+:root[data-design="aurora"] .live-call { border-radius: 32px; }
+:root[data-design="aurora"] .live-status { font: 500 20px/1.3 var(--au-serif); }
+
+/* ------------------------------------------------------ work & code bars */
+:root[data-design="aurora"] .workbar {
+  margin: 0 22px 8px; border-radius: 22px; padding: 6px 8px 6px 14px; flex-wrap: wrap; row-gap: 6px;
+  background: var(--au-float); border: 1px solid var(--au-hair);
+  -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);
+}
+:root[data-design="aurora"] .work-badge { border-radius: 999px; }
+:root[data-design="aurora"] #work-project-select { border-radius: 999px; font-size: 13.5px; min-height: 32px; padding-left: 14px; background-color: color-mix(in srgb, var(--panel) 80%, transparent); }
+:root[data-design="aurora"] .work-action { border-radius: 999px; background: color-mix(in srgb, var(--panel) 80%, transparent); }
+:root[data-design="aurora"] .work-mode-pill { border-radius: 999px; }
+:root[data-design="aurora"] .tempbar { margin: 0 22px 8px; border-radius: 999px; }
+
+/* --------------------------------------------------- reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  :root[data-design="aurora"] #app::before,
+  :root[data-design="aurora"] .greet-mark,
+  :root[data-design="aurora"] .msg { animation: none !important; }
+}
+:root[data-design="aurora"][data-reduce-motion] #app::before,
+:root[data-design="aurora"] .reduce-motion #app::before,
+:root[data-design="aurora"] .reduce-motion .greet-mark { animation: none !important; }
+
+/* --------------------------------------------------------- responsive */
+@media (max-width: 800px) {
+  :root[data-design="aurora"] .side { position: fixed; margin: 0; top: 8px; bottom: 8px; left: -300px; border-radius: 22px; background: var(--au-float-solid); }
+  :root[data-design="aurora"] .side.open { left: 8px; }
+  :root[data-design="aurora"] .side.hidden { padding: 14px 10px 10px 12px; border-color: var(--au-hair); }
+  :root[data-design="aurora"] .composer-wrap { padding: 4px 14px 10px; }
+  :root[data-design="aurora"] .main .messages { padding: 24px 18px 48px; }
+}

@@ -1,0 +1,48 @@
+/* Round 38: the panel kit — every module panel gets it before its own styles (app/module_integration.py
+   panel_document). Calm card, one accent (--c), 4/8 px grid, theme tokens of the module document (light / dark). */
+html, body { margin: 0; height: 100%; background: transparent; color: var(--text); font: 13px/1.4 var(--sans); }
+* { box-sizing: border-box; }
+button { font: inherit; color: inherit; }
+.mk { --c: var(--accent); position: relative; height: 100%; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; overflow: hidden; }
+.mk > * { flex-shrink: 0; }
+.mk-glow { position: absolute; inset: 0; pointer-events: none; opacity: .5;
+  background: radial-gradient(circle at 64px 72px, color-mix(in srgb, var(--c) 26%, transparent), transparent 150px); }
+.mk-head { position: relative; display: flex; align-items: center; gap: 8px; min-height: 20px; }
+.mk-head h1 { margin: 0; flex: 1; min-width: 0; font-size: 12px; font-weight: 600; letter-spacing: .02em; text-transform: uppercase;
+  color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mk-ico { width: 16px; height: 16px; flex: none; color: var(--c); }
+.mk-link { border: 0; background: none; color: var(--muted); padding: 2px 6px; border-radius: 6px; cursor: pointer; font-size: 12px; white-space: nowrap; }
+.mk-link:hover { color: var(--text); background: color-mix(in srgb, var(--text) 8%, transparent); }
+.mk-list { position: relative; list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; min-height: 0; flex: 1 1 auto; overflow: hidden; }
+.mk-row { display: flex; align-items: center; gap: 10px; padding: 6px; margin: 0 -6px; border-radius: 10px; min-width: 0; border: 0; background: none;
+  text-align: left; width: calc(100% + 12px); cursor: pointer; }
+.mk-row:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
+.mk-row[aria-disabled="true"] { cursor: default; }
+.mk-row[aria-disabled="true"]:hover { background: none; }
+.mk-main { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 1px; }
+.mk-main b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mk-main small, .mk-sub { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mk-side { flex: none; color: var(--muted); font-size: 11.5px; font-variant-numeric: tabular-nums; text-align: right; }
+.mk-mono { --h: 220; width: 32px; height: 32px; flex: none; border-radius: 9px; display: grid; place-items: center; font-weight: 700; font-size: 13px;
+  color: hsl(var(--h) 70% 92%); background: linear-gradient(135deg, hsl(var(--h) 52% 46%), hsl(calc(var(--h) + 40) 52% 32%)); object-fit: cover; }
+:root[data-theme="light"] .mk-mono:not(img) { color: hsl(var(--h) 60% 22%); background: linear-gradient(135deg, hsl(var(--h) 70% 86%), hsl(calc(var(--h) + 40) 60% 78%)); }
+.mk-mono.round { border-radius: 50%; }
+.mk-pill { display: inline-flex; align-items: center; gap: 4px; padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 600; white-space: nowrap;
+  color: var(--c); background: color-mix(in srgb, var(--c) 14%, transparent); }
+.mk-pill.dim { color: var(--muted); background: color-mix(in srgb, var(--text) 7%, transparent); font-weight: 500; }
+.mk-chips { position: relative; display: flex; gap: 6px; overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; scroll-behavior: smooth;
+  mask-image: linear-gradient(90deg, #000 calc(100% - 24px), transparent); -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 24px), transparent); }
+.mk-chips::-webkit-scrollbar { display: none; }
+.mk-chip { border: 1px solid var(--border); background: transparent; border-radius: 999px; padding: 3px 10px; font-size: 12px; cursor: pointer;
+  white-space: nowrap; color: var(--muted); max-width: 170px; overflow: hidden; text-overflow: ellipsis; flex: none; }
+.mk-chip[aria-pressed="true"] { color: var(--text); border-color: color-mix(in srgb, var(--c) 60%, transparent); background: color-mix(in srgb, var(--c) 14%, transparent); }
+.mk-cta { border: 0; border-radius: 999px; padding: 6px 14px; background: var(--c); color: var(--on-accent, #fff); cursor: pointer; font-weight: 600; white-space: nowrap; }
+.mk-cta:hover { background: color-mix(in srgb, var(--c) 86%, #fff); }
+.mk-empty { margin: auto; max-width: 280px; text-align: center; color: var(--muted); display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.mk-empty b { color: var(--text); font-weight: 600; }
+.mk-empty .mk-ico { width: 26px; height: 26px; opacity: .9; }
+.mk-skel { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; }
+.mk-skel i { height: 12px; width: 40%; border-radius: 6px; background: color-mix(in srgb, var(--text) 7%, transparent); }
+.mk-skel b { height: 32px; border-radius: 9px; background: color-mix(in srgb, var(--text) 5%, transparent); }
+.mk-row:focus-visible, .mk-chip:focus-visible, .mk-link:focus-visible, .mk-cta:focus-visible { outline: 2px solid var(--c); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }

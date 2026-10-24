@@ -1,0 +1,26 @@
+/* MemuAI Mini App — voice input, schedules and other Round 29 additions (voice.js, extras.js). */
+.mic-btn { position: relative; }
+.mic-btn.unavailable { opacity: .45; }
+.mic-btn.recording { background: var(--danger); color: var(--on-danger); animation: mic-pulse 1.4s ease-in-out infinite; }
+.mic-btn.busy { opacity: .6; pointer-events: none; }
+@keyframes mic-pulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--danger) 45%, transparent); } 50% { box-shadow: 0 0 0 7px transparent; } }
+.composer-box { position: relative; }
+.rec-bar { position: absolute; inset: 0; display: flex; align-items: center; gap: 8px; padding: 0 10px 0 4px; border-radius: inherit; background: var(--card); z-index: 2;
+  font-size: 13.5px; color: var(--text); }
+.rec-bar .round-btn { color: var(--danger); }
+.rec-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--danger); animation: rec-blink 1s steps(2, start) infinite; flex: none; }
+@keyframes rec-blink { to { visibility: hidden; } }
+.rec-time { font: 600 14px var(--font-mono); min-width: 40px; }
+.rec-level { height: 28px; width: 160px; max-width: 34vw; flex: 1 1 auto; }
+.rec-hint { color: var(--hint); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 420px) { .rec-hint { display: none; } }
+.rec-bar.pending { justify-content: center; color: var(--hint); }
+.rec-bar .spinner, .spinner { width: 15px; height: 15px; border-radius: 50%; border: 2px solid var(--accent); border-top-color: transparent; animation: spin .8s linear infinite; flex: none; }
+.sched.off .cell-title { color: var(--hint); }
+.sched .icon-btn { width: 34px; height: 34px; }
+.sched-last { color: var(--ok); }
+.sched-last.err { color: var(--danger); }
+.sched .switch { flex: none; }
+/* A small pill next to a row title («основной» prompt) or after it (session count of a recent project). */
+.cell .tag { display: inline-block; flex: none; font-size: 11px; font-weight: 600; line-height: 1.5; padding: 0 7px; border-radius: 8px; margin-left: 6px;
+  vertical-align: 1px; background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }

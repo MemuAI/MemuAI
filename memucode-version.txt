@@ -1,0 +1,18 @@
+VSVersionInfo(
+  ffi=FixedFileInfo(filevers=(3, 8, 0, 0), prodvers=(3, 8, 0, 0),
+    mask=0x3f, flags=0x0, OS=0x40004, fileType=0x1, subtype=0x0, date=(0, 0)),
+  kids=[
+    StringFileInfo([StringTable('040904B0', [
+      StringStruct('Comments', 'Terminal coding agent of MemuAI: edits code, runs commands in a sandbox, uses the models of MemuAI Proxy.'),
+      StringStruct('CompanyName', 'MemuAI Project'),
+      StringStruct('FileDescription', 'MemuCode CLI - the MemuAI coding agent for the terminal'),
+      StringStruct('FileVersion', '3.8.0.0'),
+      StringStruct('InternalName', 'MemuCode'),
+      StringStruct('LegalCopyright', '(c) 2026 MemuAI Project. All rights reserved.'),
+      StringStruct('OriginalFilename', 'MemuCode.exe'),
+      StringStruct('ProductName', 'MemuCode CLI'),
+      StringStruct('ProductVersion', '3.8.0.0')
+    ])]),
+    VarFileInfo([VarStruct('Translation', [1033, 1200])])
+  ]
+)

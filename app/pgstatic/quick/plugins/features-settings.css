@@ -1,0 +1,17 @@
+/* Round 27 — Settings → Quick Ask → «Clipboard, snippets and stickers» (features-settings.js): only the lists and the snippet
+   editor; rows, toggles and notes come from the settings kit. */
+.qx-settings { display: flex; flex-direction: column; gap: 4px; }
+.qx-set-list { display: flex; flex-direction: column; margin: 2px 0 4px; }
+.qx-set-item { display: flex; align-items: center; gap: 10px; padding: 8px 14px; border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent); }
+.qx-set-kw { flex: none; min-width: 64px; font: 600 12px/1 "Cascadia Code", Consolas, monospace; color: var(--accent); }
+.qx-set-name { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.qx-set-name b { font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qx-set-name small { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qx-set-empty { padding: 10px 14px; color: var(--muted); font-size: 12.5px; border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent); }
+.qx-set-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 10px 14px; }
+.qx-set-err { flex: 1; min-width: 0; color: var(--danger); font-size: 12.5px; }
+.qx-set-editor { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px 0; border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent); }
+.qx-set-editor label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.qx-set-editor .sx-input, .qx-set-editor select, .qx-set-editor textarea { width: 100% !important; }
+.qx-set-grid { display: grid; grid-template-columns: 1fr 1fr 160px; gap: 10px; }
+@media (max-width: 720px) { .qx-set-grid { grid-template-columns: 1fr; } .qx-set-item { flex-wrap: wrap; } }

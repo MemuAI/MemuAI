@@ -1,0 +1,142 @@
+{
+  "groups": [
+    {
+      "id": "start",
+      "ru": "Начало работы",
+      "en": "Getting started",
+      "icon": "sparkle",
+      "pages": [
+        "welcome",
+        "install",
+        "accounts",
+        "interface"
+      ]
+    },
+    {
+      "id": "chat",
+      "ru": "Чат",
+      "en": "Chat",
+      "icon": "chat",
+      "pages": [
+        "chats",
+        "search",
+        "models",
+        "composer",
+        "scheduled-messages",
+        "chat-export",
+        "tables-diagrams",
+        "commands",
+        "web-search",
+        "research",
+        "images",
+        "media",
+        "memory",
+        "reflect",
+        "agents",
+        "voice",
+        "context"
+      ]
+    },
+    {
+      "id": "work",
+      "ru": "Work и MemuCode",
+      "en": "Work and MemuCode",
+      "icon": "work",
+      "pages": [
+        "work",
+        "browser-computer",
+        "dfy",
+        "stuck-detector",
+        "memucode",
+        "memucode-cli",
+        "memucode-guide",
+        "decisions",
+        "schedules"
+      ]
+    },
+    {
+      "id": "customize",
+      "ru": "Настройка",
+      "en": "Customisation",
+      "icon": "palette",
+      "pages": [
+        "appearance",
+        "themes",
+        "themes-reference",
+        "shortcuts",
+        "quick-ask",
+        "companion",
+        "live2d-models",
+        "quick-commands",
+        "quick-explorer",
+        "memunote",
+        "panels",
+        "profiles",
+        "notifications",
+        "telegram",
+        "telegram-miniapp",
+        "integrations",
+        "transfer",
+        "sync"
+      ]
+    },
+    {
+      "id": "modules",
+      "ru": "Модули",
+      "en": "Modules",
+      "icon": "work",
+      "pages": [
+        "modules",
+        "modules-quickstart",
+        "modules-ai-pack",
+        "modules-manifest",
+        "modules-window",
+        "modules-launcher",
+        "modules-storage",
+        "modules-integration",
+        "modules-bridge",
+        "modules-bridge-chat",
+        "modules-bridge-media",
+        "modules-bridge-files",
+        "modules-bridge-app",
+        "modules-i18n",
+        "modules-permissions",
+        "modules-design",
+        "modules-workbench",
+        "modules-builtins",
+        "characters",
+        "modules-examples",
+        "modules-recipes",
+        "modules-limits",
+        "modules-troubleshooting",
+        "modules-reference"
+      ]
+    },
+    {
+      "id": "proxy",
+      "ru": "MemuAI Proxy",
+      "en": "MemuAI Proxy",
+      "icon": "monitor",
+      "pages": [
+        "proxy",
+        "proxy-api",
+        "proxy-public",
+        "proxy-companion",
+        "local-models",
+        "model-detector"
+      ]
+    },
+    {
+      "id": "help",
+      "ru": "Справка",
+      "en": "Help",
+      "icon": "info",
+      "pages": [
+        "data",
+        "safe-mode",
+        "troubleshooting",
+        "glossary"
+      ]
+    }
+  ]
+}

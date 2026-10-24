@@ -1,0 +1,32 @@
+/* Quick Ask companion plugin: the character's strip above the answer (Round 23: movable, resizable, pinnable). */
+.qa-plugin.qa-companion { position: relative; display: flex; justify-content: center; padding: 8px var(--qa-pad, 18px) 0; }
+.qa-plugin.qa-companion[data-align="left"] { justify-content: flex-start; }
+.qa-plugin.qa-companion[data-align="right"] { justify-content: flex-end; }
+.qa-plugin.qa-companion .memu-companion.in-quick { width: min(calc(260px * var(--companion-scale, 1)), 100%); height: calc(170px * var(--companion-scale, 1));
+  max-height: 46vh; margin: 0; border-radius: 12px; cursor: grab; transition: transform .18s var(--qa-ease-out, ease-out), background .2s;
+  /* Round 24: no accent halo any more — on blue accents it read as a big translucent blue circle (R24 screenshot №2). */
+  background: transparent; }
+.qa-plugin.qa-companion .memu-companion.in-quick:hover { background: color-mix(in srgb, var(--text, #fff) 3%, transparent); }
+.qa-plugin.qa-companion .memu-companion.qac-dragging { transition: none; z-index: 20; cursor: grabbing;
+  filter: drop-shadow(0 16px 30px rgba(0, 0, 0, .35)); }
+.qa-plugin.qa-companion.failed { display: none; }
+/* tools: pin to the desktop, move to the desktop (appear on hover, never cover the face) */
+.qac-tools { position: absolute; top: 6px; right: 6px; z-index: 3; display: flex; gap: 3px; opacity: 0; transition: opacity .18s; }
+.memu-companion:hover .qac-tools, .qac-tools:focus-within { opacity: 1; }
+.qac-tools button { width: 24px; height: 24px; display: grid; place-items: center; border: 0; border-radius: 7px; cursor: pointer; padding: 0;
+  color: var(--muted, #aaa); background: color-mix(in srgb, var(--panel, #222) 86%, transparent); box-shadow: 0 0 0 1px var(--qa-chip-line, rgba(255,255,255,.1)); }
+.qac-tools button:hover { color: var(--text, #fff); }
+.qac-tools svg { width: 13px; height: 13px; }
+.qac-grip { position: absolute; right: 3px; bottom: 3px; z-index: 3; width: 14px; height: 14px; cursor: nwse-resize; opacity: 0; transition: opacity .18s;
+  background: linear-gradient(135deg, transparent 50%, color-mix(in srgb, var(--text, #fff) 40%, transparent) 50% 58%, transparent 58% 70%,
+    color-mix(in srgb, var(--text, #fff) 40%, transparent) 70% 78%, transparent 78%); }
+.memu-companion:hover .qac-grip { opacity: .85; }
+.qac-hint { position: absolute; left: 50%; bottom: 4px; transform: translateX(-50%); z-index: 2; max-width: calc(100% - 30px); padding: 2px 8px;
+  border-radius: 999px; font-size: 10.5px; line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none;
+  color: var(--muted, #aaa); background: color-mix(in srgb, var(--panel, #222) 82%, transparent); opacity: 0; transition: opacity .2s .4s; }
+.memu-companion:hover .qac-hint { opacity: 1; }
+.memu-companion.qac-dragging .qac-hint, .memu-companion.qac-dragging .qac-tools, .memu-companion.qac-dragging .qac-grip { opacity: 0; }
+@media (prefers-reduced-motion: reduce) { .qa-plugin.qa-companion .memu-companion.in-quick, .qac-tools, .qac-grip, .qac-hint { transition: none; } }
+:root[data-motion="off"] .qa-plugin.qa-companion .memu-companion.in-quick { transition: none; }
+/* Round 24: while the companion is carried out of the window the strip keeps its height (no jump, no lost pointer). */
+.qa-plugin.qa-companion.qac-leaving .memu-companion.in-quick { opacity: .35; }

@@ -1,0 +1,29 @@
+/* r40-learn: «Повторить сегодня» — MemuLearn on the MemuAI home screen, on top of the shared panel kit. */
+.ml-p { --c: #2fa7c4; gap: 8px; }
+:root[data-theme="light"] .ml-p { --c: #1f86a8; }
+.ml-p .mk-glow { background: radial-gradient(circle at 70px 80px, color-mix(in srgb, #35d0a0 24%, transparent), transparent 160px),
+  radial-gradient(circle at 92% 110%, color-mix(in srgb, #2f6fd8 22%, transparent), transparent 170px); }
+.lp-hero { position: relative; display: flex; align-items: center; gap: 14px; min-width: 0; }
+.lp-num { font-size: 30px; font-weight: 750; letter-spacing: -.03em; line-height: 1; font-variant-numeric: tabular-nums; }
+.lp-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.lp-text b { font-size: 13.5px; font-weight: 650; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.lp-text small { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lp-go { display: inline-flex; align-items: center; gap: 6px; flex: none; border: 0; border-radius: 999px; padding: 7px 14px 7px 11px; cursor: pointer;
+  background: linear-gradient(135deg, #35d0a0, #2f6fd8); color: #fff; font-weight: 650; box-shadow: 0 6px 16px -8px rgba(47, 111, 216, .7); }
+.lp-go svg { width: 14px; height: 14px; }
+.lp-go:hover { filter: brightness(1.06); }
+.lp-go:focus-visible { outline: 2px solid var(--c); outline-offset: 2px; }
+.lp-split { position: relative; display: flex; height: 6px; border-radius: 3px; overflow: hidden; gap: 2px; background: color-mix(in srgb, var(--text) 7%, transparent); }
+.lp-split i { display: block; } .lp-split .n { background: #4c8df6; } .lp-split .l { background: #e8a33d; } .lp-split .r { background: #3fb68b; }
+.lp-courses { position: relative; display: flex; flex-direction: column; gap: 2px; min-height: 0; flex: 1 1 auto; overflow: hidden; }
+.lp-course { display: flex; align-items: center; gap: 8px; padding: 4px 6px; margin: 0 -6px; border: 0; background: none; border-radius: 8px; cursor: pointer; text-align: left; min-width: 0; }
+.lp-course:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
+.lp-dot { width: 8px; height: 8px; border-radius: 3px; flex: none; background: hsl(var(--h) 62% 56%); }
+.lp-course span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12.5px; }
+.lp-course em { font-style: normal; font-size: 11.5px; font-weight: 700; color: var(--c); font-variant-numeric: tabular-nums; }
+.lp-course em.ok { color: var(--muted); font-weight: 500; }
+.lp-week { display: flex; align-items: flex-end; gap: 3px; height: 28px; flex: none; }
+.lp-week i { width: 6px; border-radius: 2px; background: color-mix(in srgb, var(--c) 45%, transparent); }
+.lp-week i:last-child { background: var(--c); }
+html[data-size="s"] .lp-courses, html[data-size="s"] .lp-week { display: none; }
+html[data-size="s"] .lp-num { font-size: 24px; }
