@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 from html.parser import HTMLParser
 from pathlib import Path
@@ -15,6 +16,14 @@ LATEST_URL = f"https://api.github.com/repos/{REPOSITORY}/releases/latest"
 MAX_INSTALLER_SIZE = 1024 * 1024 * 1024
 _VERSION = r"\d{1,6}(?:\.\d{1,6}){1,3}"
 _SETUP = re.compile(rf"^MemuAI-Setup-([vV]?{_VERSION})\.exe$", re.I)
+
+
+def installer_environment() -> dict[str, str]:
+    """Start an independent frozen installer, rather than a child of our bootloader."""
+    env = {key: value for key, value in os.environ.items()
+           if not key.upper().startswith("_PYI_") and key.upper() not in {"_MEIPASS2", "TCL_LIBRARY", "TK_LIBRARY"}}
+    env["PYINSTALLER_RESET_ENVIRONMENT"] = "1"
+    return env
 
 
 class _ReleaseAssets(HTMLParser):

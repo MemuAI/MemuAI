@@ -1086,7 +1086,8 @@ def create_app() -> FastAPI:
             await asyncio.to_thread(update_release.verify_installer, path,
                                     app.state.update_job.get("size", 0), app.state.update_job.get("sha256", ""))
             flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
-            subprocess.Popen([str(path)], creationflags=flags, close_fds=True)
+            subprocess.Popen([str(path)], cwd=str(path.parent), env=update_release.installer_environment(),
+                             creationflags=flags, close_fds=True)
             callback = getattr(app.state, "shutdown_callback", None)
             if callback: callback()
             return {"ok": True}

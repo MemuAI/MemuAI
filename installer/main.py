@@ -418,6 +418,22 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     platform = make_platform()
     engine = Engine(product, platform, payload)
     log.info("MemuAI Setup %s (%s) from %s; args=%s", engine.version, product.id, exe, argv)
+    if frozen:
+        from .relaunch import restart_outside_installation
+        existing = engine.detect()
+        roots = [Path(args.directory).resolve()] if args.directory else []
+        if existing.found and existing.install_dir:
+            roots.append(Path(existing.install_dir))
+        try:
+            if restart_outside_installation(exe, args, roots):
+                log.info("restarted Setup outside installation folder to release inherited directory locks")
+                payload.close()
+                return EXIT_OK
+        except OSError as exc:
+            payload.close()
+            log.error("could not restart Setup outside installation folder: %s", exc)
+            notify(str(exc), product.name, 0x10, quiet=args.silent)
+            return EXIT_ERROR
     if args.unknown:
         log.warning("ignored arguments: %s", args.unknown)
     mutex = None

@@ -146,6 +146,8 @@ class UpdateAPITests(unittest.IsolatedAsyncioTestCase):
             result = await self.client.post("/api/pg/updates/apply")
             self.assertEqual(result.status_code, 200, result.text)
             self.assertEqual(launch.call_args.args[0], [job["path"]])
+            self.assertEqual(launch.call_args.kwargs["cwd"], str(Path(job["path"]).parent))
+            self.assertEqual(launch.call_args.kwargs["env"]["PYINSTALLER_RESET_ENVIRONMENT"], "1")
 
     async def test_failed_check_does_not_leave_previous_download_authorized(self):
         await self.client.get("/api/pg/updates/check")
