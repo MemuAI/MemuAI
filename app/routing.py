@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import List, Optional
 
-from .config import config_store
+from .config import RETIRED_PROVIDER_IDS, config_store
 from .state import ModelEntry, state
 
 
@@ -45,6 +45,9 @@ def resolve(model_id: str) -> Optional[Resolved]:
     """Разбирает запрошенную модель. None — не удалось определить."""
     requested = (model_id or "").strip()
     if not requested:
+        return None
+    # A stale model choice must not fall through to an unrelated default API.
+    if any(requested.lower().startswith(provider + "-") for provider in RETIRED_PROVIDER_IDS):
         return None
 
     entries = state.find_model(requested)

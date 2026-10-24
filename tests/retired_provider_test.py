@@ -84,6 +84,10 @@ class RetiredProviderTests(unittest.TestCase):
             self.assertNotIn("opencode", routing.known_prefixes())
             self.assertIsNone(routing.resolve("opencode-old-model"))
             self.assertEqual(routing.resolve("my-api-live-model").provider, "custom")
+        with patch.object(routing, "state", self.store), \
+             patch.object(config.config_store.settings, "default_provider", "my-api"):
+            self.assertIsNone(routing.resolve("opencode-old-model"))
+            self.assertEqual(routing.resolve("live-model").provider, "custom")
 
     def test_old_usage_panel_configuration_does_not_block_remaining_accounts(self):
         from app.panels_usage import clean_accounts
