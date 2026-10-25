@@ -219,10 +219,6 @@ Run `build_installer.bat` to build the installer, or `build_proxy_installer.bat`
 
 OAuth credentials are not included in the public source code. If your connection requires an OAuth client, read the [setup guide](OAUTH_SETUP.md) first.
 
-### Publishing an update
-
-To deliver a new version to users, change `APP_VERSION` and `RELEASE_DATE` in `app/version.py`, build the installer, and publish a regular GitHub Release with a version tag such as `v3.8.1`. Attach the full `MemuAI-Setup-3.8.1.exe` installer to that release. The version in the tag, source code, and installer filename must match and be higher than the previous version. Source archives and the Proxy-only installer do not replace the full installer; drafts and prereleases are excluded from automatic updates. Create a new release for each new version.
-
 ## Bugs and suggestions
 
 If something isn't working, open an [Issue](https://github.com/MemuAI/MemuAI/issues). The most useful details are your MemuAI version, the app or section involved, the steps that led to the problem, and what you expected to happen. Screenshots and error messages help too — just remove any keys, tokens, and private conversations first.
